@@ -1,0 +1,16 @@
+# <type>(<scope>): <imperative, lowercase, <=72 chars, no period>
+#
+# type:  feat|fix|chore|test|docs|refactor|ci|build|perf
+# scope: identity|gateway|infra|k8s|repo
+#
+# --- body (after a blank line, wrap at 72 characters) ---
+# Required if the commit:
+#   * changes the database schema
+#       -> list affected tables/indexes and explain any non-obvious decisions
+#   * introduces a security-related change
+#       -> describe the threat, the chosen approach, and the accepted trade-offs
+#   * contains rationale that cannot be inferred from the diff
+#   * introduces a breaking change
+#       -> footer: BREAKING CHANGE: ...
+#
+# Refs: docs/adr/NNNN-....md
