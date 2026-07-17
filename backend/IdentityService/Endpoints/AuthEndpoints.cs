@@ -1,8 +1,10 @@
 using IdentityService.Auth;
 using IdentityService.Contracts.Requests;
 using IdentityService.Contracts.Responses;
+using IdentityService.RateLimiting;
 using IdentityService.Services;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace IdentityService.Endpoints;
 
@@ -12,10 +14,10 @@ public static class AuthEndpoints
     {
         var group = app.MapGroup("/api/identity/auth");
 
-        group.MapPost("/register", RegisterAsync);
-        group.MapPost("/confirm-email", ConfirmEmailAsync);
-        group.MapPost("/resend-verification", ResendVerificationAsync);
-        group.MapPost("/login", LoginAsync);
+        group.MapPost("/register", RegisterAsync).RequireRateLimiting(RateLimitPolicies.Register);
+        group.MapPost("/confirm-email", ConfirmEmailAsync).RequireRateLimiting(RateLimitPolicies.ConfirmEmail);
+        group.MapPost("/resend-verification", ResendVerificationAsync).RequireRateLimiting(RateLimitPolicies.ResendVerification);
+        group.MapPost("/login", LoginAsync).RequireRateLimiting(RateLimitPolicies.Login);
         group.MapPost("/refresh", RefreshAsync);
         group.MapPost("/logout", LogoutAsync).RequireAuthorization();
     }

@@ -21,6 +21,7 @@ builder.Services.AddIdentityPersistence(builder.Configuration);
 builder.Services.AddIdentityHealthChecks();
 builder.Services.AddIdentityServices(builder.Configuration);
 builder.Services.AddIdentityAuthentication();
+builder.Services.AddIdentityRateLimiting(builder.Configuration);
 builder.Services.AddIdentityEmail(builder.Configuration);
 builder.Services.AddScoped<DevelopmentSeeder>();
 
@@ -29,6 +30,7 @@ var app = builder.Build();
 app.UseExceptionHandler();
 app.UseMiddleware<CorrelationIdMiddleware>();
 
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 

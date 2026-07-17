@@ -31,6 +31,15 @@ public sealed class IdentityApiFactory(PostgresFixture postgres) : WebApplicatio
             {
                 ["ConnectionStrings:IdentityDb"] = postgres.ConnectionString,
                 ["Jwt:Key"] = "integration-test-signing-key-at-least-32-bytes-long",
+
+                // High enough that the many unrelated tests sharing this one host and one
+                // rate limiter instance never trip a partition by accident. Tests that
+                // actually exercise the limiter override a single partition's limit down
+                // via WithWebHostBuilder instead of relying on these defaults.
+                ["RateLimiting:LoginPermitLimit"] = "100000",
+                ["RateLimiting:RegisterPermitLimit"] = "100000",
+                ["RateLimiting:ConfirmEmailPermitLimit"] = "100000",
+                ["RateLimiting:ResendVerificationPermitLimit"] = "100000",
             }));
 
         builder.ConfigureServices(services =>

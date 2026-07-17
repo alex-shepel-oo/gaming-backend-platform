@@ -1,13 +1,18 @@
+using System.Globalization;
 using System.Security.Claims;
 using System.Text;
+using System.Threading.RateLimiting;
 using IdentityService.Auth;
 using IdentityService.Infrastructure;
 using IdentityService.Options;
 using IdentityService.Persistence;
+using IdentityService.RateLimiting;
 using IdentityService.Services;
 using IdentityService.Services.Email;
 using IdentityService.Services.Email.Templates;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -115,6 +120,28 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    public static IServiceCollection AddIdentityRateLimiting(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<RateLimitingOptions>()
+            .Bind(configuration.GetSection(RateLimitingOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddRateLimiter(limiterOptions =>
+        {
+            limiterOptions.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            limiterOptions.OnRejected = WriteRateLimitProblemAsync;
+
+            limiterOptions.AddPolicy(RateLimitPolicies.Login, IpPartition(o => (o.LoginPermitLimit, o.LoginWindowSeconds)));
+            limiterOptions.AddPolicy(RateLimitPolicies.Register, IpPartition(o => (o.RegisterPermitLimit, o.RegisterWindowSeconds)));
+            limiterOptions.AddPolicy(RateLimitPolicies.ConfirmEmail, IpPartition(o => (o.ConfirmEmailPermitLimit, o.ConfirmEmailWindowSeconds)));
+            limiterOptions.AddPolicy(
+                RateLimitPolicies.ResendVerification, IpPartition(o => (o.ResendVerificationPermitLimit, o.ResendVerificationWindowSeconds)));
+        });
+
+        return services;
+    }
+
     public static IServiceCollection AddIdentityEmail(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<EmailOptions>()
@@ -136,6 +163,44 @@ public static class ServiceCollectionExtensions
         }
 
         return services;
+    }
+
+    private static Func<HttpContext, RateLimitPartition<string>> IpPartition(
+        Func<RateLimitingOptions, (int PermitLimit, int WindowSeconds)> selectLimit) =>
+        httpContext =>
+        {
+            var options = httpContext.RequestServices.GetRequiredService<IOptions<RateLimitingOptions>>().Value;
+            var (permitLimit, windowSeconds) = selectLimit(options);
+            var key = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+            return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = permitLimit,
+                Window = TimeSpan.FromSeconds(windowSeconds),
+                QueueLimit = 0,
+            });
+        };
+
+    private static async ValueTask WriteRateLimitProblemAsync(OnRejectedContext context, CancellationToken cancellationToken)
+    {
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            context.HttpContext.Response.Headers.RetryAfter =
+                ((int)retryAfter.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+        }
+
+        var problemDetailsService = context.HttpContext.RequestServices.GetRequiredService<IProblemDetailsService>();
+
+        await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
+        {
+            HttpContext = context.HttpContext,
+            ProblemDetails = new ProblemDetails
+            {
+                Status = StatusCodes.Status429TooManyRequests,
+                Title = "Too many requests",
+                Detail = "Rate limit exceeded. Try again later.",
+            },
+        });
     }
 
     private static async Task RejectRevokedAccessTokenAsync(TokenValidatedContext context)
