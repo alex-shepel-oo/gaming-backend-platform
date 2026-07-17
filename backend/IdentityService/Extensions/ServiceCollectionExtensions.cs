@@ -1,3 +1,4 @@
+using IdentityService.Options;
 using IdentityService.Persistence;
 using IdentityService.Services;
 using Microsoft.EntityFrameworkCore;
@@ -14,9 +15,15 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddIdentityServices(this IServiceCollection services)
+    public static IServiceCollection AddIdentityServices(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddOptions<JwtOptions>()
+            .Bind(configuration.GetSection(JwtOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
+        services.AddSingleton<ITokenService, TokenService>();
 
         return services;
     }

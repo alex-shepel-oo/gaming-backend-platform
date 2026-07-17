@@ -15,7 +15,7 @@ builder.Host.UseSerilog((context, configuration) => configuration
 builder.Services.AddOpenApi();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddIdentityPersistence(builder.Configuration);
-builder.Services.AddIdentityServices();
+builder.Services.AddIdentityServices(builder.Configuration);
 builder.Services.AddScoped<DevelopmentSeeder>();
 
 var app = builder.Build();
