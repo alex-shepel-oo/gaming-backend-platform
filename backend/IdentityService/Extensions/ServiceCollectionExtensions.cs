@@ -2,6 +2,8 @@ using IdentityService.Infrastructure;
 using IdentityService.Options;
 using IdentityService.Persistence;
 using IdentityService.Services;
+using IdentityService.Services.Email;
+using IdentityService.Services.Email.Templates;
 using Microsoft.EntityFrameworkCore;
 
 namespace IdentityService.Extensions;
@@ -45,6 +47,29 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITokenService, TokenService>();
         services.AddSingleton<IRefreshTokenGenerator, RefreshTokenGenerator>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddIdentityEmail(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<EmailOptions>()
+            .Bind(configuration.GetSection(EmailOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddSingleton<IEmailTemplateRenderer, EmailTemplateRenderer>();
+
+        var provider = configuration.GetSection(EmailOptions.SectionName).Get<EmailOptions>()?.Provider;
+
+        if (string.Equals(provider, "Smtp", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddSingleton<IEmailSender, SmtpEmailSender>();
+        }
+        else
+        {
+            services.AddSingleton<IEmailSender, NoopEmailSender>();
+        }
 
         return services;
     }

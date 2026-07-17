@@ -18,6 +18,11 @@
     <PackageReference Include="BCrypt.Net-Next" />
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
     <PackageReference Include="Microsoft.IdentityModel.Tokens" />
+    <PackageReference Include="MailKit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Services\Email\Templates\EmailVerification.html" />
   </ItemGroup>
 
 </Project>
