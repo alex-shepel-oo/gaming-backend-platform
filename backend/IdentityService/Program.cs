@@ -46,6 +46,7 @@ if (app.Environment.IsDevelopment())
 app.MapHealthEndpoints();
 app.MapAuthEndpoints();
 app.MapUserEndpoints();
+app.MapGameEndpoints();
 
 app.Run();
 
