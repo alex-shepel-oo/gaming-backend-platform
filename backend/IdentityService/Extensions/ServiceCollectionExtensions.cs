@@ -1,3 +1,4 @@
+using IdentityService.Infrastructure;
 using IdentityService.Options;
 using IdentityService.Persistence;
 using IdentityService.Services;
@@ -11,6 +12,19 @@ public static class ServiceCollectionExtensions
     {
         services.AddDbContext<IdentityDbContext>(options =>
             options.UseNpgsql(configuration.GetConnectionString("IdentityDb")));
+
+        return services;
+    }
+
+    public static IServiceCollection AddIdentityExceptionHandling(this IServiceCollection services)
+    {
+        services.AddProblemDetails(options =>
+        {
+            options.CustomizeProblemDetails = context =>
+                context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+        });
+
+        services.AddExceptionHandler<GlobalExceptionHandler>();
 
         return services;
     }
