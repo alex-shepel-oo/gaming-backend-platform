@@ -71,6 +71,8 @@ public sealed class DevelopmentSeeder(IdentityDbContext dbContext, TimeProvider 
         DisplayName = displayName,
         PasswordHash = passwordHasher.Hash(SeedPassword),
         IsActive = true,
+        EmailConfirmed = true,
+        EmailConfirmedAt = now,
         CreatedAt = now,
         UpdatedAt = now,
     };

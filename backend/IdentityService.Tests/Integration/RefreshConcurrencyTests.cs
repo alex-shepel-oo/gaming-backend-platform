@@ -75,6 +75,7 @@ public sealed class RefreshConcurrencyTests(IdentityApiFactory factory) : IClass
             DisplayName = "Test Player",
             PasswordHash = "irrelevant",
             IsActive = true,
+            EmailConfirmed = true,
             CreatedAt = now,
             UpdatedAt = now,
         };

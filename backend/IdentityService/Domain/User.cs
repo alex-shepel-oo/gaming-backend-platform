@@ -7,6 +7,8 @@ public sealed class User
     public required string DisplayName { get; set; }
     public required string PasswordHash { get; set; }
     public required bool IsActive { get; set; }
+    public required bool EmailConfirmed { get; set; }
+    public DateTimeOffset? EmailConfirmedAt { get; set; }
     public required DateTimeOffset CreatedAt { get; init; }
     public required DateTimeOffset UpdatedAt { get; set; }
 

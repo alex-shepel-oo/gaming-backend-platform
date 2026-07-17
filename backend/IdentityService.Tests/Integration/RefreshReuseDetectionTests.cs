@@ -78,6 +78,7 @@ public sealed class RefreshReuseDetectionTests(IdentityApiFactory factory) : ICl
             DisplayName = "Test Player",
             PasswordHash = "irrelevant",
             IsActive = true,
+            EmailConfirmed = true,
             CreatedAt = now,
             UpdatedAt = now,
         };

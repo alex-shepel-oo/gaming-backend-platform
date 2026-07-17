@@ -86,6 +86,7 @@ public sealed class RefreshRotationTests(IdentityApiFactory factory) : IClassFix
             DisplayName = "Test Player",
             PasswordHash = "irrelevant",
             IsActive = true,
+            EmailConfirmed = true,
             CreatedAt = now,
             UpdatedAt = now,
         };

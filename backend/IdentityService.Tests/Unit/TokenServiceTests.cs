@@ -29,6 +29,7 @@ public class TokenServiceTests
         DisplayName = "Player One",
         PasswordHash = "irrelevant",
         IsActive = true,
+        EmailConfirmed = true,
         CreatedAt = DateTimeOffset.UtcNow,
         UpdatedAt = DateTimeOffset.UtcNow,
     };

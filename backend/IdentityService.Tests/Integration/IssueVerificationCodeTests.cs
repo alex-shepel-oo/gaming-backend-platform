@@ -56,6 +56,7 @@ public sealed class IssueVerificationCodeTests(IdentityApiFactory factory) : ICl
             DisplayName = "Test Player",
             PasswordHash = "irrelevant",
             IsActive = true,
+            EmailConfirmed = false,
             CreatedAt = now,
             UpdatedAt = now,
         };
