@@ -4,16 +4,18 @@ using IdentityService.Exceptions;
 using IdentityService.Options;
 using IdentityService.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace IdentityService.Services;
 
-public sealed class RefreshTokenService(
+public sealed partial class RefreshTokenService(
     IdentityDbContext dbContext,
     IRefreshTokenGenerator generator,
     ITokenService tokenService,
     IOptions<RefreshTokenOptions> options,
-    TimeProvider timeProvider) : IRefreshTokenService
+    TimeProvider timeProvider,
+    ILogger<RefreshTokenService> logger) : IRefreshTokenService
 {
     private readonly RefreshTokenOptions _options = options.Value;
 
@@ -81,6 +83,13 @@ public sealed class RefreshTokenService(
             throw new InvalidRefreshTokenException();
         }
 
+        if (token.UsedAt is not null || token.RevokedAt is not null)
+        {
+            await RevokeFamilyForReuseAsync(family, token.Generation, cancellationToken);
+
+            throw new InvalidRefreshTokenException();
+        }
+
         if (token.ExpiresAt <= now)
         {
             throw new InvalidRefreshTokenException();
@@ -130,6 +139,7 @@ public sealed class RefreshTokenService(
         if (affectedRows != 1)
         {
             await transaction.RollbackAsync(cancellationToken);
+            await RevokeFamilyForReuseAsync(family, token.Generation, cancellationToken);
 
             throw new InvalidRefreshTokenException();
         }
@@ -147,4 +157,29 @@ public sealed class RefreshTokenService(
 
         return candidate < familyExpiresAt ? candidate : familyExpiresAt;
     }
+
+    private async Task RevokeFamilyForReuseAsync(
+        RefreshTokenFamily family, int generation, CancellationToken cancellationToken)
+    {
+        var now = timeProvider.GetUtcNow();
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        await dbContext.RefreshTokens
+            .Where(t => t.FamilyId == family.Id && t.RevokedAt == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.RevokedAt, now), cancellationToken);
+
+        family.RevokedAt = now;
+        family.RevokedReason = RevocationReason.TokenReuse;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
+
+        LogRefreshTokenReuseDetected(family.Id, family.UserId, generation);
+    }
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Refresh token reuse detected for family {FamilyId} (user {UserId}, generation {Generation})")]
+    private partial void LogRefreshTokenReuseDetected(Guid familyId, Guid userId, int generation);
 }
