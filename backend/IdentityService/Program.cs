@@ -18,6 +18,7 @@ builder.Services.AddValidation();
 builder.Services.AddIdentityExceptionHandling();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddIdentityPersistence(builder.Configuration);
+builder.Services.AddIdentityHealthChecks();
 builder.Services.AddIdentityServices(builder.Configuration);
 builder.Services.AddIdentityAuthentication();
 builder.Services.AddIdentityEmail(builder.Configuration);

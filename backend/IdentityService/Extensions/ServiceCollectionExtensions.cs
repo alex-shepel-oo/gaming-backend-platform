@@ -25,6 +25,21 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    public static IServiceCollection AddIdentityHealthChecks(this IServiceCollection services)
+    {
+        // Connection string is read lazily from IConfiguration at check-execution time, the
+        // same way AddDbContext defers it -- reading it eagerly here would capture whatever
+        // IConfiguration held at service-registration time, missing overrides (e.g. in tests)
+        // that land afterwards.
+        services.AddHealthChecks()
+            .AddNpgSql(
+                sp => sp.GetRequiredService<IConfiguration>().GetConnectionString("IdentityDb")!,
+                name: "postgresql",
+                tags: ["ready"]);
+
+        return services;
+    }
+
     public static IServiceCollection AddIdentityExceptionHandling(this IServiceCollection services)
     {
         services.AddProblemDetails(options =>

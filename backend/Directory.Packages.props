@@ -11,6 +11,11 @@
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageVersion Include="Serilog.Enrichers.Environment" Version="3.0.1" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <!-- Targets net8.0/netstandard2.0: no net10.0-specific release exists yet upstream.
+         Npgsql is pinned to 10.0.3 solution-wide via CPM, well above this package's own
+         8.0.3 floor; the health check's surface (open a connection, run "SELECT 1;") is
+         stable across that range. -->
+    <PackageVersion Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
     <!-- Explicit floors: Npgsql.EntityFrameworkCore.PostgreSQL 10.0.3 only
          requires >=10.0.4 of these two. Without the pins, projects that
