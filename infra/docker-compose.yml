@@ -2,15 +2,15 @@ services:
   identity_db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: "${POSTGRES_DB:?POSTGRES_DB is required, set it in infra/.env}"
+      POSTGRES_USER: "${POSTGRES_USER:?POSTGRES_USER is required, set it in infra/.env}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required, set it in infra/.env}"
     ports:
-      - "${POSTGRES_PORT}:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - identity_db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?POSTGRES_USER is required, set it in infra/.env} -d ${POSTGRES_DB:?POSTGRES_DB is required, set it in infra/.env}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -21,7 +21,7 @@ services:
     image: hashicorp/consul:1.21
     command: agent -dev -client=0.0.0.0
     ports:
-      - "${CONSUL_HTTP_PORT}:8500"
+      - "${CONSUL_HTTP_PORT:-8500}:8500"
     healthcheck:
       test: ["CMD", "consul", "members"]
       interval: 5s
