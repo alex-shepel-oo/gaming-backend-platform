@@ -15,6 +15,7 @@ public static class AuthEndpoints
         group.MapPost("/confirm-email", ConfirmEmailAsync);
         group.MapPost("/resend-verification", ResendVerificationAsync);
         group.MapPost("/login", LoginAsync);
+        group.MapPost("/refresh", RefreshAsync);
     }
 
     private static async Task<Accepted<RegistrationAcceptedResponse>> RegisterAsync(
@@ -64,5 +65,18 @@ public static class AuthEndpoints
             request.GameSlug, request.Email, request.Password, ip, userAgent, cancellationToken);
 
         return TypedResults.Ok(new TokenPairResponse(result.AccessToken, result.RefreshToken));
+    }
+
+    private static async Task<Ok<TokenPairResponse>> RefreshAsync(
+        RefreshRequest request,
+        IRefreshTokenService refreshTokenService,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString();
+
+        var result = await refreshTokenService.RotateAsync(request.RefreshToken, ip, cancellationToken);
+
+        return TypedResults.Ok(new TokenPairResponse(result.AccessToken, result.RawRefreshToken));
     }
 }
