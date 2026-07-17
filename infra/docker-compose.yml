@@ -19,11 +19,53 @@ services:
 
   consul:
     image: hashicorp/consul:1.21
-    command: agent -dev -client=0.0.0.0
+    command: agent -dev -client=0.0.0.0 -config-dir=/consul/config
     ports:
       - "${CONSUL_HTTP_PORT:-8500}:8500"
+    volumes:
+      - ./consul/config:/consul/config
     healthcheck:
       test: ["CMD", "consul", "members"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - platform-network
+
+  identity-migrator:
+    build:
+      context: ../backend
+      dockerfile: IdentityService/Dockerfile
+      target: migrator
+    env_file:
+      - .env
+    environment:
+      ConnectionStrings__IdentityDb: "Host=identity_db;Port=5432;Database=${POSTGRES_DB:?POSTGRES_DB is required, set it in infra/.env};Username=${POSTGRES_USER:?POSTGRES_USER is required, set it in infra/.env};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required, set it in infra/.env}"
+    depends_on:
+      identity_db:
+        condition: service_healthy
+    networks:
+      - platform-network
+
+  identity-service:
+    build:
+      context: ../backend
+      dockerfile: IdentityService/Dockerfile
+    env_file:
+      - .env
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: "http://+:5000"
+      ConnectionStrings__IdentityDb: "Host=identity_db;Port=5432;Database=${POSTGRES_DB:?POSTGRES_DB is required, set it in infra/.env};Username=${POSTGRES_USER:?POSTGRES_USER is required, set it in infra/.env};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required, set it in infra/.env}"
+    ports:
+      - "${IDENTITY_SERVICE_PORT:-5000}:5000"
+    depends_on:
+      identity_db:
+        condition: service_healthy
+      identity-migrator:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5000/health/ready || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 10
