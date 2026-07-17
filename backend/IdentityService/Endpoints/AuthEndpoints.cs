@@ -1,3 +1,4 @@
+using IdentityService.Auth;
 using IdentityService.Contracts.Requests;
 using IdentityService.Contracts.Responses;
 using IdentityService.Services;
@@ -16,6 +17,7 @@ public static class AuthEndpoints
         group.MapPost("/resend-verification", ResendVerificationAsync);
         group.MapPost("/login", LoginAsync);
         group.MapPost("/refresh", RefreshAsync);
+        group.MapPost("/logout", LogoutAsync).RequireAuthorization();
     }
 
     private static async Task<Accepted<RegistrationAcceptedResponse>> RegisterAsync(
@@ -78,5 +80,22 @@ public static class AuthEndpoints
         var result = await refreshTokenService.RotateAsync(request.RefreshToken, ip, cancellationToken);
 
         return TypedResults.Ok(new TokenPairResponse(result.AccessToken, result.RawRefreshToken));
+    }
+
+    private static async Task<NoContent> LogoutAsync(
+        LogoutRequest request,
+        ISessionService sessionService,
+        ICurrentUser currentUser,
+        CancellationToken cancellationToken)
+    {
+        await sessionService.LogoutAsync(
+            currentUser.UserId,
+            currentUser.GameId,
+            currentUser.Jti,
+            currentUser.ExpiresAt,
+            request.RefreshToken,
+            cancellationToken);
+
+        return TypedResults.NoContent();
     }
 }

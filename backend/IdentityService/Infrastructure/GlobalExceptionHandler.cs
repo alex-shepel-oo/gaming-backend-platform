@@ -23,6 +23,8 @@ public sealed partial class GlobalExceptionHandler(
             EmailNotConfirmedException => (StatusCodes.Status403Forbidden, "Email not confirmed", exception.Message,
                 "https://gaming-backend-platform/problems/email-not-confirmed"),
             NoAccessToGameException => (StatusCodes.Status403Forbidden, "No access to game", exception.Message, null),
+            RefreshTokenOwnerMismatchException => (StatusCodes.Status403Forbidden, "Refresh token owner mismatch", exception.Message, null),
+            UserNotFoundException => (StatusCodes.Status404NotFound, "User not found", exception.Message, null),
             _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred",
                 "An unexpected error occurred while processing the request.", null),
         };

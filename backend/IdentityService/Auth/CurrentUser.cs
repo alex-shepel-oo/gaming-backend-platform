@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using IdentityService.Domain.Enums;
 using Microsoft.AspNetCore.Http;
@@ -22,6 +23,9 @@ public sealed class CurrentUser(IHttpContextAccessor httpContextAccessor) : ICur
     public Guid FamilyId => Guid.Parse(RequireClaim(IdentityClaims.FamilyId));
 
     public Guid Jti => Guid.Parse(RequireClaim(JwtRegisteredClaimNames.Jti));
+
+    public DateTimeOffset ExpiresAt =>
+        DateTimeOffset.FromUnixTimeSeconds(long.Parse(RequireClaim(JwtRegisteredClaimNames.Exp), CultureInfo.InvariantCulture));
 
     private string RequireClaim(string claimType) =>
         Principal.FindFirstValue(claimType)

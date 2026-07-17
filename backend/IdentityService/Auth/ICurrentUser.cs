@@ -10,4 +10,5 @@ public interface ICurrentUser
     PlatformRole Role { get; }
     Guid FamilyId { get; }
     Guid Jti { get; }
+    DateTimeOffset ExpiresAt { get; }
 }

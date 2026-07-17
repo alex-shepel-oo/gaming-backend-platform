@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using IdentityService.Auth;
 using IdentityService.Infrastructure;
@@ -9,6 +10,7 @@ using IdentityService.Services.Email.Templates;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
 namespace IdentityService.Extensions;
@@ -60,6 +62,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IVerificationCodeGenerator, VerificationCodeGenerator>();
         services.AddScoped<IEmailVerificationService, EmailVerificationService>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
+        services.AddScoped<ISessionService, SessionService>();
 
         return services;
     }
@@ -85,6 +88,8 @@ public static class ServiceCollectionExtensions
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.Key)),
                     ClockSkew = TimeSpan.FromSeconds(options.ClockSkewSeconds),
                 };
+
+                bearerOptions.Events = new JwtBearerEvents { OnTokenValidated = RejectRevokedAccessTokenAsync };
             });
 
         services.AddAuthorization(AuthorizationPolicies.Configure);
@@ -116,5 +121,24 @@ public static class ServiceCollectionExtensions
         }
 
         return services;
+    }
+
+    private static async Task RejectRevokedAccessTokenAsync(TokenValidatedContext context)
+    {
+        var jtiClaim = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Jti);
+
+        if (jtiClaim is null || !Guid.TryParse(jtiClaim, out var jti))
+        {
+            context.Fail("Token has no jti claim.");
+            return;
+        }
+
+        var dbContext = context.HttpContext.RequestServices.GetRequiredService<IdentityDbContext>();
+        var isRevoked = await dbContext.RevokedAccessTokens.AnyAsync(t => t.Jti == jti);
+
+        if (isRevoked)
+        {
+            context.Fail("Access token has been revoked.");
+        }
     }
 }
