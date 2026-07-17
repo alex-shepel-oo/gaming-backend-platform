@@ -30,6 +30,20 @@ services:
     networks:
       - platform-network
 
+  mailpit:
+    image: axllent/mailpit
+    environment:
+      MP_MAX_MESSAGES: "500"
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - platform-network
+
 networks:
   platform-network:
     driver: bridge
