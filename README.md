@@ -21,6 +21,20 @@ The project implements a multi-tenant backend platform for games. Each game has 
 
 ## Running locally
 
+```
+cp infra/.env.example infra/.env
+cd infra
+docker compose up
+```
+
+This brings up Postgres and Consul. IdentityService and ApiGateway join the
+stack in later commits, once they exist.
+
+The values in `infra/.env.example` are committed on purpose and are not
+production secrets: the stack only binds to `localhost`, so nothing in it is
+reachable from outside the machine it runs on, and every clone gets its own
+`.env` by copying the example rather than sharing one committed file.
+
 ## Architecture decisions
 [docs/adr/](docs/adr/).
 
