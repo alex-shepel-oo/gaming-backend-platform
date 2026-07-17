@@ -1,10 +1,11 @@
 using IdentityService.Domain;
 using IdentityService.Domain.Enums;
+using IdentityService.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace IdentityService.Persistence;
 
-public sealed class DevelopmentSeeder(IdentityDbContext dbContext, TimeProvider timeProvider)
+public sealed class DevelopmentSeeder(IdentityDbContext dbContext, TimeProvider timeProvider, IPasswordHasher passwordHasher)
 {
     // Dev-only seed credential for the local compose stack. Not a
     // production secret: nothing built so far can log in with it yet.
@@ -63,12 +64,12 @@ public sealed class DevelopmentSeeder(IdentityDbContext dbContext, TimeProvider 
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private static User CreateUser(string email, string displayName, DateTimeOffset now) => new()
+    private User CreateUser(string email, string displayName, DateTimeOffset now) => new()
     {
         Id = Guid.CreateVersion7(),
         Email = email,
         DisplayName = displayName,
-        PasswordHash = BCrypt.Net.BCrypt.HashPassword(SeedPassword, workFactor: 12),
+        PasswordHash = passwordHasher.Hash(SeedPassword),
         IsActive = true,
         CreatedAt = now,
         UpdatedAt = now,

@@ -12,10 +12,23 @@
     <PackageVersion Include="Serilog.Enrichers.Environment" Version="3.0.1" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
+    <!-- Explicit floors: Npgsql.EntityFrameworkCore.PostgreSQL 10.0.3 only
+         requires >=10.0.4 of these two. Without the pins, projects that
+         reach EF Core solely through the Npgsql provider (no direct
+         Design reference, e.g. IdentityService.Tests via ProjectReference)
+         resolve 10.0.4 instead of the 10.0.10 used everywhere else. -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.10" />
     <PackageVersion Include="BCrypt.Net-Next" Version="4.2.1" />
     <!-- Transitive pin: Microsoft.AspNetCore.OpenApi 10.0.10 brings in
          Microsoft.OpenApi 2.0.0, which has GHSA-v5pm-xwqc-g5wc (stack
          overflow parsing circular schema refs). Patched in 2.7.5. -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageVersion Include="xunit.v3" Version="3.2.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="AwesomeAssertions" Version="9.4.0" />
+    <PackageVersion Include="NSubstitute" Version="6.0.0" />
+    <PackageVersion Include="coverlet.collector" Version="10.0.1" />
   </ItemGroup>
 </Project>
