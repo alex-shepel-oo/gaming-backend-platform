@@ -20,6 +20,7 @@ public sealed partial class EmailVerificationService(
     ILogger<EmailVerificationService> logger) : IEmailVerificationService
 {
     private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(10);
+    private const string DefaultGameName = "Gaming Backend Platform";
 
     private readonly EmailVerificationOptions _options = options.Value;
 
@@ -131,6 +132,49 @@ public sealed partial class EmailVerificationService(
         user.UpdatedAt = now;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task ResendAsync(string email, string? gameSlug, CancellationToken cancellationToken = default)
+    {
+        // ToLower() here is translated to SQL lower(), matching the functional unique
+        // index on lower(email) -- it never runs as a CLR string method.
+#pragma warning disable CA1304, CA1311, CA1862
+        var user = await dbContext.Users
+            .SingleOrDefaultAsync(u => u.Email.ToLower() == email.ToLower(), cancellationToken);
+#pragma warning restore CA1304, CA1311, CA1862
+
+        if (user is null || user.EmailConfirmed)
+        {
+            return;
+        }
+
+        var now = timeProvider.GetUtcNow();
+
+        var lastCreatedAt = await dbContext.EmailVerificationCodes
+            .Where(c => c.UserId == user.Id)
+            .OrderByDescending(c => c.CreatedAt)
+            .Select(c => (DateTimeOffset?)c.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (lastCreatedAt is not null &&
+            now - lastCreatedAt.Value < TimeSpan.FromSeconds(_options.ResendCooldownSeconds))
+        {
+            return;
+        }
+
+        var sentInLastHour = await dbContext.EmailVerificationCodes
+            .CountAsync(c => c.UserId == user.Id && c.CreatedAt > now.AddHours(-1), cancellationToken);
+
+        if (sentInLastHour >= _options.MaxResendsPerHour)
+        {
+            return;
+        }
+
+        var game = gameSlug is null
+            ? null
+            : await dbContext.Games.SingleOrDefaultAsync(g => g.Slug == gameSlug && g.IsActive, cancellationToken);
+
+        await IssueAndSendCodeAsync(user.Id, game?.Id, user.Email, game?.Name ?? DefaultGameName, cancellationToken);
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Failed to send verification email for user {UserId}")]

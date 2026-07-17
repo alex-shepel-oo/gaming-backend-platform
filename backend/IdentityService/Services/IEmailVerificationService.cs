@@ -20,4 +20,6 @@ public interface IEmailVerificationService
         CancellationToken cancellationToken = default);
 
     Task ConfirmAsync(string email, string code, CancellationToken cancellationToken = default);
+
+    Task ResendAsync(string email, string? gameSlug, CancellationToken cancellationToken = default);
 }

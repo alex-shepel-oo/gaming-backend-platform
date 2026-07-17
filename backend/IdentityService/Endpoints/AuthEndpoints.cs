@@ -13,6 +13,7 @@ public static class AuthEndpoints
 
         group.MapPost("/register", RegisterAsync);
         group.MapPost("/confirm-email", ConfirmEmailAsync);
+        group.MapPost("/resend-verification", ResendVerificationAsync);
     }
 
     private static async Task<Accepted<RegistrationAcceptedResponse>> RegisterAsync(
@@ -37,5 +38,15 @@ public static class AuthEndpoints
         await emailVerificationService.ConfirmAsync(request.Email, request.Code, cancellationToken);
 
         return TypedResults.NoContent();
+    }
+
+    private static async Task<Accepted> ResendVerificationAsync(
+        ResendVerificationRequest request,
+        IEmailVerificationService emailVerificationService,
+        CancellationToken cancellationToken)
+    {
+        await emailVerificationService.ResendAsync(request.Email, request.GameSlug, cancellationToken);
+
+        return TypedResults.Accepted((string?)null);
     }
 }
