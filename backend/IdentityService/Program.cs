@@ -1,5 +1,6 @@
 using System.Globalization;
 using IdentityService.Endpoints;
+using IdentityService.Extensions;
 using Scalar.AspNetCore;
 using Serilog;
 
@@ -11,6 +12,7 @@ builder.Host.UseSerilog((context, configuration) => configuration
     .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture));
 
 builder.Services.AddOpenApi();
+builder.Services.AddIdentityPersistence(builder.Configuration);
 
 var app = builder.Build();
 
