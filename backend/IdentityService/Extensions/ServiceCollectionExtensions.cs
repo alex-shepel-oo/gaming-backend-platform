@@ -1,10 +1,15 @@
+using System.Text;
+using IdentityService.Auth;
 using IdentityService.Infrastructure;
 using IdentityService.Options;
 using IdentityService.Persistence;
 using IdentityService.Services;
 using IdentityService.Services.Email;
 using IdentityService.Services.Email.Templates;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 
 namespace IdentityService.Extensions;
 
@@ -55,6 +60,37 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IVerificationCodeGenerator, VerificationCodeGenerator>();
         services.AddScoped<IEmailVerificationService, EmailVerificationService>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddIdentityAuthentication(this IServiceCollection services)
+    {
+        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer();
+
+        services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+            .Configure<IOptions<JwtOptions>>((bearerOptions, jwtOptions) =>
+            {
+                var options = jwtOptions.Value;
+
+                // Both AddJwtBearer's default handler and TokenService issue standard
+                // short claim names (sub, email, jti); mapping them to legacy XML schema
+                // URIs would silently break every claim read through IdentityClaims/ICurrentUser.
+                bearerOptions.MapInboundClaims = false;
+                bearerOptions.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidIssuer = options.Issuer,
+                    ValidAudience = options.Audience,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.Key)),
+                    ClockSkew = TimeSpan.FromSeconds(options.ClockSkewSeconds),
+                };
+            });
+
+        services.AddAuthorization(AuthorizationPolicies.Configure);
+
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUser, CurrentUser>();
 
         return services;
     }

@@ -27,7 +27,9 @@ flowchart LR
 Solid lines — implemented. Dashed lines — designed and scheduled for implementation in future iterations.
 
 ## Currently implemented
--
+- Authorization: `Policies.Player` / `ModeratorOrAbove` / `Admin`, enforced in IdentityService
+  itself as well as later at the gateway. This is defence in depth, not duplicated logic by
+  oversight — a service trusting the gateway's check alone is one routing mistake from being open.
 
 ## Cross-cutting
 - Multi-tenancy: GameId is a first-class property across schemas and events.

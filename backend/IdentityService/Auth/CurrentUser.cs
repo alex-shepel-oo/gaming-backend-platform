@@ -1,0 +1,29 @@
+using System.Security.Claims;
+using IdentityService.Domain.Enums;
+using Microsoft.AspNetCore.Http;
+using Microsoft.IdentityModel.JsonWebTokens;
+
+namespace IdentityService.Auth;
+
+public sealed class CurrentUser(IHttpContextAccessor httpContextAccessor) : ICurrentUser
+{
+    private ClaimsPrincipal Principal =>
+        httpContextAccessor.HttpContext?.User
+        ?? throw new InvalidOperationException("No HTTP context is available to read the current user from.");
+
+    public Guid UserId => Guid.Parse(RequireClaim(JwtRegisteredClaimNames.Sub));
+
+    public string Email => RequireClaim(JwtRegisteredClaimNames.Email);
+
+    public Guid? GameId => Principal.FindFirstValue(IdentityClaims.GameId) is { } value ? Guid.Parse(value) : null;
+
+    public PlatformRole Role => Enum.Parse<PlatformRole>(RequireClaim(IdentityClaims.Role));
+
+    public Guid FamilyId => Guid.Parse(RequireClaim(IdentityClaims.FamilyId));
+
+    public Guid Jti => Guid.Parse(RequireClaim(JwtRegisteredClaimNames.Jti));
+
+    private string RequireClaim(string claimType) =>
+        Principal.FindFirstValue(claimType)
+        ?? throw new InvalidOperationException($"The current principal has no '{claimType}' claim.");
+}

@@ -19,6 +19,7 @@ builder.Services.AddIdentityExceptionHandling();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddIdentityPersistence(builder.Configuration);
 builder.Services.AddIdentityServices(builder.Configuration);
+builder.Services.AddIdentityAuthentication();
 builder.Services.AddIdentityEmail(builder.Configuration);
 builder.Services.AddScoped<DevelopmentSeeder>();
 
@@ -26,6 +27,9 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseMiddleware<CorrelationIdMiddleware>();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 if (app.Environment.IsDevelopment())
 {

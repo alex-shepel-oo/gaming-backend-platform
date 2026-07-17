@@ -22,6 +22,7 @@
     <PackageVersion Include="BCrypt.Net-Next" Version="4.2.1" />
     <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.19.2" />
     <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.19.2" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
     <PackageVersion Include="MailKit" Version="4.17.0" />
     <!-- Transitive pin: Microsoft.AspNetCore.OpenApi 10.0.10 brings in
          Microsoft.OpenApi 2.0.0, which has GHSA-v5pm-xwqc-g5wc (stack
