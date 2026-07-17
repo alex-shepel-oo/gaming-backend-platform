@@ -14,6 +14,7 @@ public static class AuthEndpoints
         group.MapPost("/register", RegisterAsync);
         group.MapPost("/confirm-email", ConfirmEmailAsync);
         group.MapPost("/resend-verification", ResendVerificationAsync);
+        group.MapPost("/login", LoginAsync);
     }
 
     private static async Task<Accepted<RegistrationAcceptedResponse>> RegisterAsync(
@@ -48,5 +49,20 @@ public static class AuthEndpoints
         await emailVerificationService.ResendAsync(request.Email, request.GameSlug, cancellationToken);
 
         return TypedResults.Accepted((string?)null);
+    }
+
+    private static async Task<Ok<TokenPairResponse>> LoginAsync(
+        LoginRequest request,
+        IAuthenticationService authenticationService,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString();
+        var userAgent = httpContext.Request.Headers.UserAgent.ToString();
+
+        var result = await authenticationService.LoginAsync(
+            request.GameSlug, request.Email, request.Password, ip, userAgent, cancellationToken);
+
+        return TypedResults.Ok(new TokenPairResponse(result.AccessToken, result.RefreshToken));
     }
 }

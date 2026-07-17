@@ -12,15 +12,19 @@ public sealed partial class GlobalExceptionHandler(
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
-        var (statusCode, title, detail) = exception switch
+        var (statusCode, title, detail, type) = exception switch
         {
-            InvalidCredentialsException => (StatusCodes.Status401Unauthorized, "Invalid credentials", exception.Message),
-            InvalidRefreshTokenException => (StatusCodes.Status401Unauthorized, "Invalid refresh token", exception.Message),
-            GameNotFoundException => (StatusCodes.Status404NotFound, "Game not found", exception.Message),
-            EmailAlreadyExistsException => (StatusCodes.Status409Conflict, "Email already exists", exception.Message),
-            InvalidVerificationCodeException => (StatusCodes.Status400BadRequest, "Invalid verification code", exception.Message),
+            InvalidCredentialsException => (StatusCodes.Status401Unauthorized, "Invalid credentials", exception.Message, null),
+            InvalidRefreshTokenException => (StatusCodes.Status401Unauthorized, "Invalid refresh token", exception.Message, null),
+            GameNotFoundException => (StatusCodes.Status404NotFound, "Game not found", exception.Message, null),
+            EmailAlreadyExistsException => (StatusCodes.Status409Conflict, "Email already exists", exception.Message, null),
+            InvalidVerificationCodeException => (StatusCodes.Status400BadRequest, "Invalid verification code", exception.Message, null),
+            AccountDisabledException => (StatusCodes.Status403Forbidden, "Account disabled", exception.Message, null),
+            EmailNotConfirmedException => (StatusCodes.Status403Forbidden, "Email not confirmed", exception.Message,
+                "https://gaming-backend-platform/problems/email-not-confirmed"),
+            NoAccessToGameException => (StatusCodes.Status403Forbidden, "No access to game", exception.Message, null),
             _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred",
-                "An unexpected error occurred while processing the request."),
+                "An unexpected error occurred while processing the request.", null),
         };
 
         if (statusCode == StatusCodes.Status500InternalServerError)
@@ -39,6 +43,7 @@ public sealed partial class GlobalExceptionHandler(
                 Status = statusCode,
                 Title = title,
                 Detail = detail,
+                Type = type,
             },
         });
     }

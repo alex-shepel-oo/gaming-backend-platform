@@ -10,6 +10,8 @@ public sealed class AuthenticationService(
     IdentityDbContext dbContext,
     IPasswordHasher passwordHasher,
     IEmailVerificationService emailVerificationService,
+    IRefreshTokenService refreshTokenService,
+    ITokenService tokenService,
     TimeProvider timeProvider) : IAuthenticationService
 {
     public async Task<RegistrationResult> RegisterAsync(
@@ -82,6 +84,65 @@ public sealed class AuthenticationService(
             user.Id, game.Id, user.Email, game.Name, cancellationToken);
 
         return new RegistrationResult(user.Id, user.Email, VerificationRequired: true, issuedCode.ExpiresAt);
+    }
+
+    public async Task<LoginResult> LoginAsync(
+        string? gameSlug,
+        string email,
+        string password,
+        string? ip,
+        string? userAgent,
+        CancellationToken cancellationToken = default)
+    {
+        Guid? gameId = null;
+
+        if (gameSlug is not null)
+        {
+            var game = await dbContext.Games
+                .SingleOrDefaultAsync(g => g.Slug == gameSlug && g.IsActive, cancellationToken);
+
+            if (game is null)
+            {
+                throw new GameNotFoundException();
+            }
+
+            gameId = game.Id;
+        }
+
+        // ToLower() here is translated to SQL lower(), matching the functional unique
+        // index on lower(email) -- it never runs as a CLR string method.
+#pragma warning disable CA1304, CA1311, CA1862
+        var user = await dbContext.Users
+            .SingleOrDefaultAsync(u => u.Email.ToLower() == email.ToLower(), cancellationToken);
+#pragma warning restore CA1304, CA1311, CA1862
+
+        if (user is null || !passwordHasher.Verify(password, user.PasswordHash))
+        {
+            throw new InvalidCredentialsException();
+        }
+
+        if (!user.IsActive)
+        {
+            throw new AccountDisabledException();
+        }
+
+        if (!user.EmailConfirmed)
+        {
+            throw new EmailNotConfirmedException();
+        }
+
+        var role = await dbContext.UserGameRoles
+            .SingleOrDefaultAsync(r => r.UserId == user.Id && r.GameId == gameId, cancellationToken);
+
+        if (role is null)
+        {
+            throw new NoAccessToGameException();
+        }
+
+        var issued = await refreshTokenService.IssueFamilyAsync(user.Id, gameId, ip, userAgent, cancellationToken);
+        var accessToken = tokenService.IssueAccessToken(user, gameId, role.Role, issued.Family.Id);
+
+        return new LoginResult(accessToken, issued.RawToken);
     }
 
     private static UserGameRole NewPlayerRole(Guid userId, Guid gameId, DateTimeOffset now) => new()

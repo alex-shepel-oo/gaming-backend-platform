@@ -18,6 +18,9 @@ public class GlobalExceptionHandlerTests
     [InlineData(typeof(GameNotFoundException), StatusCodes.Status404NotFound)]
     [InlineData(typeof(EmailAlreadyExistsException), StatusCodes.Status409Conflict)]
     [InlineData(typeof(InvalidVerificationCodeException), StatusCodes.Status400BadRequest)]
+    [InlineData(typeof(AccountDisabledException), StatusCodes.Status403Forbidden)]
+    [InlineData(typeof(EmailNotConfirmedException), StatusCodes.Status403Forbidden)]
+    [InlineData(typeof(NoAccessToGameException), StatusCodes.Status403Forbidden)]
     public async Task TryHandleAsync_DomainException_WritesMatchingStatusAndDetail(Type exceptionType, int expectedStatus)
     {
         var exception = (Exception)Activator.CreateInstance(exceptionType)!;
@@ -38,6 +41,14 @@ public class GlobalExceptionHandlerTests
 
         statusCode.Should().Be(StatusCodes.Status500InternalServerError);
         body.GetProperty("detail").GetString().Should().NotContain("password");
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_EmailNotConfirmed_SetsDistinguishableType()
+    {
+        var (_, body) = await HandleAsync(new EmailNotConfirmedException());
+
+        body.GetProperty("type").GetString().Should().Be("https://gaming-backend-platform/problems/email-not-confirmed");
     }
 
     [Fact]
