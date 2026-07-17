@@ -5,5 +5,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.16.15" />
+    <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
+    <PackageVersion Include="Serilog.Enrichers.Environment" Version="3.0.1" />
+    <!-- Transitive pin: Microsoft.AspNetCore.OpenApi 10.0.10 brings in
+         Microsoft.OpenApi 2.0.0, which has GHSA-v5pm-xwqc-g5wc (stack
+         overflow parsing circular schema refs). Patched in 2.7.5. -->
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
   </ItemGroup>
 </Project>
