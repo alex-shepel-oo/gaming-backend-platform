@@ -12,6 +12,7 @@ public static class AuthEndpoints
         var group = app.MapGroup("/api/identity/auth");
 
         group.MapPost("/register", RegisterAsync);
+        group.MapPost("/confirm-email", ConfirmEmailAsync);
     }
 
     private static async Task<Accepted<RegistrationAcceptedResponse>> RegisterAsync(
@@ -26,5 +27,15 @@ public static class AuthEndpoints
             result.UserId, result.Email, result.VerificationRequired, result.CodeExpiresAt);
 
         return TypedResults.Accepted((string?)null, response);
+    }
+
+    private static async Task<NoContent> ConfirmEmailAsync(
+        ConfirmEmailRequest request,
+        IEmailVerificationService emailVerificationService,
+        CancellationToken cancellationToken)
+    {
+        await emailVerificationService.ConfirmAsync(request.Email, request.Code, cancellationToken);
+
+        return TypedResults.NoContent();
     }
 }

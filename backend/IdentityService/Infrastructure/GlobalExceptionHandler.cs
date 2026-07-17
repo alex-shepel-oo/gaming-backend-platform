@@ -18,6 +18,7 @@ public sealed partial class GlobalExceptionHandler(
             InvalidRefreshTokenException => (StatusCodes.Status401Unauthorized, "Invalid refresh token", exception.Message),
             GameNotFoundException => (StatusCodes.Status404NotFound, "Game not found", exception.Message),
             EmailAlreadyExistsException => (StatusCodes.Status409Conflict, "Email already exists", exception.Message),
+            InvalidVerificationCodeException => (StatusCodes.Status400BadRequest, "Invalid verification code", exception.Message),
             _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred",
                 "An unexpected error occurred while processing the request."),
         };

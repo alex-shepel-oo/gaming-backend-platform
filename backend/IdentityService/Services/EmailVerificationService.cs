@@ -1,4 +1,5 @@
 using IdentityService.Domain;
+using IdentityService.Exceptions;
 using IdentityService.Options;
 using IdentityService.Persistence;
 using IdentityService.Services.Email;
@@ -87,6 +88,49 @@ public sealed partial class EmailVerificationService(
         }
 
         return issued.Code;
+    }
+
+    public async Task ConfirmAsync(string email, string code, CancellationToken cancellationToken = default)
+    {
+        // ToLower() here is translated to SQL lower(), matching the functional unique
+        // index on lower(email) -- it never runs as a CLR string method.
+#pragma warning disable CA1304, CA1311, CA1862
+        var user = await dbContext.Users
+            .SingleOrDefaultAsync(u => u.Email.ToLower() == email.ToLower(), cancellationToken);
+#pragma warning restore CA1304, CA1311, CA1862
+
+        var now = timeProvider.GetUtcNow();
+
+        var activeCode = user is null
+            ? null
+            : await dbContext.EmailVerificationCodes
+                .SingleOrDefaultAsync(c => c.UserId == user.Id && c.ConsumedAt == null, cancellationToken);
+
+        if (user is null || activeCode is null || activeCode.ExpiresAt <= now)
+        {
+            throw new InvalidVerificationCodeException();
+        }
+
+        if (!generator.Verify(code, activeCode.CodeHash))
+        {
+            activeCode.AttemptCount += 1;
+
+            if (activeCode.AttemptCount >= _options.MaxAttempts)
+            {
+                activeCode.ConsumedAt = now;
+            }
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            throw new InvalidVerificationCodeException();
+        }
+
+        activeCode.ConsumedAt = now;
+        user.EmailConfirmed = true;
+        user.EmailConfirmedAt = now;
+        user.UpdatedAt = now;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Failed to send verification email for user {UserId}")]

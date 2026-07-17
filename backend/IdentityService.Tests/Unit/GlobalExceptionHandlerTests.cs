@@ -17,6 +17,7 @@ public class GlobalExceptionHandlerTests
     [InlineData(typeof(InvalidRefreshTokenException), StatusCodes.Status401Unauthorized)]
     [InlineData(typeof(GameNotFoundException), StatusCodes.Status404NotFound)]
     [InlineData(typeof(EmailAlreadyExistsException), StatusCodes.Status409Conflict)]
+    [InlineData(typeof(InvalidVerificationCodeException), StatusCodes.Status400BadRequest)]
     public async Task TryHandleAsync_DomainException_WritesMatchingStatusAndDetail(Type exceptionType, int expectedStatus)
     {
         var exception = (Exception)Activator.CreateInstance(exceptionType)!;

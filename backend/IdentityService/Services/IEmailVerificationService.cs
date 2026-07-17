@@ -18,4 +18,6 @@ public interface IEmailVerificationService
         string email,
         string gameName,
         CancellationToken cancellationToken = default);
+
+    Task ConfirmAsync(string email, string code, CancellationToken cancellationToken = default);
 }
