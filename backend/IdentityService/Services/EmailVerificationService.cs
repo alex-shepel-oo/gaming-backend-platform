@@ -1,17 +1,25 @@
 using IdentityService.Domain;
 using IdentityService.Options;
 using IdentityService.Persistence;
+using IdentityService.Services.Email;
+using IdentityService.Services.Email.Templates;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace IdentityService.Services;
 
-public sealed class EmailVerificationService(
+public sealed partial class EmailVerificationService(
     IdentityDbContext dbContext,
     IVerificationCodeGenerator generator,
+    IEmailSender emailSender,
+    IEmailTemplateRenderer templateRenderer,
     IOptions<EmailVerificationOptions> options,
-    TimeProvider timeProvider) : IEmailVerificationService
+    TimeProvider timeProvider,
+    ILogger<EmailVerificationService> logger) : IEmailVerificationService
 {
+    private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(10);
+
     private readonly EmailVerificationOptions _options = options.Value;
 
     public async Task<EmailVerificationIssueResult> IssueCodeAsync(
@@ -49,4 +57,38 @@ public sealed class EmailVerificationService(
 
         return new EmailVerificationIssueResult(code, rawCode);
     }
+
+    public async Task<EmailVerificationCode> IssueAndSendCodeAsync(
+        Guid userId,
+        Guid? gameId,
+        string email,
+        string gameName,
+        CancellationToken cancellationToken = default)
+    {
+        var issued = await IssueCodeAsync(userId, gameId, email, cancellationToken);
+
+        try
+        {
+            using var timeoutCts = new CancellationTokenSource(SendTimeout);
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
+            var htmlBody = templateRenderer.RenderEmailVerification(issued.RawCode, gameName, _options.CodeTtlMinutes);
+            var textBody =
+                $"Confirm your email for {gameName}. Your verification code is {issued.RawCode}. " +
+                $"It expires in {_options.CodeTtlMinutes} minutes.";
+
+            await emailSender.SendAsync(
+                new EmailMessage(email, "Confirm your email", htmlBody, textBody),
+                linkedCts.Token);
+        }
+        catch (Exception exception)
+        {
+            LogVerificationEmailSendFailed(exception, userId);
+        }
+
+        return issued.Code;
+    }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to send verification email for user {UserId}")]
+    private partial void LogVerificationEmailSendFailed(Exception exception, Guid userId);
 }

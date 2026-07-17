@@ -1,3 +1,5 @@
+using IdentityService.Services.Email;
+using IdentityService.Tests.Integration.Fakes;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -12,9 +14,12 @@ public sealed class IdentityApiFactory(PostgresFixture postgres) : WebApplicatio
 {
     public FakeTimeProvider TimeProvider { get; } = new(DateTimeOffset.UtcNow);
 
+    public RecordingEmailSender EmailSender { get; } = new();
+
     public async Task ResetAsync()
     {
         await postgres.ResetAsync();
+        EmailSender.Clear();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -32,6 +37,9 @@ public sealed class IdentityApiFactory(PostgresFixture postgres) : WebApplicatio
         {
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(TimeProvider);
+
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(EmailSender);
         });
     }
 }

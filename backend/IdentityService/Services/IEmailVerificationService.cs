@@ -11,4 +11,11 @@ public interface IEmailVerificationService
         Guid? gameId,
         string email,
         CancellationToken cancellationToken = default);
+
+    Task<EmailVerificationCode> IssueAndSendCodeAsync(
+        Guid userId,
+        Guid? gameId,
+        string email,
+        string gameName,
+        CancellationToken cancellationToken = default);
 }

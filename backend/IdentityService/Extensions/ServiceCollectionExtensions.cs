@@ -54,6 +54,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddSingleton<IVerificationCodeGenerator, VerificationCodeGenerator>();
         services.AddScoped<IEmailVerificationService, EmailVerificationService>();
+        services.AddScoped<IAuthenticationService, AuthenticationService>();
 
         return services;
     }
