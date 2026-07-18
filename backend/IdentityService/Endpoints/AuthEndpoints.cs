@@ -104,18 +104,29 @@ public static class AuthEndpoints
     }
 
     private static async Task<NoContent> LogoutAsync(
-        LogoutRequest request,
+        LogoutRequest? request,
         ISessionService sessionService,
+        ICookieAuthWriter cookieAuthWriter,
         ICurrentUser currentUser,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
+        var isWeb = ClientMode.IsWeb(httpContext);
+
+        var rawToken = (isWeb ? cookieAuthWriter.ReadRefresh(httpContext.Request) : request?.RefreshToken) ?? string.Empty;
+
         await sessionService.LogoutAsync(
             currentUser.UserId,
             currentUser.GameId,
             currentUser.Jti,
             currentUser.ExpiresAt,
-            request.RefreshToken,
+            rawToken,
             cancellationToken);
+
+        if (isWeb)
+        {
+            cookieAuthWriter.ClearRefresh(httpContext.Response);
+        }
 
         return TypedResults.NoContent();
     }
