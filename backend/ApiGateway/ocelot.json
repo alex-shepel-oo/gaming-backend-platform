@@ -1,0 +1,23 @@
+{
+  "Routes": [
+    {
+      "DownstreamPathTemplate": "/api/identity/auth/{everything}",
+      "DownstreamScheme": "http",
+      "UpstreamPathTemplate": "/api/identity/auth/{everything}",
+      "UpstreamHttpMethod": [ "POST" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/identity/users/{everything}",
+      "DownstreamScheme": "http",
+      "UpstreamPathTemplate": "/api/identity/users/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/identity/games",
+      "DownstreamScheme": "http",
+      "UpstreamPathTemplate": "/api/identity/games",
+      "UpstreamHttpMethod": [ "GET" ]
+    }
+  ],
+  "GlobalConfiguration": {}
+}
