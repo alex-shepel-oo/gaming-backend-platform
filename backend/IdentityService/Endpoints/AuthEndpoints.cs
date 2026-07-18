@@ -56,9 +56,10 @@ public static class AuthEndpoints
         return TypedResults.Accepted((string?)null);
     }
 
-    private static async Task<Ok<TokenPairResponse>> LoginAsync(
+    private static async Task<Results<Ok<TokenPairResponse>, Ok<AccessTokenResponse>>> LoginAsync(
         LoginRequest request,
         IAuthenticationService authenticationService,
+        ICookieAuthWriter cookieAuthWriter,
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
@@ -67,6 +68,13 @@ public static class AuthEndpoints
 
         var result = await authenticationService.LoginAsync(
             request.GameSlug, request.Email, request.Password, ip, userAgent, cancellationToken);
+
+        if (ClientMode.IsWeb(httpContext))
+        {
+            cookieAuthWriter.WriteRefresh(httpContext.Response, result.RefreshToken);
+
+            return TypedResults.Ok(new AccessTokenResponse(result.AccessToken));
+        }
 
         return TypedResults.Ok(new TokenPairResponse(result.AccessToken, result.RefreshToken));
     }
