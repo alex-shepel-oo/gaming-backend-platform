@@ -1,0 +1,20 @@
+{
+  "Routes": [
+    {
+      "ServiceName": "identity-service"
+    },
+    {
+      "ServiceName": "identity-service"
+    },
+    {
+      "ServiceName": "identity-service"
+    }
+  ],
+  "GlobalConfiguration": {
+    "ServiceDiscoveryProvider": {
+      "Type": "Consul",
+      "Host": "consul",
+      "Port": 8500
+    }
+  }
+}

@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <PackageReference Include="Ocelot" />
+    <PackageReference Include="Ocelot.Provider.Consul" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Sinks.Console" />
     <PackageReference Include="Serilog.Enrichers.Environment" />
