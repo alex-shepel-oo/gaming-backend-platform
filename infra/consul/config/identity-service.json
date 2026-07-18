@@ -1,0 +1,12 @@
+{
+  "service": {
+    "name": "identity-service",
+    "port": 5000,
+    "address": "identity-service",
+    "check": {
+      "http": "http://identity-service:5000/health/ready",
+      "interval": "10s",
+      "timeout": "2s"
+    }
+  }
+}

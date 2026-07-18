@@ -391,4 +391,4 @@ dotnet_naming_style.s_camelcase.capitalization = camel_case
 csharp_style_namespace_declarations = file_scoped:error
 csharp_style_var_for_built_in_types = true:suggestion
 dotnet_sort_system_directives_first = true
-dotnet_style_require_accessibility_modifiers = always:error
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:error

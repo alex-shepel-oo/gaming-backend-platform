@@ -1,0 +1,15 @@
+# Headless (clusterIP: None) so the StatefulSet's pod gets a stable DNS
+# identity (identity-db-0.identity-db.gaming-platform.svc.cluster.local)
+# instead of a load-balanced one -- there is exactly one writer to talk to.
+apiVersion: v1
+kind: Service
+metadata:
+  name: identity-db
+  namespace: gaming-platform
+spec:
+  clusterIP: None
+  selector:
+    app: identity-db
+  ports:
+    - port: 5432
+      targetPort: 5432
