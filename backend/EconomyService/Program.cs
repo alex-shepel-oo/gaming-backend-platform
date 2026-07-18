@@ -1,5 +1,6 @@
 using System.Globalization;
 using EconomyService.Endpoints;
+using EconomyService.Extensions;
 using Scalar.AspNetCore;
 using Serilog;
 
@@ -12,6 +13,7 @@ builder.Host.UseSerilog((context, configuration) => configuration
 
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
+builder.Services.AddEconomyPersistence(builder.Configuration);
 
 var app = builder.Build();
 
