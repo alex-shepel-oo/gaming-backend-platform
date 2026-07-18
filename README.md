@@ -82,17 +82,29 @@ policies underneath regardless of what the gateway already checked.
 | POST | `/api/identity/auth/register` | anonymous | Register an account for a game; 202, email confirmation required |
 | POST | `/api/identity/auth/confirm-email` | anonymous | Confirm the code sent by email |
 | POST | `/api/identity/auth/resend-verification` | anonymous | Request a new confirmation code |
-| POST | `/api/identity/auth/login` | anonymous | Exchange credentials for an access/refresh token pair |
-| POST | `/api/identity/auth/refresh` | anonymous | Rotate a refresh token for a new pair |
+| POST | `/api/identity/auth/login` | anonymous | Exchange credentials for a token pair (or an access token plus a refresh cookie, in web mode) |
+| POST | `/api/identity/auth/refresh` | anonymous | Rotate a refresh token for a new pair (body or cookie, depending on mode) |
 | POST | `/api/identity/auth/logout` | anonymous at the gateway, bearer required by the service | Revoke the current session |
 | GET | `/api/identity/users/me` | bearer | Current user's profile |
 | GET | `/api/identity/users/{userId}` | bearer | Look up a user in the caller's game (moderator and above) |
 | GET | `/api/identity/users` | bearer | Search/paginate users in the caller's game (moderator and above) |
 | POST | `/api/identity/users/{userId}/revoke-sessions` | bearer | Revoke all of a user's sessions (admin) |
-| GET | `/api/identity/games` | bearer, admin role required | List registered games |
+| GET | `/api/identity/games` | bearer, admin role required | List registered games, all fields |
+| GET | `/api/identity/games/public` | bearer, any player | List active games only, `id`/`slug`/`name` only - the catalog a player picks a game from |
 | GET | `/openapi/identity/v1.json` | anonymous | IdentityService's OpenAPI document, proxied through the gateway |
 | GET | `/scalar/identity` | anonymous | Interactive API reference (Scalar) |
 | GET | `/health` | anonymous | Gateway liveness probe |
+
+### Web auth (cookie mode)
+
+`login`, `refresh` and `logout` above default to slice 1's body-based contract:
+both tokens travel in the JSON body, which is what the Postman collection and
+any non-browser client still gets. Sending `X-Client-Type: web` switches a
+caller onto the cookie-based flow instead: the response body carries only the
+access token, meant to be held in memory, while the refresh token is set as an
+`httpOnly` cookie the page's own JavaScript never sees. See
+[ADR 0011](docs/adr/0011-web-auth-cookie-flow.md) for the full attribute list
+and the SameSite/CORS reasoning.
 
 ### Local walkthrough
 
@@ -171,3 +183,10 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:5100/api/ident
 - Expired refresh tokens, revoked token families, and expired email
   verification codes are not automatically deleted yet — that's the job
   of `Platform.Worker`'s cleanup jobs, which are Extended scope.
+- The web cookie flow assumes the SPA and the API share an origin, which is
+  what lets the refresh cookie use `SameSite=Strict`. A cross-origin
+  deployment would need `SameSite=None` plus a CSRF token, neither of which
+  is built yet. See ADR 0011.
+- A backend-for-frontend would keep even more of the token handling out of
+  the browser than the current cookie-only approach, but is more
+  infrastructure than this slice justifies.
