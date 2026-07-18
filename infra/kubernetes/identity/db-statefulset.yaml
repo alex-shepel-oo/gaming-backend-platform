@@ -1,0 +1,68 @@
+# POSTGRES_DB / POSTGRES_USER come from the identity-config ConfigMap and
+# POSTGRES_PASSWORD from the identity-secrets Secret, both added in the next
+# commit alongside the identity-service Deployment. The values here must stay
+# in sync with ConnectionStrings__IdentityDb in secret.example.yaml.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: identity-db
+  namespace: gaming-platform
+spec:
+  serviceName: identity-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: identity-db
+  template:
+    metadata:
+      labels:
+        app: identity-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: identity-config
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: identity-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: identity-secrets
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            # subPath keeps the volume root free of postgres's own data
+            # directory contents (lost+found on some storage classes trips
+            # postgres's "data directory is not empty" startup check).
+            - name: identity-db-data
+              mountPath: /var/lib/postgresql/data
+              subPath: postgres
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "$(POSTGRES_DB)"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: identity-db-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

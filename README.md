@@ -37,6 +37,36 @@ production secrets: the stack only binds to `localhost`, so nothing in it is
 reachable from outside the machine it runs on, and every clone gets its own
 `.env` by copying the example rather than sharing one committed file.
 
+## Running on Kubernetes
+
+Manifests live under `infra/kubernetes/` (`base/`, `identity/`, `gateway/`,
+`mailpit/`). They target a local `kind` cluster or a sandbox namespace, not
+production — see [docs/architecture.md](docs/architecture.md#local-vs-kubernetes)
+for the full local-vs-cluster breakdown.
+
+```
+kubectl apply -f infra/kubernetes/base/
+cp infra/kubernetes/identity/secret.example.yaml /tmp/identity-secrets.yaml
+# edit /tmp/identity-secrets.yaml with real values, then:
+kubectl apply -f /tmp/identity-secrets.yaml
+kubectl apply -f infra/kubernetes/identity/
+kubectl apply -f infra/kubernetes/gateway/
+kubectl apply -f infra/kubernetes/mailpit/   # kind/sandbox only, skip in production
+```
+
+`identity/secret.example.yaml` is a template with placeholder values, not a
+real Secret — never commit the filled-in copy. The gateway reads its JWT
+signing key from that same Secret rather than a copy of its own, and Consul
+is not deployed here: Kubernetes Services and kube-DNS already provide
+discovery (ADR 0002).
+
+Reach the gateway through its Ingress (assumes `ingress-nginx`), or:
+
+```
+kubectl -n gaming-platform port-forward svc/gateway 5100:5100
+kubectl -n gaming-platform port-forward svc/mailpit 8025:8025   # kind/sandbox only
+```
+
 ## Identity API
 
 All paths below are relative to `http://localhost:5100`. "Auth" is what the
