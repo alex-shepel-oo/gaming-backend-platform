@@ -45,7 +45,6 @@ production — see [docs/architecture.md](docs/architecture.md#local-vs-kubernet
 for the full local-vs-cluster breakdown.
 
 ```
-kubectl apply -f infra/kubernetes/base/namespace.yaml
 kubectl apply -f infra/kubernetes/base/
 cp infra/kubernetes/identity/secret.example.yaml /tmp/identity-secrets.yaml
 # edit /tmp/identity-secrets.yaml with real values, then:
