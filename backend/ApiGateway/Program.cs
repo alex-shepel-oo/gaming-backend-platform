@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using ApiGateway.Options;
+using ApiGateway.ServiceDiscovery;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -46,7 +47,7 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
     });
 
 builder.Services.AddHealthChecks();
-builder.Services.AddOcelot(builder.Configuration).AddConsul().AddPolly();
+builder.Services.AddOcelot(builder.Configuration).AddConsul<ServiceAddressConsulServiceBuilder>().AddPolly();
 
 var app = builder.Build();
 
