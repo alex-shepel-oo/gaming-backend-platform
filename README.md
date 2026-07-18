@@ -143,3 +143,31 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:5100/api/ident
   reach a downstream service) were left out of this slice; `OcelotConfigurationTests`
   covers the static configuration instead. This is the honest gap rather than
   a broken or skipped test.
+  - Access token revocation has a bounded window: revoking a session via
+  `revoke-sessions` does not deny-list the access tokens already issued
+  under it, since their `jti`s were never recorded at issue time. A revoked
+  session's access token stays valid for up to its own 15-minute lifetime.
+  See ADR 0008.
+- Token signing is HS256 with one symmetric key shared by every service
+  that validates tokens. RS256 with a JWKS endpoint is the intended next
+  step, not implemented in this slice.
+- The game registry (`games` table) lives inside IdentityService's own
+  database. It conceptually belongs to a platform-level service, which
+  does not exist yet at this stage of the build. See ADR 0005.
+- No refresh grace window: a client that loses the network response to a
+  legitimate `/refresh` call and retries with the same (now-consumed)
+  token is treated as reuse and loses the whole session, not just that
+  request. See ADR 0008.
+- Verification email is sent synchronously and best-effort. An SMTP
+  failure is logged and does not fail registration; `resend-verification`
+  is the recovery path. A transactional outbox for email is a later
+  extension of the pattern already used in EconomyService.
+- Rate limits on login/register/confirm/resend are enforced per gateway
+  replica, not per cluster — the deployment scales to ten replicas, so the
+  effective budget is the configured limit times whichever replica count
+  is currently running. The per-account cooldown on resend is the
+  exception: it is enforced in the database and holds regardless of
+  replica count.
+- Expired refresh tokens, revoked token families, and expired email
+  verification codes are not automatically deleted yet — that's the job
+  of `Platform.Worker`'s cleanup jobs, which are Extended scope.
