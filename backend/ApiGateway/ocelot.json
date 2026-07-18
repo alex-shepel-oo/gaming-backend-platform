@@ -10,13 +10,24 @@
       "DownstreamPathTemplate": "/api/identity/users/{everything}",
       "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/identity/users/{everything}",
-      "UpstreamHttpMethod": [ "GET", "POST" ]
+      "UpstreamHttpMethod": [ "GET", "POST" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKeys": [ "Bearer" ],
+        "AllowedScopes": []
+      }
     },
     {
       "DownstreamPathTemplate": "/api/identity/games",
       "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/identity/games",
-      "UpstreamHttpMethod": [ "GET" ]
+      "UpstreamHttpMethod": [ "GET" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKeys": [ "Bearer" ],
+        "AllowedScopes": []
+      },
+      "RouteClaimsRequirement": {
+        "role": "Admin"
+      }
     }
   ],
   "GlobalConfiguration": {}

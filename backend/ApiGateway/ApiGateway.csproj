@@ -3,6 +3,8 @@
   <ItemGroup>
     <PackageReference Include="Ocelot" />
     <PackageReference Include="Ocelot.Provider.Consul" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Sinks.Console" />
     <PackageReference Include="Serilog.Enrichers.Environment" />
