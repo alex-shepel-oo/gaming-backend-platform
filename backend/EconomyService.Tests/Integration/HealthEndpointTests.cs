@@ -1,5 +1,6 @@
 using System.Net;
 using AwesomeAssertions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using NUnit.Framework;
 
@@ -11,7 +12,8 @@ public sealed class HealthEndpointTests : IDisposable
     private WebApplicationFactory<Program> _factory = null!;
 
     [OneTimeSetUp]
-    public void OneTimeSetUp() => _factory = new WebApplicationFactory<Program>();
+    public void OneTimeSetUp() =>
+        _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
 
     [OneTimeTearDown]
     public void OneTimeTearDown() => Dispose();

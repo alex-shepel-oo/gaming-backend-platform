@@ -1,6 +1,7 @@
 using System.Globalization;
 using EconomyService.Endpoints;
 using EconomyService.Extensions;
+using EconomyService.Persistence;
 using Scalar.AspNetCore;
 using Serilog;
 
@@ -13,7 +14,9 @@ builder.Host.UseSerilog((context, configuration) => configuration
 
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddEconomyPersistence(builder.Configuration);
+builder.Services.AddScoped<DevelopmentSeeder>();
 
 var app = builder.Build();
 
@@ -21,6 +24,12 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
+
+    using (var scope = app.Services.CreateScope())
+    {
+        var seeder = scope.ServiceProvider.GetRequiredService<DevelopmentSeeder>();
+        await seeder.SeedAsync();
+    }
 }
 
 app.MapHealthEndpoints();
