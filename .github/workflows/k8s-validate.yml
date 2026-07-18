@@ -1,0 +1,23 @@
+name: k8s-validate
+
+on:
+  push:
+    paths:
+      - 'infra/kubernetes/**'
+  pull_request:
+    paths:
+      - 'infra/kubernetes/**'
+
+jobs:
+  kubeconform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: Validate manifests
+        run: find infra/kubernetes -type f \( -name '*.yaml' -o -name '*.yml' \) -print0 | xargs -0 kubeconform -strict -summary
