@@ -49,6 +49,19 @@
         "MinimumThroughput": 5,
         "BreakDuration": 30000
       }
+    },
+    {
+      "DownstreamPathTemplate": "/openapi/v1.json",
+      "DownstreamScheme": "http",
+      "UpstreamPathTemplate": "/openapi/identity/v1.json",
+      "UpstreamHttpMethod": [ "GET" ],
+      "QoSOptions": {
+        "Timeout": 5000,
+        "FailureRatio": 0.5,
+        "SamplingDuration": 10000,
+        "MinimumThroughput": 5,
+        "BreakDuration": 30000
+      }
     }
   ],
   "GlobalConfiguration": {}

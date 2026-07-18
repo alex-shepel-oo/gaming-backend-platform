@@ -8,6 +8,7 @@ using Ocelot.DependencyInjection;
 using Ocelot.Middleware;
 using Ocelot.Provider.Consul;
 using Ocelot.Provider.Polly;
+using Scalar.AspNetCore;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -50,6 +51,16 @@ builder.Services.AddOcelot(builder.Configuration).AddConsul().AddPolly();
 var app = builder.Build();
 
 app.UseHealthChecks("/health");
+
+// Ocelot's own middleware is terminal for unmatched paths, so anything served
+// by endpoint routing (Scalar's UI) has to be dispatched here, ahead of
+// UseOcelot -- otherwise Ocelot answers 404 before routing ever sees it. That
+// requires explicit UseEndpoints instead of top-level route registration.
+#pragma warning disable ASP0014
+app.UseRouting();
+app.UseEndpoints(endpoints => endpoints.MapScalarApiReference(options =>
+    options.AddDocument("identity", "Identity API", "/openapi/identity/v1.json", isDefault: true)));
+#pragma warning restore ASP0014
 
 await app.UseOcelot();
 
