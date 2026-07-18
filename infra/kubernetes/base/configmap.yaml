@@ -1,0 +1,13 @@
+# Applied after namespace.yaml: kubectl apply -f base/namespace.yaml
+# before kubectl apply -f base/ (or -f infra/kubernetes/base/), since apply
+# on a directory walks files alphabetically and this one references the
+# namespace below.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shared-config
+  namespace: gaming-platform
+data:
+  Jwt__Issuer: "gaming-backend-platform/identity"
+  Jwt__Audience: "gaming-backend-platform"
+  Jwt__ClockSkewSeconds: "30"
