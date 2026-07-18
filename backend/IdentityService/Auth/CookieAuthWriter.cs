@@ -20,6 +20,8 @@ public sealed class CookieAuthWriter(IOptions<RefreshCookieOptions> options) : I
         response.Cookies.Append(cookie.Name, string.Empty, BuildCookieOptions(cookie, TimeSpan.Zero));
     }
 
+    public string? ReadRefresh(HttpRequest request) => request.Cookies[options.Value.Name];
+
     private static CookieOptions BuildCookieOptions(RefreshCookieOptions cookie, TimeSpan maxAge) => new()
     {
         HttpOnly = cookie.HttpOnly,

@@ -70,6 +70,25 @@ public class CookieAuthWriterTests
         cookie.Secure.Should().BeTrue();
     }
 
+    [Fact]
+    public void ReadRefresh_ReturnsIncomingCookieValueByConfiguredName()
+    {
+        var writer = CreateWriter(DefaultOptions);
+        var context = new DefaultHttpContext();
+        context.Request.Headers.Cookie = "gbp_refresh=incoming-token";
+
+        writer.ReadRefresh(context.Request).Should().Be("incoming-token");
+    }
+
+    [Fact]
+    public void ReadRefresh_NoCookiePresent_ReturnsNull()
+    {
+        var writer = CreateWriter(DefaultOptions);
+        var context = new DefaultHttpContext();
+
+        writer.ReadRefresh(context.Request).Should().BeNull();
+    }
+
     private static RefreshCookieOptions CloneWith(bool requireSecure) => new()
     {
         Name = DefaultOptions.Name,

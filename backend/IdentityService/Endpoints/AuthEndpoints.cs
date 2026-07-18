@@ -79,15 +79,26 @@ public static class AuthEndpoints
         return TypedResults.Ok(new TokenPairResponse(result.AccessToken, result.RefreshToken));
     }
 
-    private static async Task<Ok<TokenPairResponse>> RefreshAsync(
-        RefreshRequest request,
+    private static async Task<Results<Ok<TokenPairResponse>, Ok<AccessTokenResponse>>> RefreshAsync(
+        RefreshRequest? request,
         IRefreshTokenService refreshTokenService,
+        ICookieAuthWriter cookieAuthWriter,
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var ip = httpContext.Connection.RemoteIpAddress?.ToString();
+        var isWeb = ClientMode.IsWeb(httpContext);
 
-        var result = await refreshTokenService.RotateAsync(request.RefreshToken, ip, cancellationToken);
+        var rawToken = (isWeb ? cookieAuthWriter.ReadRefresh(httpContext.Request) : request?.RefreshToken) ?? string.Empty;
+
+        var result = await refreshTokenService.RotateAsync(rawToken, ip, cancellationToken);
+
+        if (isWeb)
+        {
+            cookieAuthWriter.WriteRefresh(httpContext.Response, result.RawRefreshToken);
+
+            return TypedResults.Ok(new AccessTokenResponse(result.AccessToken));
+        }
 
         return TypedResults.Ok(new TokenPairResponse(result.AccessToken, result.RawRefreshToken));
     }
