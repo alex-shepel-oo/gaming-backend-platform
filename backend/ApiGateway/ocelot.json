@@ -4,7 +4,14 @@
       "DownstreamPathTemplate": "/api/identity/auth/{everything}",
       "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/identity/auth/{everything}",
-      "UpstreamHttpMethod": [ "POST" ]
+      "UpstreamHttpMethod": [ "POST" ],
+      "QoSOptions": {
+        "Timeout": 5000,
+        "FailureRatio": 0.5,
+        "SamplingDuration": 10000,
+        "MinimumThroughput": 5,
+        "BreakDuration": 30000
+      }
     },
     {
       "DownstreamPathTemplate": "/api/identity/users/{everything}",
@@ -14,6 +21,13 @@
       "AuthenticationOptions": {
         "AuthenticationProviderKeys": [ "Bearer" ],
         "AllowedScopes": []
+      },
+      "QoSOptions": {
+        "Timeout": 5000,
+        "FailureRatio": 0.5,
+        "SamplingDuration": 10000,
+        "MinimumThroughput": 5,
+        "BreakDuration": 30000
       }
     },
     {
@@ -27,6 +41,13 @@
       },
       "RouteClaimsRequirement": {
         "role": "Admin"
+      },
+      "QoSOptions": {
+        "Timeout": 5000,
+        "FailureRatio": 0.5,
+        "SamplingDuration": 10000,
+        "MinimumThroughput": 5,
+        "BreakDuration": 30000
       }
     }
   ],

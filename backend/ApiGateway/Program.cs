@@ -7,6 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 using Ocelot.DependencyInjection;
 using Ocelot.Middleware;
 using Ocelot.Provider.Consul;
+using Ocelot.Provider.Polly;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -44,7 +45,7 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
     });
 
 builder.Services.AddHealthChecks();
-builder.Services.AddOcelot(builder.Configuration).AddConsul();
+builder.Services.AddOcelot(builder.Configuration).AddConsul().AddPolly();
 
 var app = builder.Build();
 
