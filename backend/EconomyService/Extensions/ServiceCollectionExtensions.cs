@@ -3,6 +3,7 @@ using EconomyService.Auth;
 using EconomyService.Infrastructure;
 using EconomyService.Options;
 using EconomyService.Persistence;
+using EconomyService.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -66,6 +67,13 @@ public static class ServiceCollectionExtensions
 
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, CurrentUser>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddEconomyServices(this IServiceCollection services)
+    {
+        services.AddScoped<IIdempotencyStore, IdempotencyStore>();
 
         return services;
     }

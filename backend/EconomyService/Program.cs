@@ -20,6 +20,7 @@ builder.Services.AddHealthChecks();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddEconomyPersistence(builder.Configuration);
 builder.Services.AddEconomyAuthentication(builder.Configuration);
+builder.Services.AddEconomyServices();
 builder.Services.AddScoped<DevelopmentSeeder>();
 
 var app = builder.Build();
