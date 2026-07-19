@@ -1,6 +1,7 @@
 using System.Globalization;
 using EconomyService.Endpoints;
 using EconomyService.Extensions;
+using EconomyService.Infrastructure;
 using EconomyService.Persistence;
 using Scalar.AspNetCore;
 using Serilog;
@@ -23,6 +24,7 @@ builder.Services.AddScoped<DevelopmentSeeder>();
 var app = builder.Build();
 
 app.UseExceptionHandler();
+app.UseMiddleware<CorrelationIdMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
