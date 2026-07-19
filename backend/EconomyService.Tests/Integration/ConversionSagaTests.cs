@@ -1,0 +1,321 @@
+using AwesomeAssertions;
+using EconomyService.Domain;
+using EconomyService.Domain.Enums;
+using EconomyService.Persistence;
+using EconomyService.Services;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using NUnit.Framework;
+using Respawn;
+using Testcontainers.PostgreSql;
+
+namespace EconomyService.Tests.Integration;
+
+[TestFixture]
+public sealed class ConversionSagaTests : IAsyncDisposable
+{
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17-alpine")
+        .WithDatabase("economy_db")
+        .WithUsername("economy")
+        .WithPassword("economy_test_password")
+        .Build();
+
+    private string _connectionString = null!;
+    private Respawner _respawner = null!;
+
+    [OneTimeSetUp]
+    public async Task OneTimeSetUpAsync()
+    {
+        await _container.StartAsync();
+        _connectionString = _container.GetConnectionString();
+
+        await using (var dbContext = CreateDbContext())
+        {
+            await dbContext.Database.MigrateAsync();
+        }
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync();
+        _respawner = await Respawner.CreateAsync(connection, new RespawnerOptions
+        {
+            DbAdapter = DbAdapter.Postgres,
+        });
+    }
+
+    [OneTimeTearDown]
+    public async Task OneTimeTearDownAsync() => await DisposeAsync();
+
+    [SetUp]
+    public async Task SetUpAsync()
+    {
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync();
+        await _respawner.ResetAsync(connection);
+    }
+
+    public async ValueTask DisposeAsync() => await _container.DisposeAsync();
+
+    [Test]
+    public async Task ExecuteAsync_HappyPath_DebitsPlatformCreditsGameAndCompletes()
+    {
+        var platformCurrencyId = await SeedPlatformCurrencyAsync();
+        var (gameCurrencyId, gameId) = await SeedGameCurrencyAsync();
+        var userId = Guid.NewGuid();
+        var cancellationToken = TestContext.CurrentContext.CancellationToken;
+
+        await GrantAsync(userId, platformCurrencyId, 100m, "conversion-saga-seed-1");
+        var request = await SeedConversionRequestAsync(userId, platformCurrencyId, gameCurrencyId, gameId, 10m, 1000m, 100m);
+
+        await using var dbContext = CreateDbContext();
+        var saga = CreateSaga(dbContext);
+        await saga.ExecuteAsync(request.Id, cancellationToken);
+
+        await using var verifyContext = CreateDbContext();
+
+        var platformBalance = await verifyContext.Balances
+            .SingleAsync(b => b.UserId == userId && b.CurrencyId == platformCurrencyId, cancellationToken);
+        platformBalance.Amount.Should().Be(90m);
+
+        var gameBalance = await verifyContext.Balances
+            .SingleAsync(b => b.UserId == userId && b.CurrencyId == gameCurrencyId, cancellationToken);
+        gameBalance.Amount.Should().Be(1000m);
+
+        var conversionOut = await verifyContext.LedgerEntries.SingleAsync(
+            e => e.UserId == userId && e.CurrencyId == platformCurrencyId && e.TransactionType == TransactionType.ConversionOut,
+            cancellationToken);
+        conversionOut.Amount.Should().Be(-10m);
+
+        var conversionIn = await verifyContext.LedgerEntries.SingleAsync(
+            e => e.UserId == userId && e.CurrencyId == gameCurrencyId && e.TransactionType == TransactionType.ConversionIn,
+            cancellationToken);
+        conversionIn.Amount.Should().Be(1000m);
+
+        var updatedRequest = await verifyContext.ConversionRequests.SingleAsync(r => r.Id == request.Id, cancellationToken);
+        updatedRequest.Status.Should().Be(ConversionStatus.Completed);
+
+        (await verifyContext.OutboxMessages.AnyAsync(m => m.Type == "conversion.debited", cancellationToken)).Should().BeTrue();
+        (await verifyContext.OutboxMessages.AnyAsync(m => m.Type == "conversion.completed", cancellationToken)).Should().BeTrue();
+    }
+
+    [Test]
+    public async Task ExecuteAsync_CreditStepFails_CompensatesAndRestoresPlatformBalance()
+    {
+        var platformCurrencyId = await SeedPlatformCurrencyAsync();
+        var (gameCurrencyId, gameId) = await SeedGameCurrencyAsync();
+        var userId = Guid.NewGuid();
+        var cancellationToken = TestContext.CurrentContext.CancellationToken;
+
+        await GrantAsync(userId, platformCurrencyId, 100m, "conversion-saga-seed-2");
+        var request = await SeedConversionRequestAsync(userId, platformCurrencyId, gameCurrencyId, gameId, 10m, 1000m, 100m);
+
+        await using var dbContext = CreateDbContext();
+        var saga = CreateSaga(dbContext, new ThrowingConversionCreditFaultInjector());
+        await saga.ExecuteAsync(request.Id, cancellationToken);
+
+        await using var verifyContext = CreateDbContext();
+
+        var platformBalance = await verifyContext.Balances
+            .SingleAsync(b => b.UserId == userId && b.CurrencyId == platformCurrencyId, cancellationToken);
+        platformBalance.Amount.Should().Be(100m);
+
+        (await verifyContext.Balances.AnyAsync(b => b.UserId == userId && b.CurrencyId == gameCurrencyId, cancellationToken))
+            .Should().BeFalse();
+
+        var updatedRequest = await verifyContext.ConversionRequests.SingleAsync(r => r.Id == request.Id, cancellationToken);
+        updatedRequest.Status.Should().Be(ConversionStatus.Failed);
+        updatedRequest.FailureReason.Should().NotBeNullOrWhiteSpace();
+
+        var compensationEntry = await verifyContext.LedgerEntries.SingleAsync(
+            e => e.UserId == userId
+                && e.CurrencyId == platformCurrencyId
+                && e.TransactionType == TransactionType.Grant
+                && e.Reason == "conversion compensation",
+            cancellationToken);
+        compensationEntry.Amount.Should().Be(10m);
+
+        var conversionOutCount = await verifyContext.LedgerEntries.CountAsync(
+            e => e.CurrencyId == platformCurrencyId && e.TransactionType == TransactionType.ConversionOut, cancellationToken);
+        conversionOutCount.Should().Be(1);
+
+        (await verifyContext.LedgerEntries.AnyAsync(e => e.TransactionType == TransactionType.ConversionIn, cancellationToken))
+            .Should().BeFalse();
+
+        (await verifyContext.OutboxMessages.AnyAsync(m => m.Type == "conversion.failed", cancellationToken)).Should().BeTrue();
+    }
+
+    [Test]
+    public async Task ExecuteAsync_CalledAgainAfterCompleted_DoesNotPostSecondPairOfEntries()
+    {
+        var platformCurrencyId = await SeedPlatformCurrencyAsync();
+        var (gameCurrencyId, gameId) = await SeedGameCurrencyAsync();
+        var userId = Guid.NewGuid();
+        var cancellationToken = TestContext.CurrentContext.CancellationToken;
+
+        await GrantAsync(userId, platformCurrencyId, 100m, "conversion-saga-seed-3");
+        var request = await SeedConversionRequestAsync(userId, platformCurrencyId, gameCurrencyId, gameId, 10m, 1000m, 100m);
+
+        await using (var firstRunContext = CreateDbContext())
+        {
+            await CreateSaga(firstRunContext).ExecuteAsync(request.Id, cancellationToken);
+        }
+
+        await using (var secondRunContext = CreateDbContext())
+        {
+            await CreateSaga(secondRunContext).ExecuteAsync(request.Id, cancellationToken);
+        }
+
+        await using var verifyContext = CreateDbContext();
+
+        var platformBalance = await verifyContext.Balances
+            .SingleAsync(b => b.UserId == userId && b.CurrencyId == platformCurrencyId, cancellationToken);
+        platformBalance.Amount.Should().Be(90m);
+
+        var conversionOutCount = await verifyContext.LedgerEntries.CountAsync(
+            e => e.CurrencyId == platformCurrencyId && e.TransactionType == TransactionType.ConversionOut, cancellationToken);
+        conversionOutCount.Should().Be(1);
+
+        var conversionInCount = await verifyContext.LedgerEntries.CountAsync(
+            e => e.CurrencyId == gameCurrencyId && e.TransactionType == TransactionType.ConversionIn, cancellationToken);
+        conversionInCount.Should().Be(1);
+
+        var updatedRequest = await verifyContext.ConversionRequests.SingleAsync(r => r.Id == request.Id, cancellationToken);
+        updatedRequest.Status.Should().Be(ConversionStatus.Completed);
+    }
+
+    [Test]
+    public async Task ExecuteAsync_CalledAgainAfterFailed_DoesNotCompensateAgain()
+    {
+        var platformCurrencyId = await SeedPlatformCurrencyAsync();
+        var (gameCurrencyId, gameId) = await SeedGameCurrencyAsync();
+        var userId = Guid.NewGuid();
+        var cancellationToken = TestContext.CurrentContext.CancellationToken;
+
+        await GrantAsync(userId, platformCurrencyId, 100m, "conversion-saga-seed-4");
+        var request = await SeedConversionRequestAsync(userId, platformCurrencyId, gameCurrencyId, gameId, 10m, 1000m, 100m);
+
+        await using (var firstRunContext = CreateDbContext())
+        {
+            await CreateSaga(firstRunContext, new ThrowingConversionCreditFaultInjector())
+                .ExecuteAsync(request.Id, cancellationToken);
+        }
+
+        await using (var secondRunContext = CreateDbContext())
+        {
+            await CreateSaga(secondRunContext, new ThrowingConversionCreditFaultInjector())
+                .ExecuteAsync(request.Id, cancellationToken);
+        }
+
+        await using var verifyContext = CreateDbContext();
+
+        var platformBalance = await verifyContext.Balances
+            .SingleAsync(b => b.UserId == userId && b.CurrencyId == platformCurrencyId, cancellationToken);
+        platformBalance.Amount.Should().Be(100m);
+
+        var compensationCount = await verifyContext.LedgerEntries.CountAsync(
+            e => e.CurrencyId == platformCurrencyId && e.TransactionType == TransactionType.Grant && e.Reason == "conversion compensation",
+            cancellationToken);
+        compensationCount.Should().Be(1);
+
+        var updatedRequest = await verifyContext.ConversionRequests.SingleAsync(r => r.Id == request.Id, cancellationToken);
+        updatedRequest.Status.Should().Be(ConversionStatus.Failed);
+    }
+
+    private static ConversionSaga CreateSaga(EconomyDbContext dbContext, IConversionCreditFaultInjector? faultInjector = null)
+    {
+        var idempotencyStore = new IdempotencyStore(dbContext);
+        var balanceService = new BalanceService(dbContext);
+        var outboxWriter = new OutboxWriter(dbContext);
+        var ledgerService = new LedgerService(dbContext, idempotencyStore, balanceService, outboxWriter, TimeProvider.System);
+
+        return new ConversionSaga(
+            dbContext, ledgerService, outboxWriter, faultInjector ?? new NoOpConversionCreditFaultInjector(), TimeProvider.System);
+    }
+
+    private async Task GrantAsync(Guid userId, Guid currencyId, decimal amount, string idempotencyKey)
+    {
+        await using var dbContext = CreateDbContext();
+        var idempotencyStore = new IdempotencyStore(dbContext);
+        var balanceService = new BalanceService(dbContext);
+        var outboxWriter = new OutboxWriter(dbContext);
+        var ledgerService = new LedgerService(dbContext, idempotencyStore, balanceService, outboxWriter, TimeProvider.System);
+
+        await ledgerService.GrantAsync(
+            new LedgerMutationRequest(userId, currencyId, amount, idempotencyKey), TestContext.CurrentContext.CancellationToken);
+    }
+
+    private async Task<ConversionRequest> SeedConversionRequestAsync(
+        Guid userId, Guid fromCurrencyId, Guid toCurrencyId, Guid? gameId, decimal fromAmount, decimal toAmount, decimal rate)
+    {
+        await using var dbContext = CreateDbContext();
+        var now = DateTimeOffset.UtcNow;
+        var request = new ConversionRequest
+        {
+            Id = Guid.CreateVersion7(),
+            UserId = userId,
+            FromCurrencyId = fromCurrencyId,
+            ToCurrencyId = toCurrencyId,
+            GameId = gameId,
+            FromAmount = fromAmount,
+            ToAmount = toAmount,
+            RateApplied = rate,
+            Status = ConversionStatus.Started,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+
+        dbContext.ConversionRequests.Add(request);
+        await dbContext.SaveChangesAsync(TestContext.CurrentContext.CancellationToken);
+        return request;
+    }
+
+    private async Task<Guid> SeedPlatformCurrencyAsync()
+    {
+        await using var dbContext = CreateDbContext();
+        var currency = new Currency
+        {
+            Id = Guid.CreateVersion7(),
+            Code = $"PLATFORM_{Guid.NewGuid():N}",
+            DisplayName = "Test Platform Credits",
+            Scope = CurrencyScope.Platform,
+            GameId = null,
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+        dbContext.Currencies.Add(currency);
+        await dbContext.SaveChangesAsync(TestContext.CurrentContext.CancellationToken);
+        return currency.Id;
+    }
+
+    private async Task<(Guid CurrencyId, Guid GameId)> SeedGameCurrencyAsync()
+    {
+        await using var dbContext = CreateDbContext();
+        var gameId = Guid.NewGuid();
+        var currency = new Currency
+        {
+            Id = Guid.CreateVersion7(),
+            Code = $"GAME_{Guid.NewGuid():N}",
+            DisplayName = "Test Game Gold",
+            Scope = CurrencyScope.Game,
+            GameId = gameId,
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+        dbContext.Currencies.Add(currency);
+        await dbContext.SaveChangesAsync(TestContext.CurrentContext.CancellationToken);
+        return (currency.Id, gameId);
+    }
+
+    private EconomyDbContext CreateDbContext()
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<EconomyDbContext>().UseNpgsql(_connectionString);
+        return new EconomyDbContext(optionsBuilder.Options);
+    }
+
+    // A deterministic fault at the credit step - not a database mock, a
+    // one-line stand-in for "the credit step failed" so the compensating
+    // path is a straightforward sequential call to test, not a race against
+    // a timing-dependent failure.
+    private sealed class ThrowingConversionCreditFaultInjector : IConversionCreditFaultInjector
+    {
+        public Task BeforeCreditAsync(ConversionRequest request, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("injected credit failure");
+    }
+}

@@ -35,11 +35,39 @@ public sealed class LedgerService(
     public Task<LedgerPostResult> AdjustAsync(LedgerMutationRequest request, CancellationToken cancellationToken = default) =>
         PostAsync(request, TransactionType.Adjust, request.Amount, cancellationToken);
 
+    public Task<LedgerPostResult> ConversionDebitAsync(
+        LedgerMutationRequest request,
+        Func<LedgerPostResult, CancellationToken, Task> onPosted,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.Amount);
+        return PostAsync(request, TransactionType.ConversionOut, -request.Amount, cancellationToken, onPosted);
+    }
+
+    public Task<LedgerPostResult> ConversionCreditAsync(
+        LedgerMutationRequest request,
+        Func<LedgerPostResult, CancellationToken, Task> onPosted,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.Amount);
+        return PostAsync(request, TransactionType.ConversionIn, request.Amount, cancellationToken, onPosted);
+    }
+
+    public Task<LedgerPostResult> ConversionCompensateAsync(
+        LedgerMutationRequest request,
+        Func<LedgerPostResult, CancellationToken, Task> onPosted,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.Amount);
+        return PostAsync(request, TransactionType.Grant, request.Amount, cancellationToken, onPosted);
+    }
+
     private async Task<LedgerPostResult> PostAsync(
         LedgerMutationRequest request,
         TransactionType transactionType,
         decimal signedAmount,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<LedgerPostResult, CancellationToken, Task>? onPosted = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(request.IdempotencyKey);
 
@@ -137,8 +165,15 @@ public sealed class LedgerService(
                 },
                 cancellationToken);
 
+            var result = new LedgerPostResult(entry, newAmount, IsReplay: false);
+
+            if (onPosted is not null)
+            {
+                await onPosted(result, cancellationToken);
+            }
+
             await transaction.CommitAsync(cancellationToken);
-            return new LedgerPostResult(entry, newAmount, IsReplay: false);
+            return result;
         }
 
         throw new BalanceConcurrencyException();

@@ -97,6 +97,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IBalanceService, BalanceService>();
         services.AddScoped<IOutboxWriter, OutboxWriter>();
         services.AddScoped<ILedgerService, LedgerService>();
+        services.AddScoped<IConversionCreditFaultInjector, NoOpConversionCreditFaultInjector>();
+        services.AddScoped<IConversionSaga, ConversionSaga>();
 
         return services;
     }
