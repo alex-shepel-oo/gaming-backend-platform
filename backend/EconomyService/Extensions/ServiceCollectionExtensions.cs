@@ -74,6 +74,8 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddEconomyServices(this IServiceCollection services)
     {
         services.AddScoped<IIdempotencyStore, IdempotencyStore>();
+        services.AddScoped<IBalanceService, BalanceService>();
+        services.AddScoped<ILedgerService, LedgerService>();
 
         return services;
     }
