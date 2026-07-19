@@ -13,12 +13,16 @@ builder.Host.UseSerilog((context, configuration) => configuration
     .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture));
 
 builder.Services.AddOpenApi();
+builder.Services.AddValidation();
+builder.Services.AddEconomyExceptionHandling();
 builder.Services.AddHealthChecks();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddEconomyPersistence(builder.Configuration);
 builder.Services.AddScoped<DevelopmentSeeder>();
 
 var app = builder.Build();
+
+app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
 {
