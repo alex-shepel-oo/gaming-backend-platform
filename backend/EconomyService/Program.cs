@@ -49,6 +49,7 @@ app.MapHealthEndpoints();
 app.MapCurrencyEndpoints();
 app.MapBalanceEndpoints();
 app.MapTransactionEndpoints();
+app.MapConversionEndpoints();
 
 app.Run();
 

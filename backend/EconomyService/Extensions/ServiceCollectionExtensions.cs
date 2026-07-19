@@ -99,6 +99,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ILedgerService, LedgerService>();
         services.AddScoped<IConversionCreditFaultInjector, NoOpConversionCreditFaultInjector>();
         services.AddScoped<IConversionSaga, ConversionSaga>();
+        services.AddSingleton<ConversionSagaChannel>();
+        services.AddScoped<IConversionRequestService, ConversionRequestService>();
+        services.AddHostedService<ConversionSagaRunner>();
 
         return services;
     }
