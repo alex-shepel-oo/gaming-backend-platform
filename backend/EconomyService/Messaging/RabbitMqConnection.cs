@@ -29,6 +29,8 @@ public sealed class RabbitMqConnection : IRabbitMqConnection, IAsyncDisposable
         return await connection.CreateChannelAsync(cancellationToken: cancellationToken);
     }
 
+    public Task<IConnection> GetConnectionAsync() => _connection.Value;
+
     public async ValueTask DisposeAsync()
     {
         if (!_connection.IsValueCreated)

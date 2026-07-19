@@ -19,6 +19,9 @@
          8.0.3 floor; the health check's surface (open a connection, run "SELECT 1;") is
          stable across that range. -->
     <PackageVersion Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
+    <!-- Same async-client generation as RabbitMQ.Client 7.2.1 above (the
+         "Rabbitmq.v6" sibling package targets the old synchronous IModel API). -->
+    <PackageVersion Include="AspNetCore.HealthChecks.Rabbitmq" Version="9.0.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
     <!-- Explicit floors: Npgsql.EntityFrameworkCore.PostgreSQL 10.0.3 only
          requires >=10.0.4 of these two. Without the pins, projects that

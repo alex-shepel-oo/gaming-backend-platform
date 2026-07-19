@@ -33,6 +33,10 @@ public static class ServiceCollectionExtensions
             .AddNpgSql(
                 sp => sp.GetRequiredService<IConfiguration>().GetConnectionString("EconomyDb")!,
                 name: "postgresql",
+                tags: ["ready"])
+            .AddRabbitMQ(
+                sp => sp.GetRequiredService<IRabbitMqConnection>().GetConnectionAsync(),
+                name: "rabbitmq",
                 tags: ["ready"]);
 
         return services;
