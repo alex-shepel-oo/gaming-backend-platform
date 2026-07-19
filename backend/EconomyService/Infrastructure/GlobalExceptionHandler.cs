@@ -1,3 +1,4 @@
+using EconomyService.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,9 +11,20 @@ public sealed partial class GlobalExceptionHandler(
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
-        LogUnhandledException(exception);
+        var (statusCode, title, detail) = exception switch
+        {
+            MissingIdempotencyKeyException => (StatusCodes.Status400BadRequest, "Idempotency-Key required", exception.Message),
+            InsufficientFundsException => (StatusCodes.Status402PaymentRequired, "Insufficient funds", exception.Message),
+            _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred",
+                "An unexpected error occurred while processing the request."),
+        };
 
-        httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        if (statusCode == StatusCodes.Status500InternalServerError)
+        {
+            LogUnhandledException(exception);
+        }
+
+        httpContext.Response.StatusCode = statusCode;
 
         return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
         {
@@ -20,9 +32,9 @@ public sealed partial class GlobalExceptionHandler(
             Exception = exception,
             ProblemDetails = new ProblemDetails
             {
-                Status = StatusCodes.Status500InternalServerError,
-                Title = "An unexpected error occurred",
-                Detail = "An unexpected error occurred while processing the request.",
+                Status = statusCode,
+                Title = title,
+                Detail = detail,
             },
         });
     }

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AwesomeAssertions;
+using EconomyService.Exceptions;
 using EconomyService.Extensions;
 using EconomyService.Infrastructure;
 using Microsoft.AspNetCore.Diagnostics;
@@ -12,6 +13,24 @@ namespace EconomyService.Tests.Unit;
 [TestFixture]
 public sealed class GlobalExceptionHandlerTests
 {
+    [Test]
+    public async Task TryHandleAsync_InsufficientFundsException_Returns402()
+    {
+        var (statusCode, body) = await HandleAsync(new InsufficientFundsException());
+
+        statusCode.Should().Be(StatusCodes.Status402PaymentRequired);
+        body.GetProperty("status").GetInt32().Should().Be(StatusCodes.Status402PaymentRequired);
+    }
+
+    [Test]
+    public async Task TryHandleAsync_MissingIdempotencyKeyException_Returns400()
+    {
+        var (statusCode, body) = await HandleAsync(new MissingIdempotencyKeyException());
+
+        statusCode.Should().Be(StatusCodes.Status400BadRequest);
+        body.GetProperty("status").GetInt32().Should().Be(StatusCodes.Status400BadRequest);
+    }
+
     [Test]
     public async Task TryHandleAsync_UnhandledException_Returns500WithoutLeakingExceptionMessage()
     {
