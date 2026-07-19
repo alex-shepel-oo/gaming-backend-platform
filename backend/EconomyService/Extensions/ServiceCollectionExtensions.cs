@@ -1,6 +1,7 @@
 using System.Text;
 using EconomyService.Auth;
 using EconomyService.Infrastructure;
+using EconomyService.Messaging;
 using EconomyService.Options;
 using EconomyService.Persistence;
 using EconomyService.Services;
@@ -92,6 +93,19 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IBalanceService, BalanceService>();
         services.AddScoped<IOutboxWriter, OutboxWriter>();
         services.AddScoped<ILedgerService, LedgerService>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddEconomyMessaging(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<RabbitMqOptions>()
+            .Bind(configuration.GetSection(RabbitMqOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddSingleton<IRabbitMqConnection, RabbitMqConnection>();
+        services.AddHostedService<RabbitMqTopologyInitializer>();
 
         return services;
     }

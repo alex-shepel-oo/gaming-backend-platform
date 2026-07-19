@@ -1,3 +1,4 @@
+using System.Globalization;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -20,6 +21,10 @@ public sealed class CorrelationIdMiddlewareTests : IDisposable
                 new Dictionary<string, string?>
                 {
                     ["Jwt:Key"] = "integration-test-signing-key-at-least-32-bytes-long",
+                    ["RabbitMq:Host"] = RabbitMqTestBroker.Container.Hostname,
+                    ["RabbitMq:Port"] = RabbitMqTestBroker.Container.GetMappedPublicPort(5672).ToString(CultureInfo.InvariantCulture),
+                    ["RabbitMq:Username"] = "guest",
+                    ["RabbitMq:Password"] = "guest",
                 }));
         });
 

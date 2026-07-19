@@ -1,8 +1,10 @@
+using System.Globalization;
 using EconomyService.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using EconomyService.Tests.Integration;
 using Npgsql;
 using Respawn;
 using Testcontainers.PostgreSql;
@@ -57,6 +59,10 @@ public sealed class EconomyApiFactory : WebApplicationFactory<Program>
             {
                 ["ConnectionStrings:EconomyDb"] = _container.GetConnectionString(),
                 ["Jwt:Key"] = SigningKey,
+                ["RabbitMq:Host"] = RabbitMqTestBroker.Container.Hostname,
+                ["RabbitMq:Port"] = RabbitMqTestBroker.Container.GetMappedPublicPort(5672).ToString(CultureInfo.InvariantCulture),
+                ["RabbitMq:Username"] = "guest",
+                ["RabbitMq:Password"] = "guest",
             }));
     }
 }
