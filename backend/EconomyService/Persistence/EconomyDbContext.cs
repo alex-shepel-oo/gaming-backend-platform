@@ -1,4 +1,5 @@
 using EconomyService.Domain;
+using EconomyService.Inbox;
 using Microsoft.EntityFrameworkCore;
 
 namespace EconomyService.Persistence;
@@ -11,6 +12,7 @@ public sealed class EconomyDbContext(DbContextOptions<EconomyDbContext> options)
     public DbSet<ConversionRate> ConversionRates => Set<ConversionRate>();
     public DbSet<ConversionRequest> ConversionRequests => Set<ConversionRequest>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<ProcessedMessage> ProcessedMessages => Set<ProcessedMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
