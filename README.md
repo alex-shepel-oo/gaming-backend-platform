@@ -145,6 +145,48 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:5100/api/ident
   -d '{"refreshToken":"<refreshToken from step 4>"}'
 ```
 
+## Economy API
+
+EconomyService is not yet wired behind the gateway (that lands with the CORS/
+gateway work later in this slice), so it is reached directly at
+`http://localhost:5001`.
+
+Currencies come in two scopes: **platform** currencies (`gameId` is `null`,
+shared across every game) and **game** currencies (`gameId` set, scoped to one
+title). The seeded development data has `PLATFORM_CREDITS` (platform) and
+`SHOOTER_GOLD` (game, `demo-shooter`), with a `100:1` conversion rate between
+them that nothing consumes yet.
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/currencies` | bearer | Platform currencies plus the caller's own game currency |
+| GET | `/balances/me` | bearer | Current user's balances (`?gameId=` cross-checks against the token's own game, it does not select a different one) |
+| POST | `/balances/{userId}/adjust` | bearer, admin | Manual correction with a required audit `reason`; `Amount` is a signed delta, not a magnitude |
+| POST | `/transactions/grant` | bearer, moderator+ | Credit a user's balance, with an audit `reason` |
+| POST | `/transactions/spend` | bearer | Debit the caller's own balance |
+| GET | `/transactions/me` | bearer | Paginated ledger history (`?currencyId=&page=&pageSize=`) for the caller only |
+| GET | `/health` | anonymous | Liveness probe |
+| GET | `/health/ready` | anonymous | Readiness probe (database only for now) |
+
+`grant`, `spend`, and `adjust` all require an `Idempotency-Key` header (400
+without one); replaying the same key returns the original outcome instead of
+posting twice, keyed off `ledger_entries.idempotency_key`.
+
+### Why 402 for insufficient funds
+
+A `spend` (or a downward `adjust`) that would take a balance below zero
+returns `402 Payment Required` rather than `400`/`409`/`422`. It is the one
+status code in the 4xx range whose name actually describes "not enough
+money," which makes it easier to branch on client-side than yet another
+generic conflict/validation code sharing space with unrelated failures.
+
+### Why NUnit here
+
+EconomyService's tests run on NUnit instead of xUnit (which IdentityService
+uses), on purpose, to show working knowledge of both. NSubstitute,
+AwesomeAssertions, and Testcontainers are the same across both projects
+either way.
+
 ## Architecture decisions
 [docs/adr/](docs/adr/).
 
@@ -173,7 +215,7 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:5100/api/ident
 - Verification email is sent synchronously and best-effort. An SMTP
   failure is logged and does not fail registration; `resend-verification`
   is the recovery path. A transactional outbox for email is a later
-  extension of the pattern already used in EconomyService.
+  extension of the pattern planned for EconomyService.
 - Rate limits on login/register/confirm/resend are enforced per gateway
   replica, not per cluster — the deployment scales to ten replicas, so the
   effective budget is the configured limit times whichever replica count
@@ -190,3 +232,11 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:5100/api/ident
 - A backend-for-frontend would keep even more of the token handling out of
   the browser than the current cookie-only approach, but is more
   infrastructure than this slice justifies.
+- EconomyService does not publish events for anything it does yet: a
+  transactional outbox and a dispatcher are the next piece of this slice.
+- Currency conversion is not implemented. `conversion_rates` is seeded and
+  readable, but nothing exchanges one currency for another yet; that
+  needs the saga work planned for later in this slice.
+- EconomyService validates the same shared HS256 key as IdentityService
+  (see above) rather than a key of its own — the same inherited limitation,
+  not a new one this service introduces.
