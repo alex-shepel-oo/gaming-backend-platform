@@ -9,6 +9,7 @@ public sealed class EconomyDbContext(DbContextOptions<EconomyDbContext> options)
     public DbSet<Balance> Balances => Set<Balance>();
     public DbSet<LedgerEntry> LedgerEntries => Set<LedgerEntry>();
     public DbSet<ConversionRate> ConversionRates => Set<ConversionRate>();
+    public DbSet<ConversionRequest> ConversionRequests => Set<ConversionRequest>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
