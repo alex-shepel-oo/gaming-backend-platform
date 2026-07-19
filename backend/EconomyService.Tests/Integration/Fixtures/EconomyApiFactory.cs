@@ -43,9 +43,28 @@ public sealed class EconomyApiFactory : WebApplicationFactory<Program>
 
     public async Task ResetAsync()
     {
-        await using var connection = new NpgsqlConnection(_container.GetConnectionString());
-        await connection.OpenAsync();
-        await _respawner.ResetAsync(connection);
+        // OutboxDispatcherService keeps polling in the background for the
+        // whole life of this factory. Its poll transaction and this reset
+        // can occasionally lock the same tables in opposite order - Postgres
+        // reports that as a deadlock and aborts one side, which Postgres
+        // itself flags transient. A couple of retries is the correct
+        // response to a transient error, not a workaround for a real bug.
+        const int maxAttempts = 3;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            await using var connection = new NpgsqlConnection(_container.GetConnectionString());
+            await connection.OpenAsync();
+
+            try
+            {
+                await _respawner.ResetAsync(connection);
+                return;
+            }
+            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.DeadlockDetected && attempt < maxAttempts)
+            {
+            }
+        }
     }
 
     public async Task StopContainerAsync() => await _container.DisposeAsync();
