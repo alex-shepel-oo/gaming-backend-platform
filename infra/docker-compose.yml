@@ -90,6 +90,22 @@ services:
     networks:
       - platform-network
 
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: "${RABBITMQ_USER:?RABBITMQ_USER is required, set it in infra/.env}"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required, set it in infra/.env}"
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - platform-network
+
   economy-migrator:
     build:
       context: ../backend
@@ -115,6 +131,10 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://+:5001"
       ConnectionStrings__EconomyDb: "Host=economy_db;Port=5432;Database=${ECONOMY_POSTGRES_DB:?ECONOMY_POSTGRES_DB is required, set it in infra/.env};Username=${ECONOMY_POSTGRES_USER:?ECONOMY_POSTGRES_USER is required, set it in infra/.env};Password=${ECONOMY_POSTGRES_PASSWORD:?ECONOMY_POSTGRES_PASSWORD is required, set it in infra/.env}"
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: "5672"
+      RabbitMq__Username: "${RABBITMQ_USER:?RABBITMQ_USER is required, set it in infra/.env}"
+      RabbitMq__Password: "${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required, set it in infra/.env}"
     ports:
       - "${ECONOMY_SERVICE_PORT:-5001}:5001"
     depends_on:
@@ -122,6 +142,8 @@ services:
         condition: service_healthy
       economy-migrator:
         condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:5001/health/ready || exit 1"]
       interval: 5s
