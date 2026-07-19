@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Hosting;
@@ -26,6 +27,10 @@ public sealed class HealthEndpointTests : IDisposable
                     // default connect timeout.
                     ["ConnectionStrings:EconomyDb"] =
                         "Host=127.0.0.1;Port=1;Database=nonexistent;Username=nobody;Password=nobody;Timeout=2",
+                    ["RabbitMq:Host"] = RabbitMqTestBroker.Container.Hostname,
+                    ["RabbitMq:Port"] = RabbitMqTestBroker.Container.GetMappedPublicPort(5672).ToString(CultureInfo.InvariantCulture),
+                    ["RabbitMq:Username"] = "guest",
+                    ["RabbitMq:Password"] = "guest",
                 }));
         });
 

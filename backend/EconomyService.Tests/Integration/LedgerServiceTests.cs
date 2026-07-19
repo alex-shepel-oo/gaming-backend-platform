@@ -1,7 +1,9 @@
+using System.Text.Json;
 using AwesomeAssertions;
 using EconomyService.Domain;
 using EconomyService.Domain.Enums;
 using EconomyService.Exceptions;
+using EconomyService.Messaging.Events;
 using EconomyService.Persistence;
 using EconomyService.Services;
 using Microsoft.EntityFrameworkCore;
@@ -195,6 +197,108 @@ public sealed class LedgerServiceTests : IAsyncDisposable
         entryCount.Should().Be(1);
     }
 
+    [Test]
+    public async Task GrantAsync_NewPosting_WritesOutboxRowInSameTransactionAsLedgerEntry()
+    {
+        var currencyId = await SeedCurrencyAsync();
+        var userId = Guid.NewGuid();
+        var ledgerService = CreateLedgerService(out var dbContext);
+        await using var _ = dbContext;
+
+        var result = await ledgerService.GrantAsync(
+            new LedgerMutationRequest(userId, currencyId, 40m, "outbox-key-1"),
+            TestContext.CurrentContext.CancellationToken);
+
+        await using var verifyContext = CreateDbContext();
+        var outboxMessage = await verifyContext.OutboxMessages
+            .SingleAsync(TestContext.CurrentContext.CancellationToken);
+
+        outboxMessage.Type.Should().Be("balance.changed");
+        outboxMessage.Version.Should().Be(1);
+        outboxMessage.ProcessedAt.Should().BeNull();
+        outboxMessage.Attempts.Should().Be(0);
+
+        var payload = JsonSerializer.Deserialize<BalanceChangedEvent>(outboxMessage.Payload)!;
+        payload.LedgerEntryId.Should().Be(result.Entry.Id);
+        payload.UserId.Should().Be(userId);
+        payload.CurrencyId.Should().Be(currencyId);
+        payload.Balance.Should().Be(40m);
+    }
+
+    [Test]
+    public async Task OutboxWrite_TransactionRolledBackBeforeCommit_PersistsNeitherLedgerEntryNorOutboxRow()
+    {
+        var currencyId = await SeedCurrencyAsync();
+        var userId = Guid.NewGuid();
+
+        await using var dbContext = CreateDbContext();
+        var outboxWriter = new OutboxWriter(dbContext);
+        var entry = new LedgerEntry
+        {
+            Id = Guid.CreateVersion7(),
+            UserId = userId,
+            CurrencyId = currencyId,
+            Amount = 15m,
+            TransactionType = TransactionType.Grant,
+            IdempotencyKey = "rollback-key-1",
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+
+        await using (var transaction = await dbContext.Database.BeginTransactionAsync(TestContext.CurrentContext.CancellationToken))
+        {
+            dbContext.LedgerEntries.Add(entry);
+            await dbContext.SaveChangesAsync(TestContext.CurrentContext.CancellationToken);
+
+            await outboxWriter.WriteAsync(
+                new BalanceChangedEvent
+                {
+                    Id = Guid.CreateVersion7(),
+                    OccurredAt = DateTimeOffset.UtcNow,
+                    LedgerEntryId = entry.Id,
+                    UserId = userId,
+                    CurrencyId = currencyId,
+                    Amount = 15m,
+                    Balance = 15m,
+                    TransactionType = TransactionType.Grant,
+                },
+                TestContext.CurrentContext.CancellationToken);
+
+            // Stands in for a crash between the writes above and the commit
+            // below - a rollback here must leave neither row behind.
+            await transaction.RollbackAsync(TestContext.CurrentContext.CancellationToken);
+        }
+
+        await using var verifyContext = CreateDbContext();
+        (await verifyContext.LedgerEntries.AnyAsync(e => e.Id == entry.Id, TestContext.CurrentContext.CancellationToken))
+            .Should().BeFalse();
+        (await verifyContext.OutboxMessages.AnyAsync(TestContext.CurrentContext.CancellationToken))
+            .Should().BeFalse();
+    }
+
+    [Test]
+    public async Task GrantAsync_RepeatedIdempotencyKey_DoesNotWriteSecondOutboxRow()
+    {
+        var currencyId = await SeedCurrencyAsync();
+        var userId = Guid.NewGuid();
+        var request = new LedgerMutationRequest(userId, currencyId, 25m, "outbox-replay-key-1");
+
+        var ledgerService1 = CreateLedgerService(out var dbContext1);
+        await using (dbContext1)
+        {
+            await ledgerService1.GrantAsync(request, TestContext.CurrentContext.CancellationToken);
+        }
+
+        var ledgerService2 = CreateLedgerService(out var dbContext2);
+        await using (dbContext2)
+        {
+            await ledgerService2.GrantAsync(request, TestContext.CurrentContext.CancellationToken);
+        }
+
+        await using var verifyContext = CreateDbContext();
+        var outboxCount = await verifyContext.OutboxMessages.CountAsync(TestContext.CurrentContext.CancellationToken);
+        outboxCount.Should().Be(1);
+    }
+
     private async Task<SpendOutcome> SpendSafelyAsync(Guid userId, Guid currencyId, decimal amount, string idempotencyKey)
     {
         var ledgerService = CreateLedgerService(out var dbContext);
@@ -237,7 +341,8 @@ public sealed class LedgerServiceTests : IAsyncDisposable
         dbContext = CreateDbContext();
         var idempotencyStore = new IdempotencyStore(dbContext);
         var balanceService = new BalanceService(dbContext);
-        return new LedgerService(dbContext, idempotencyStore, balanceService, TimeProvider.System);
+        var outboxWriter = new OutboxWriter(dbContext);
+        return new LedgerService(dbContext, idempotencyStore, balanceService, outboxWriter, TimeProvider.System);
     }
 
     private EconomyDbContext CreateDbContext()

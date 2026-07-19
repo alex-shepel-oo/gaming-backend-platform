@@ -166,7 +166,7 @@ them that nothing consumes yet.
 | POST | `/transactions/spend` | bearer | Debit the caller's own balance |
 | GET | `/transactions/me` | bearer | Paginated ledger history (`?currencyId=&page=&pageSize=`) for the caller only |
 | GET | `/health` | anonymous | Liveness probe |
-| GET | `/health/ready` | anonymous | Readiness probe (database only for now) |
+| GET | `/health/ready` | anonymous | Readiness probe (Postgres and RabbitMQ) |
 
 `grant`, `spend`, and `adjust` all require an `Idempotency-Key` header (400
 without one); replaying the same key returns the original outcome instead of
@@ -186,6 +186,46 @@ EconomyService's tests run on NUnit instead of xUnit (which IdentityService
 uses), on purpose, to show working knowledge of both. NSubstitute,
 AwesomeAssertions, and Testcontainers are the same across both projects
 either way.
+
+## Messaging
+
+EconomyService publishes an integration event for every state change a future
+consumer might care about (`BalanceChangedEvent` and friends), using the
+transactional outbox pattern rather than publishing to RabbitMQ directly from
+the request path. See [ADR 0003](docs/adr/0003-async-inter-service-communication.md)
+for why events instead of a synchronous call, and
+[ADR 0010](docs/adr/0010-transactional-outbox-behind-an-event-bus.md) for the
+outbox itself.
+
+**Flow:** `LedgerService` writes an `outbox_messages` row in the same database
+transaction as the ledger entry it describes — both commit together, or
+neither does. A separate background service (`OutboxDispatcherService`) polls
+that table for unsent rows, claiming them with `SELECT ... FOR UPDATE SKIP
+LOCKED` so that if EconomyService is ever scaled to multiple replicas, no two
+of them publish the same row. Each claimed row is relayed through `IEventBus`
+to RabbitMQ and marked `processed_at` once the broker acknowledges it.
+
+**Delivery guarantee:** at-least-once, not exactly-once. A crash between
+publishing and marking a row processed causes that message to be redelivered
+on the next poll. This group only builds the producer side; deduplicating a
+redelivered message is a consumer concern (an inbox-style `processed_messages`
+table), planned for the saga/worker that lands later in this slice — nothing
+in EconomyService today consumes its own events.
+
+**Topology:** a topic exchange named `gbp.economy`, with the routing key set
+to the event's type (e.g. `balance.changed`). Topic rather than fanout or
+direct, so a consumer added later can bind to just the event types it needs
+without the exchange being redeclared. The exchange is declared idempotently
+each time the service starts.
+
+**Known limitations:**
+- No dead-letter queue. A row that keeps failing to publish is parked once
+  its attempt count hits the configured ceiling — left unsent, logged, and
+  no longer retried — rather than routed anywhere for inspection.
+- Not exactly-once. See the delivery guarantee above.
+- The dispatcher polls on an interval rather than reacting to commits via
+  logical replication/CDC, so there is always some delay between a ledger
+  entry landing and its event reaching the broker.
 
 ## Architecture decisions
 [docs/adr/](docs/adr/).
@@ -214,8 +254,9 @@ either way.
   request. See ADR 0008.
 - Verification email is sent synchronously and best-effort. An SMTP
   failure is logged and does not fail registration; `resend-verification`
-  is the recovery path. A transactional outbox for email is a later
-  extension of the pattern planned for EconomyService.
+  is the recovery path. Routing it through a transactional outbox, the
+  way EconomyService now does for its own events, is a later extension
+  of the same pattern.
 - Rate limits on login/register/confirm/resend are enforced per gateway
   replica, not per cluster — the deployment scales to ten replicas, so the
   effective budget is the configured limit times whichever replica count
@@ -232,8 +273,6 @@ either way.
 - A backend-for-frontend would keep even more of the token handling out of
   the browser than the current cookie-only approach, but is more
   infrastructure than this slice justifies.
-- EconomyService does not publish events for anything it does yet: a
-  transactional outbox and a dispatcher are the next piece of this slice.
 - Currency conversion is not implemented. `conversion_rates` is seeded and
   readable, but nothing exchanges one currency for another yet; that
   needs the saga work planned for later in this slice.

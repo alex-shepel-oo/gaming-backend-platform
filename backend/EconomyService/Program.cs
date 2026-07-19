@@ -21,6 +21,8 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddEconomyPersistence(builder.Configuration);
 builder.Services.AddEconomyAuthentication(builder.Configuration);
 builder.Services.AddEconomyServices();
+builder.Services.AddEconomyMessaging(builder.Configuration);
+builder.Services.AddOutboxDispatcher(builder.Configuration);
 builder.Services.AddScoped<DevelopmentSeeder>();
 
 var app = builder.Build();
