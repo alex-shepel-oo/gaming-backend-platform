@@ -10,5 +10,10 @@ public static class HealthEndpoints
         {
             Predicate = check => check.Tags.Contains("live"),
         });
+
+        app.MapHealthChecks("/health/ready", new HealthCheckOptions
+        {
+            Predicate = check => check.Tags.Contains("ready"),
+        });
     }
 }

@@ -21,6 +21,11 @@ public sealed class HealthEndpointTests : IDisposable
                 new Dictionary<string, string?>
                 {
                     ["Jwt:Key"] = "integration-test-signing-key-at-least-32-bytes-long",
+                    // Deliberately unreachable: closed port, short timeout, so the
+                    // readiness check fails fast instead of hanging on Npgsql's
+                    // default connect timeout.
+                    ["ConnectionStrings:EconomyDb"] =
+                        "Host=127.0.0.1;Port=1;Database=nonexistent;Username=nobody;Password=nobody;Timeout=2",
                 }));
         });
 
@@ -37,5 +42,15 @@ public sealed class HealthEndpointTests : IDisposable
         var response = await client.GetAsync(new Uri("/health", UriKind.Relative), TestContext.CurrentContext.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Test]
+    public async Task HealthReady_DatabaseUnreachable_Returns503()
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.GetAsync(new Uri("/health/ready", UriKind.Relative), TestContext.CurrentContext.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
     }
 }

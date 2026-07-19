@@ -16,7 +16,7 @@ builder.Host.UseSerilog((context, configuration) => configuration
 builder.Services.AddOpenApi();
 builder.Services.AddValidation();
 builder.Services.AddEconomyExceptionHandling();
-builder.Services.AddHealthChecks();
+builder.Services.AddEconomyHealthChecks();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddEconomyPersistence(builder.Configuration);
 builder.Services.AddEconomyAuthentication(builder.Configuration);
