@@ -90,6 +90,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddScoped<IIdempotencyStore, IdempotencyStore>();
         services.AddScoped<IBalanceService, BalanceService>();
+        services.AddScoped<IOutboxWriter, OutboxWriter>();
         services.AddScoped<ILedgerService, LedgerService>();
 
         return services;

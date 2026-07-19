@@ -1,6 +1,7 @@
 using EconomyService.Domain;
 using EconomyService.Domain.Enums;
 using EconomyService.Exceptions;
+using EconomyService.Messaging.Events;
 using EconomyService.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,6 +11,7 @@ public sealed class LedgerService(
     EconomyDbContext dbContext,
     IIdempotencyStore idempotencyStore,
     IBalanceService balanceService,
+    IOutboxWriter outboxWriter,
     TimeProvider timeProvider) : ILedgerService
 {
     // Bounds the optimistic-concurrency retry loop below: a losing writer
@@ -116,6 +118,24 @@ public sealed class LedgerService(
                 dbContext.ChangeTracker.Clear();
                 continue;
             }
+
+            // Only this branch - a genuinely new posting - writes to the
+            // outbox. The idempotent replay path above returns early and
+            // never reaches here, so a retried request never emits a second
+            // event for a mutation that only happened once.
+            await outboxWriter.WriteAsync(
+                new BalanceChangedEvent
+                {
+                    Id = Guid.CreateVersion7(),
+                    OccurredAt = now,
+                    LedgerEntryId = entry.Id,
+                    UserId = entry.UserId,
+                    CurrencyId = entry.CurrencyId,
+                    Amount = entry.Amount,
+                    Balance = newAmount,
+                    TransactionType = entry.TransactionType,
+                },
+                cancellationToken);
 
             await transaction.CommitAsync(cancellationToken);
             return new LedgerPostResult(entry, newAmount, IsReplay: false);
