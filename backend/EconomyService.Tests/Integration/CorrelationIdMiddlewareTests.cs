@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using NUnit.Framework;
 
 namespace EconomyService.Tests.Integration;
@@ -12,7 +13,15 @@ public sealed class CorrelationIdMiddlewareTests : IDisposable
 
     [OneTimeSetUp]
     public void OneTimeSetUp() =>
-        _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureAppConfiguration((_, configBuilder) => configBuilder.AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["Jwt:Key"] = "integration-test-signing-key-at-least-32-bytes-long",
+                }));
+        });
 
     [OneTimeTearDown]
     public void OneTimeTearDown() => Dispose();

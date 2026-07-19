@@ -19,12 +19,16 @@ builder.Services.AddEconomyExceptionHandling();
 builder.Services.AddHealthChecks();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddEconomyPersistence(builder.Configuration);
+builder.Services.AddEconomyAuthentication(builder.Configuration);
 builder.Services.AddScoped<DevelopmentSeeder>();
 
 var app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseMiddleware<CorrelationIdMiddleware>();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 if (app.Environment.IsDevelopment())
 {
