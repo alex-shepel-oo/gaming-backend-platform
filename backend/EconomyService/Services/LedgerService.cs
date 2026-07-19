@@ -18,11 +18,20 @@ public sealed class LedgerService(
     // expected path.
     private const int MaxVersionRetries = 10;
 
-    public Task<LedgerPostResult> GrantAsync(LedgerMutationRequest request, CancellationToken cancellationToken = default) =>
-        PostAsync(request, TransactionType.Grant, request.Amount, cancellationToken);
+    public Task<LedgerPostResult> GrantAsync(LedgerMutationRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.Amount);
+        return PostAsync(request, TransactionType.Grant, request.Amount, cancellationToken);
+    }
 
-    public Task<LedgerPostResult> SpendAsync(LedgerMutationRequest request, CancellationToken cancellationToken = default) =>
-        PostAsync(request, TransactionType.Spend, -request.Amount, cancellationToken);
+    public Task<LedgerPostResult> SpendAsync(LedgerMutationRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.Amount);
+        return PostAsync(request, TransactionType.Spend, -request.Amount, cancellationToken);
+    }
+
+    public Task<LedgerPostResult> AdjustAsync(LedgerMutationRequest request, CancellationToken cancellationToken = default) =>
+        PostAsync(request, TransactionType.Adjust, request.Amount, cancellationToken);
 
     private async Task<LedgerPostResult> PostAsync(
         LedgerMutationRequest request,
@@ -30,7 +39,6 @@ public sealed class LedgerService(
         decimal signedAmount,
         CancellationToken cancellationToken)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.Amount);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.IdempotencyKey);
 
         var existingEntry = await idempotencyStore.FindExistingAsync(request.IdempotencyKey, cancellationToken);

@@ -3,11 +3,13 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
+using EconomyService.Contracts.Requests;
 using EconomyService.Contracts.Responses;
 using EconomyService.Domain;
 using EconomyService.Domain.Enums;
 using EconomyService.Persistence;
 using EconomyService.Tests.Integration.Fixtures;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
 
@@ -85,6 +87,77 @@ public sealed class BalanceEndpointsTests : IAsyncDisposable
         var response = await client.GetAsync(new Uri("/balances/me", UriKind.Relative), TestContext.CurrentContext.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Test]
+    public async Task Adjust_CallerIsNotAdmin_Returns403()
+    {
+        var currency = await SeedCurrencyAsync("PLATFORM_CREDITS", CurrencyScope.Platform, null);
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), role: "Moderator");
+
+        var response = await AdjustAsync(
+            Guid.NewGuid(), new AdjustRequest(currency.Id, 25m, "correction"), token, "adjust-key-1");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Test]
+    public async Task Adjust_AdminNoReason_Returns400()
+    {
+        var currency = await SeedCurrencyAsync("PLATFORM_CREDITS", CurrencyScope.Platform, null);
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), role: "Admin");
+
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/balances/{Guid.NewGuid()}/adjust")
+        {
+            Content = JsonContent.Create(new { currency.Id, Amount = 25m }, options: JsonOptions),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.Add("Idempotency-Key", "adjust-key-2");
+
+        var response = await client.SendAsync(request, TestContext.CurrentContext.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Test]
+    public async Task Adjust_AdminWithReasonAndIdempotencyKey_Returns201AndPostsLedgerEntry()
+    {
+        var currency = await SeedCurrencyAsync("PLATFORM_CREDITS", CurrencyScope.Platform, null);
+        var userId = Guid.NewGuid();
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), role: "Admin");
+
+        var response = await AdjustAsync(
+            userId, new AdjustRequest(currency.Id, 15m, "manual correction"), token, "adjust-key-3");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var body = await response.Content.ReadFromJsonAsync<TransactionDto>(JsonOptions, TestContext.CurrentContext.CancellationToken);
+        body!.TransactionType.Should().Be(TransactionType.Adjust);
+        body.Balance.Should().Be(15m);
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<EconomyDbContext>();
+        var entries = await dbContext.LedgerEntries
+            .Where(e => e.UserId == userId && e.CurrencyId == currency.Id)
+            .ToListAsync(TestContext.CurrentContext.CancellationToken);
+        entries.Should().HaveCount(1);
+    }
+
+    private async Task<HttpResponseMessage> AdjustAsync(Guid userId, AdjustRequest requestBody, string token, string? idempotencyKey)
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/balances/{userId}/adjust")
+        {
+            Content = JsonContent.Create(requestBody, options: JsonOptions),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        if (idempotencyKey is not null)
+        {
+            request.Headers.Add("Idempotency-Key", idempotencyKey);
+        }
+
+        return await client.SendAsync(request, TestContext.CurrentContext.CancellationToken);
     }
 
     private async Task<Currency> SeedCurrencyAsync(string code, CurrencyScope scope, Guid? gameId)

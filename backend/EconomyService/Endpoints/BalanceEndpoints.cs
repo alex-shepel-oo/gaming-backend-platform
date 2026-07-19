@@ -1,7 +1,9 @@
 using EconomyService.Auth;
+using EconomyService.Contracts.Requests;
 using EconomyService.Contracts.Responses;
 using EconomyService.Services;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 
 namespace EconomyService.Endpoints;
 
@@ -9,7 +11,10 @@ public static class BalanceEndpoints
 {
     public static void MapBalanceEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/balances/me", GetMyBalancesAsync).RequireAuthorization();
+        var group = app.MapGroup("/balances");
+
+        group.MapGet("/me", GetMyBalancesAsync).RequireAuthorization();
+        group.MapPost("/{userId:guid}/adjust", AdjustAsync).RequireAuthorization(Policies.Admin);
     }
 
     private static async Task<Results<Ok<BalanceDto[]>, ForbidHttpResult>> GetMyBalancesAsync(
@@ -34,5 +39,21 @@ public static class BalanceEndpoints
             .ToArray();
 
         return TypedResults.Ok(response);
+    }
+
+    private static async Task<Results<Created<TransactionDto>, Ok<TransactionDto>>> AdjustAsync(
+        Guid userId,
+        AdjustRequest request,
+        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
+        ILedgerService ledgerService,
+        CancellationToken cancellationToken)
+    {
+        LedgerResultMapping.RequireIdempotencyKey(idempotencyKey);
+
+        var result = await ledgerService.AdjustAsync(
+            new LedgerMutationRequest(userId, request.CurrencyId, request.Amount, idempotencyKey!, request.Reason),
+            cancellationToken);
+
+        return LedgerResultMapping.ToTransactionResult(result);
     }
 }

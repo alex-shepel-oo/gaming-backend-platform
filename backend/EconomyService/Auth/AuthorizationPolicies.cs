@@ -11,5 +11,6 @@ public static class AuthorizationPolicies
         // only the claim shape the token carries.
         options.AddPolicy(Policies.ModeratorOrAbove, policy => policy.RequireClaim(
             EconomyClaims.Role, "Moderator", "Admin"));
+        options.AddPolicy(Policies.Admin, policy => policy.RequireClaim(EconomyClaims.Role, "Admin"));
     }
 }
