@@ -55,14 +55,14 @@ public sealed class SchemaTests : IAsyncDisposable
     public async ValueTask DisposeAsync() => await _container.DisposeAsync();
 
     [Test]
-    public async Task Migrate_AppliesToEmptyContainer_CreatesAllSevenTables()
+    public async Task Migrate_AppliesToEmptyContainer_CreatesAllEightTables()
     {
         var tableNames = await GetTableNamesAsync();
 
         tableNames.Should().BeEquivalentTo(
             [
                 "balances", "conversion_rates", "conversion_requests", "currencies", "ledger_entries",
-                "outbox_messages", "processed_messages",
+                "outbox_messages", "processed_messages", "projected_event_counts",
             ]);
     }
 

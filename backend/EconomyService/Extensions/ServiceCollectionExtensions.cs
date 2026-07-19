@@ -1,5 +1,6 @@
 using System.Text;
 using EconomyService.Auth;
+using EconomyService.Inbox;
 using EconomyService.Infrastructure;
 using EconomyService.Messaging;
 using EconomyService.Options;
@@ -128,6 +129,14 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IEventBus, RabbitMqEventBus>();
         services.AddHostedService<OutboxDispatcherService>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddDeduplicatingEventConsumer(this IServiceCollection services)
+    {
+        services.AddSingleton<IInboxFaultInjector, NoOpInboxFaultInjector>();
+        services.AddHostedService<DeduplicatingEventConsumer>();
 
         return services;
     }
