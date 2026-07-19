@@ -201,6 +201,79 @@ public sealed class TransactionEndpointsTests : IAsyncDisposable
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    [Test]
+    public async Task GetMyHistory_ReturnsOnlyOwnEntries_Paginated()
+    {
+        var currency = await SeedCurrencyAsync();
+        var userId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
+        var adminToken = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), role: "Admin");
+
+        for (var i = 0; i < 3; i++)
+        {
+            await PostAsync("/transactions/grant", new GrantRequest(userId, currency.Id, 10m, $"grant-{i}"), adminToken, $"history-key-{i}");
+        }
+
+        await PostAsync("/transactions/grant", new GrantRequest(otherUserId, currency.Id, 10m, "other user grant"), adminToken, "history-other-key");
+
+        var userToken = TestTokenFactory.IssueAccessToken(userId, role: "Player");
+        var firstPage = await GetAsync($"/transactions/me?page=1&pageSize=2", userToken);
+        var secondPage = await GetAsync($"/transactions/me?page=2&pageSize=2", userToken);
+
+        firstPage.StatusCode.Should().Be(HttpStatusCode.OK);
+        var firstBody = await firstPage.Content.ReadFromJsonAsync<PagedResult<TransactionHistoryEntryDto>>(
+            JsonOptions, TestContext.CurrentContext.CancellationToken);
+        var secondBody = await secondPage.Content.ReadFromJsonAsync<PagedResult<TransactionHistoryEntryDto>>(
+            JsonOptions, TestContext.CurrentContext.CancellationToken);
+
+        firstBody!.TotalCount.Should().Be(3);
+        firstBody.Items.Should().HaveCount(2);
+        secondBody!.Items.Should().HaveCount(1);
+        var firstPageIds = firstBody.Items.Select(i => i.Id);
+        var secondPageIds = secondBody.Items.Select(i => i.Id);
+        firstPageIds.Intersect(secondPageIds).Should().BeEmpty();
+        firstPageIds.Concat(secondPageIds).Distinct().Should().HaveCount(3);
+    }
+
+    [Test]
+    public async Task GetMyHistory_FilterByCurrencyId_NarrowsResults()
+    {
+        var currencyA = await SeedCurrencyAsync();
+        var currencyB = await SeedCurrencyAsync();
+        var userId = Guid.NewGuid();
+        var adminToken = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), role: "Admin");
+
+        await PostAsync("/transactions/grant", new GrantRequest(userId, currencyA.Id, 10m, "currency a"), adminToken, "filter-key-a");
+        await PostAsync("/transactions/grant", new GrantRequest(userId, currencyB.Id, 10m, "currency b"), adminToken, "filter-key-b");
+
+        var userToken = TestTokenFactory.IssueAccessToken(userId, role: "Player");
+        var response = await GetAsync($"/transactions/me?currencyId={currencyA.Id}", userToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<PagedResult<TransactionHistoryEntryDto>>(
+            JsonOptions, TestContext.CurrentContext.CancellationToken);
+        body!.Items.Should().ContainSingle(i => i.CurrencyId == currencyA.Id);
+    }
+
+    [Test]
+    public async Task GetMyHistory_NoAuthorizationHeader_Returns401()
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.GetAsync(new Uri("/transactions/me", UriKind.Relative), TestContext.CurrentContext.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    private async Task<HttpResponseMessage> GetAsync(string path, string token)
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        return await client.SendAsync(request, TestContext.CurrentContext.CancellationToken);
+    }
+
     private async Task<HttpResponseMessage> PostAsync<TRequest>(
         string path, TRequest requestBody, string token, string? idempotencyKey)
     {
