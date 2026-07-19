@@ -109,4 +109,17 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    public static IServiceCollection AddOutboxDispatcher(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<OutboxDispatcherOptions>()
+            .Bind(configuration.GetSection(OutboxDispatcherOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddSingleton<IEventBus, RabbitMqEventBus>();
+        services.AddHostedService<OutboxDispatcherService>();
+
+        return services;
+    }
 }

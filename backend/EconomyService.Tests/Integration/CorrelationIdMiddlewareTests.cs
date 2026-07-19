@@ -21,6 +21,13 @@ public sealed class CorrelationIdMiddlewareTests : IDisposable
                 new Dictionary<string, string?>
                 {
                     ["Jwt:Key"] = "integration-test-signing-key-at-least-32-bytes-long",
+                    // Irrelevant to this test (only /health is hit, which
+                    // touches neither), but the outbox dispatcher polls in
+                    // the background regardless of which endpoint a request
+                    // hits, so it needs a connection string to fail against
+                    // rather than an unset one.
+                    ["ConnectionStrings:EconomyDb"] =
+                        "Host=127.0.0.1;Port=1;Database=nonexistent;Username=nobody;Password=nobody;Timeout=2",
                     ["RabbitMq:Host"] = RabbitMqTestBroker.Container.Hostname,
                     ["RabbitMq:Port"] = RabbitMqTestBroker.Container.GetMappedPublicPort(5672).ToString(CultureInfo.InvariantCulture),
                     ["RabbitMq:Username"] = "guest",

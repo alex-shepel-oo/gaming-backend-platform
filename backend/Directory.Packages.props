@@ -36,6 +36,7 @@
          CreateChannelAsync/BasicPublishAsync) versus the 6.x synchronous IModel
          API most tutorials still show. -->
     <PackageVersion Include="RabbitMQ.Client" Version="7.2.1" />
+    <PackageVersion Include="Polly.Core" Version="8.6.5" />
     <!-- Transitive pin: Microsoft.AspNetCore.OpenApi 10.0.10 brings in
          Microsoft.OpenApi 2.0.0, which has GHSA-v5pm-xwqc-g5wc (stack
          overflow parsing circular schema refs). Patched in 2.7.5. -->
