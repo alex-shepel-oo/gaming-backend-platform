@@ -1,5 +1,9 @@
 using Platform.Worker;
+using Platform.Worker.Extensions;
 
-await WorkerHostBuilder.Create(args).Build().RunAsync();
+var hostBuilder = WorkerHostBuilder.Create(args);
+hostBuilder.ConfigureServices((context, services) => services.AddCleanupJob(context.Configuration));
+
+await hostBuilder.Build().RunAsync();
 
 public partial class Program;
