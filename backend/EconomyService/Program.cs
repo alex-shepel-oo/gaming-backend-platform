@@ -44,6 +44,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapHealthEndpoints();
+app.MapCurrencyEndpoints();
+app.MapBalanceEndpoints();
 
 app.Run();
 
