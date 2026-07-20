@@ -165,6 +165,8 @@ them that nothing consumes yet.
 | POST | `/transactions/grant` | bearer, moderator+ | Credit a user's balance, with an audit `reason` |
 | POST | `/transactions/spend` | bearer | Debit the caller's own balance |
 | GET | `/transactions/me` | bearer | Paginated ledger history (`?currencyId=&page=&pageSize=`) for the caller only |
+| POST | `/conversions` | bearer | Start a platform-to-game currency conversion; `202` with `Started`, not the final outcome |
+| GET | `/conversions/{id}` | bearer | Poll a conversion's status; owner-scoped, `404` on someone else's id |
 | GET | `/health` | anonymous | Liveness probe |
 | GET | `/health/ready` | anonymous | Readiness probe (Postgres and RabbitMQ) |
 
@@ -187,6 +189,26 @@ uses), on purpose, to show working knowledge of both. NSubstitute,
 AwesomeAssertions, and Testcontainers are the same across both projects
 either way.
 
+### Conversion saga
+
+Converting platform currency to a game's own currency is a two-step
+operation with a compensating rollback: `POST /conversions` returns `202`
+with status `Started` right away, and the client polls `GET
+/conversions/{id}` for the outcome. A background runner picks the request up
+off an in-process channel, debits the platform balance, then credits the
+game balance; if the credit step fails, a compensating entry restores the
+debited amount and the request lands in `Failed` instead of `Completed`.
+
+This is an in-process, sequential saga, not choreography over RabbitMQ -
+both currencies belong to EconomyService, so there is no second service to
+react to an event between the two steps. Each transition commits and is
+recorded on `conversion_requests.status`, so a crash mid-saga leaves a
+readable state rather than an ambiguous one. See [ADR 0010's
+addendum](docs/adr/0010-transactional-outbox-event-bus.md#addendum-the-conversion-saga)
+for the full reasoning, including why this isn't genuine cross-service
+choreography (that needs InventoryService, which doesn't exist until slice
+3).
+
 ## Messaging
 
 EconomyService publishes an integration event for every state change a future
@@ -194,7 +216,7 @@ consumer might care about (`BalanceChangedEvent` and friends), using the
 transactional outbox pattern rather than publishing to RabbitMQ directly from
 the request path. See [ADR 0003](docs/adr/0003-async-inter-service-communication.md)
 for why events instead of a synchronous call, and
-[ADR 0010](docs/adr/0010-transactional-outbox-behind-an-event-bus.md) for the
+[ADR 0010](docs/adr/0010-transactional-outbox-event-bus.md) for the
 outbox itself.
 
 **Flow:** `LedgerService` writes an `outbox_messages` row in the same database
@@ -207,16 +229,31 @@ to RabbitMQ and marked `processed_at` once the broker acknowledges it.
 
 **Delivery guarantee:** at-least-once, not exactly-once. A crash between
 publishing and marking a row processed causes that message to be redelivered
-on the next poll. This group only builds the producer side; deduplicating a
-redelivered message is a consumer concern (an inbox-style `processed_messages`
-table), planned for the saga/worker that lands later in this slice — nothing
-in EconomyService today consumes its own events.
+on the next poll. Deduplicating a redelivered message is the consumer's job -
+see below.
 
 **Topology:** a topic exchange named `gbp.economy`, with the routing key set
 to the event's type (e.g. `balance.changed`). Topic rather than fanout or
 direct, so a consumer added later can bind to just the event types it needs
 without the exchange being redeclared. The exchange is declared idempotently
 each time the service starts.
+
+### Consumer and inbox-lite deduplication
+
+EconomyService also binds a queue to its own exchange (`balance.changed` and
+the three `conversion.*` routing keys) and consumes what it publishes. This
+is a demonstration of the delivery loop surviving redelivery, not a
+production subscriber - no other service reads these events yet.
+
+Before doing anything with a delivery, the consumer inserts the message's id
+into `processed_messages` and applies the delivery's side effect (a
+projection counter) in the *same* database transaction. A primary-key
+conflict on that insert means an earlier delivery already got here, so the
+message is acked and skipped without reprocessing; a crash between the
+insert and the commit rolls both back together, so a redelivered message is
+reprocessed cleanly rather than silently lost. This is deliberately
+**inbox-lite**, not a full inbox pattern - there's no per-message retry
+bookkeeping or metadata beyond `message_id` and `processed_at`.
 
 **Known limitations:**
 - No dead-letter queue. A row that keeps failing to publish is parked once
@@ -226,6 +263,32 @@ each time the service starts.
 - The dispatcher polls on an interval rather than reacting to commits via
   logical replication/CDC, so there is always some delay between a ledger
   entry landing and its event reaching the broker.
+
+## Platform.Worker
+
+A separate Quartz-scheduled project for operational housekeeping, rather
+than a timer bolted onto each service. It runs one job today,
+`CleanupExpiredTokensJob`, on a 15-minute schedule:
+
+- **identity_db:** deletes expired or already-revoked `refresh_token_families`
+  (which cascades to their `refresh_tokens` at the database FK level) and
+  expired `email_verification_codes`.
+- **economy_db:** deletes `outbox_messages` rows that have been dispatched
+  (`processed_at` set) and are older than a 7-day retention window. Rows
+  still waiting to be dispatched (`processed_at IS NULL`) are never touched.
+
+Both thresholds are configurable (`CleanupJob__IntervalMinutes`,
+`CleanupJob__OutboxRetentionDays` in `infra/.env`).
+
+**Why one worker reads two databases.** This is the one place in the system
+that opens connections to both `identity_db` and `economy_db` at once, which
+is a named exception to [ADR 0001](docs/adr/0001-database-per-service.md)'s
+database-per-service boundary, not an oversight of it. The distinction the
+exception rests on: this job never reads either database to serve a
+request, only to delete rows each owning service already considers dead, by
+that service's own rules. It does so through narrow, cleanup-only
+`DbContext`s scoped to just the columns it deletes by, not the full
+`IdentityDbContext`/`EconomyDbContext` models.
 
 ## Architecture decisions
 [docs/adr/](docs/adr/).
@@ -263,9 +326,11 @@ each time the service starts.
   is currently running. The per-account cooldown on resend is the
   exception: it is enforced in the database and holds regardless of
   replica count.
-- Expired refresh tokens, revoked token families, and expired email
-  verification codes are not automatically deleted yet — that's the job
-  of `Platform.Worker`'s cleanup jobs, which are Extended scope.
+- `Platform.Worker`'s cleanup job connects to both `identity_db` and
+  `economy_db`, a named exception to [ADR 0001](docs/adr/0001-database-per-service.md)'s
+  database-per-service boundary made for housekeeping only — it never reads
+  either database to serve a request, only to delete rows each owning
+  service already considers dead.
 - The web cookie flow assumes the SPA and the API share an origin, which is
   what lets the refresh cookie use `SameSite=Strict`. A cross-origin
   deployment would need `SameSite=None` plus a CSRF token, neither of which
@@ -273,9 +338,13 @@ each time the service starts.
 - A backend-for-frontend would keep even more of the token handling out of
   the browser than the current cookie-only approach, but is more
   infrastructure than this slice justifies.
-- Currency conversion is not implemented. `conversion_rates` is seeded and
-  readable, but nothing exchanges one currency for another yet; that
-  needs the saga work planned for later in this slice.
+- The conversion saga is in-process and sequential, not cross-service
+  choreography over the message bus — a second service reacting to an
+  event mid-saga needs InventoryService, which doesn't exist until slice 3.
+  See [ADR 0010's addendum](docs/adr/0010-transactional-outbox-event-bus.md#addendum-the-conversion-saga).
+- The deduplicating consumer's inbox is inbox-lite: `message_id` and
+  `processed_at`, nothing more. No per-message retry bookkeeping or
+  metadata — that's the full inbox pattern, still Extended scope.
 - EconomyService validates the same shared HS256 key as IdentityService
   (see above) rather than a key of its own — the same inherited limitation,
   not a new one this service introduces.
