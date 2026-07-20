@@ -4,7 +4,7 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build player-client && ng build shared",
+    "build": "ng build shared && ng build player-client",
     "watch": "ng build --watch --configuration development",
     "test": "ng test player-client --watch=false && ng test shared --watch=false"
   },
