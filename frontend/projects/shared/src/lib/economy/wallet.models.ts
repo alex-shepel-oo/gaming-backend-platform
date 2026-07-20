@@ -1,0 +1,40 @@
+// Numeric values mirror the C# enums (EconomyService.Domain.Enums) -- the
+// service has no JsonStringEnumConverter configured, so these come over the
+// wire as plain numbers, not names.
+
+export enum CurrencyScope {
+  Platform = 0,
+  Game = 1,
+}
+
+export enum TransactionType {
+  Grant = 0,
+  Spend = 1,
+  Adjust = 2,
+  ConversionOut = 3,
+  ConversionIn = 4,
+}
+
+export interface Balance {
+  currencyId: string;
+  currencyCode: string;
+  scope: CurrencyScope;
+  gameId: string | null;
+  amount: number;
+}
+
+export interface TransactionHistoryEntry {
+  id: string;
+  currencyId: string;
+  amount: number;
+  transactionType: TransactionType;
+  reason: string | null;
+  createdAt: string;
+}
+
+export interface PagedResult<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
