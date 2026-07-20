@@ -16,7 +16,8 @@ RUN dotnet publish Platform.Worker/Platform.Worker.csproj -c Release -o /app --n
 
 # No migrator stage here: the worker only deletes rows in tables that
 # identity-service and economy-service already own and migrate.
-FROM mcr.microsoft.com/dotnet/runtime:10.0-alpine AS final
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final
 WORKDIR /app
 COPY --from=build /app .
 ENTRYPOINT ["dotnet", "Platform.Worker.dll"]
