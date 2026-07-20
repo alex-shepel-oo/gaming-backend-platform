@@ -19,6 +19,11 @@
       "DownstreamHostAndPorts": [
         { "Host": "identity-service.gaming-platform.svc.cluster.local", "Port": 5000 }
       ]
+    },
+    {
+      "DownstreamHostAndPorts": [
+        { "Host": "identity-service.gaming-platform.svc.cluster.local", "Port": 5000 }
+      ]
     }
   ]
 }
