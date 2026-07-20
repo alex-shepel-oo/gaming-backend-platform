@@ -23,6 +23,7 @@ builder.Services.AddEconomyAuthentication(builder.Configuration);
 builder.Services.AddEconomyServices();
 builder.Services.AddEconomyMessaging(builder.Configuration);
 builder.Services.AddOutboxDispatcher(builder.Configuration);
+builder.Services.AddDeduplicatingEventConsumer();
 builder.Services.AddScoped<DevelopmentSeeder>();
 
 var app = builder.Build();
@@ -49,6 +50,7 @@ app.MapHealthEndpoints();
 app.MapCurrencyEndpoints();
 app.MapBalanceEndpoints();
 app.MapTransactionEndpoints();
+app.MapConversionEndpoints();
 
 app.Run();
 

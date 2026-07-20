@@ -69,5 +69,13 @@
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.10" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="10.0.10" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.10" />
+    <!-- Platform.Worker only. Quartz itself has no net10.0-specific build yet
+         (net8.0/netstandard2.0), forward-compatible the same way as the
+         Npgsql health check package above. AddQuartzHostedService lives in
+         Quartz.Extensions.Hosting, not Quartz.Extensions.DependencyInjection
+         - both are needed, both pinned to the same release. -->
+    <PackageVersion Include="Quartz" Version="3.18.2" />
+    <PackageVersion Include="Quartz.Extensions.DependencyInjection" Version="3.18.2" />
+    <PackageVersion Include="Quartz.Extensions.Hosting" Version="3.18.2" />
   </ItemGroup>
 </Project>

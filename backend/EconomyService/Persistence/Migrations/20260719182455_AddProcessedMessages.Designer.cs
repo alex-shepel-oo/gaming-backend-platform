@@ -3,6 +3,7 @@ using System;
 using EconomyService.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace EconomyService.Persistence.Migrations
 {
     [DbContext(typeof(EconomyDbContext))]
-    partial class EconomyDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260719182455_AddProcessedMessages")]
+    partial class AddProcessedMessages
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -333,22 +336,6 @@ namespace EconomyService.Persistence.Migrations
                         .HasName("pk_processed_messages");
 
                     b.ToTable("processed_messages", (string)null);
-                });
-
-            modelBuilder.Entity("EconomyService.Inbox.ProjectedEventCount", b =>
-                {
-                    b.Property<string>("EventType")
-                        .HasColumnType("text")
-                        .HasColumnName("event_type");
-
-                    b.Property<int>("Count")
-                        .HasColumnType("integer")
-                        .HasColumnName("count");
-
-                    b.HasKey("EventType")
-                        .HasName("pk_projected_event_counts");
-
-                    b.ToTable("projected_event_counts", (string)null);
                 });
 
             modelBuilder.Entity("EconomyService.Domain.Balance", b =>

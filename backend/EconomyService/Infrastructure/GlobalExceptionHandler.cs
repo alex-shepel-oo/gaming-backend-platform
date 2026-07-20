@@ -14,7 +14,9 @@ public sealed partial class GlobalExceptionHandler(
         var (statusCode, title, detail) = exception switch
         {
             MissingIdempotencyKeyException => (StatusCodes.Status400BadRequest, "Idempotency-Key required", exception.Message),
+            UnsupportedConversionPairException => (StatusCodes.Status400BadRequest, "Unsupported conversion pair", exception.Message),
             InsufficientFundsException => (StatusCodes.Status402PaymentRequired, "Insufficient funds", exception.Message),
+            IdempotencyKeyConflictException => (StatusCodes.Status409Conflict, "Idempotency-Key conflict", exception.Message),
             _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred",
                 "An unexpected error occurred while processing the request."),
         };
