@@ -15,6 +15,7 @@ public static class WorkerHostBuilder
                 .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture))
             .ConfigureServices((_, services) =>
             {
+                services.AddSingleton(TimeProvider.System);
                 services.AddQuartz();
                 services.AddQuartzHostedService(options => options.WaitForJobsToComplete = true);
             });
