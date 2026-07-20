@@ -10,4 +10,7 @@ export * from './lib/auth/role.guard';
 export * from './lib/auth/silent-session-restore';
 export * from './lib/auth/identity-auth-endpoints';
 export * from './lib/auth/token-store';
+export * from './lib/games/game-selection.service';
 export * from './lib/games/game.config';
+export * from './lib/games/games.service';
+export * from './lib/games/identity-game-endpoints';
