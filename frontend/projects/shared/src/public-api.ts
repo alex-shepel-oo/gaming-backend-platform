@@ -3,3 +3,6 @@
  */
 
 export * from './lib/shared';
+export * from './lib/auth/auth.interceptor';
+export * from './lib/auth/identity-auth-endpoints';
+export * from './lib/auth/token-store';
