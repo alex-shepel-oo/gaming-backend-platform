@@ -25,6 +25,7 @@ resources:
   - economy/hpa.yaml
   - rabbitmq/statefulset.yaml
   - rabbitmq/service.yaml
+  - worker/deployment.yaml
   - mailpit/deployment.yaml
   - mailpit/service.yaml
   - gateway
