@@ -196,6 +196,17 @@ services:
     networks:
       - platform-network
 
+  player-client:
+    build:
+      context: ../frontend
+      dockerfile: projects/player-client/Dockerfile
+    ports:
+      - "${PLAYER_CLIENT_PORT:-8080}:8080"
+    depends_on:
+      - api-gateway
+    networks:
+      - platform-network
+
   mailpit:
     image: axllent/mailpit
     environment:
