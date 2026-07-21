@@ -212,6 +212,79 @@ for the full reasoning, including why this isn't genuine cross-service
 choreography (that needs InventoryService, which doesn't exist until slice
 3).
 
+## Player-client (Angular)
+
+An Angular 22 workspace under `frontend/` (`shared` library + `player-client`
+app) — the first browser client for the platform, covering Login, Games,
+Wallet, and Convert.
+
+### Running it
+
+Built image (matches the demo path, proxies `/api` through Nginx):
+
+```
+cd frontend
+docker build -f projects/player-client/Dockerfile -t player-client .
+docker run -p 8080:8080 --network infra_platform-network player-client
+```
+
+Reach it at `http://localhost:8080`. It isn't wired into
+`infra/docker-compose.yml` yet — that's Kubernetes/compose plumbing for a
+later group, not part of this one.
+
+Local iteration:
+
+```
+cd frontend
+npm install
+npm run build   # shared first, then player-client -- player-client's
+                 # tsconfig resolves "shared" against shared's built dist,
+                 # not its source
+npm start        # ng serve, http://localhost:4200
+npm test         # Vitest, both projects
+```
+
+`ng serve` doesn't go through the Nginx proxy, so it relies on the gateway's
+CORS whitelist (below) rather than a same-origin `/api` path. It currently
+has no `proxy.conf.json`, so API calls resolve against `:4200` itself unless
+one is added — see known limitations.
+
+### Cookie flow, client side
+
+The access token lives only in an in-memory signal — never localStorage,
+sessionStorage, or a cookie the client can read. The refresh token is the
+`gbp_refresh` `httpOnly` cookie IdentityService sets (see
+[ADR 0011](docs/adr/0011-web-auth-cookie-flow.md)); the client never touches
+its value, just relies on `withCredentials: true` sending it automatically.
+An HTTP interceptor attaches the access token and retries once on 401 after
+a refresh; a silent refresh call at bootstrap restores the session on
+reload, before routing decides anything. Route guards are UX only, not the
+security boundary — see [ADR 0012](docs/adr/0012-frontend-security-and-guards.md)
+for the full reasoning.
+
+### CORS
+
+The gateway whitelists `http://localhost:8080` and `http://localhost:4200`
+(`Cors:AllowedOrigins`, `AllowCredentials=true`, `X-Client-Type` in
+`AllowedHeaders`) via `AddCors`/`UseCors` middleware ahead of `UseOcelot()`,
+not Ocelot's own per-route CORS config. The built demo path doesn't need it
+at all, since Nginx proxies `/api` onto the same origin as the static files
+— CORS only matters for `ng serve` and any future direct client.
+
+### Known limitations
+
+- **Admin panel not built.** Slice 3 scope.
+- **`ng serve` has no `proxy.conf.json` yet.** Local dev currently needs
+  either that file (pointing `/api` at the gateway) or manually hitting the
+  gateway's absolute URL; CORS alone doesn't help until requests are
+  actually cross-origin.
+- **Login is hardcoded to one game** (`DEFAULT_GAME_SLUG = 'demo-shooter'`,
+  see the games screen commit). There's no game picker.
+- **"Log into the ecosystem, then pick a game" isn't built.** Today login
+  and game selection are the same step; a platform-level login followed by
+  a separate game-switch flow is a named future direction, not current
+  scope.
+
 ## Messaging
 
 EconomyService publishes an integration event for every state change a future
