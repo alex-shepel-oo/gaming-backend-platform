@@ -1,0 +1,34 @@
+<form [formGroup]="form" (ngSubmit)="submit()">
+  <label>
+    From currency ID
+    <input type="text" formControlName="fromCurrencyId" />
+  </label>
+
+  <label>
+    To currency ID
+    <input type="text" formControlName="toCurrencyId" />
+  </label>
+
+  <label>
+    Amount
+    <input type="number" formControlName="fromAmount" step="0.01" />
+  </label>
+
+  @if (error() === 'insufficient-funds') {
+    <p role="alert">Insufficient funds for this conversion.</p>
+  }
+
+  @if (error() === 'conflict') {
+    <p role="alert">This conversion could not be started. Please try again.</p>
+  }
+
+  <button type="submit" [disabled]="form.invalid || submitting()">Convert</button>
+</form>
+
+@if (conversion(); as currentConversion) {
+  <p>Status: {{ ConversionStatus[currentConversion.status] }}</p>
+
+  @if (currentConversion.status === ConversionStatus.Failed && currentConversion.failureReason) {
+    <p role="alert">{{ currentConversion.failureReason }}</p>
+  }
+}

@@ -1,0 +1,26 @@
+<section>
+  <h2>Platform balances</h2>
+  <ul>
+    @for (balance of platformBalances(); track balance.currencyId) {
+      <li>{{ balance.currencyCode }}: {{ balance.amount }}</li>
+    }
+  </ul>
+
+  <h2>In-game balances</h2>
+  <ul>
+    @for (balance of gameBalances(); track balance.currencyId) {
+      <li>{{ balance.currencyCode }}: {{ balance.amount }}</li>
+    }
+  </ul>
+</section>
+
+<section>
+  <h2>Transaction history</h2>
+  <ul>
+    @for (transaction of transactions(); track transaction.id) {
+      <li>{{ transaction.createdAt }} &mdash; {{ transaction.currencyId }}: {{ transaction.amount }}</li>
+    }
+  </ul>
+
+  <button type="button" (click)="nextPage()" [disabled]="!hasNextPage()">Next page</button>
+</section>

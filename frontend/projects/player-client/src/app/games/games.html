@@ -1,0 +1,17 @@
+<ul>
+  @for (game of games(); track game.id) {
+    <li>
+      <button
+        type="button"
+        [attr.aria-pressed]="gameSelection.selected()?.id === game.id"
+        (click)="select(game)"
+      >
+        {{ game.name }} ({{ game.slug }})
+      </button>
+    </li>
+  }
+</ul>
+
+@if (gameSelection.selected(); as selectedGame) {
+  <p>Selected game: {{ selectedGame.name }}</p>
+}

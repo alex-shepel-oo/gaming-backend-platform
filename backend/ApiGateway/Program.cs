@@ -3,6 +3,7 @@ using System.Text;
 using ApiGateway.Options;
 using ApiGateway.ServiceDiscovery;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Ocelot.DependencyInjection;
@@ -46,10 +47,28 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
         };
     });
 
+const string PlayerClientCorsPolicy = "PlayerClientCors";
+
+builder.Services.AddOptions<PlayerClientCorsOptions>()
+    .Bind(builder.Configuration.GetSection(PlayerClientCorsOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+builder.Services.AddCors();
+builder.Services.AddOptions<CorsOptions>()
+    .Configure<IOptions<PlayerClientCorsOptions>>((corsOptions, playerClientCorsOptions) =>
+        corsOptions.AddPolicy(PlayerClientCorsPolicy, policy => policy
+            .WithOrigins(playerClientCorsOptions.Value.AllowedOrigins)
+            .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE")
+            .WithHeaders("Content-Type", "Authorization", "X-Client-Type")
+            .AllowCredentials()));
+
 builder.Services.AddHealthChecks();
 builder.Services.AddOcelot(builder.Configuration).AddConsul<ServiceAddressConsulServiceBuilder>().AddPolly();
 
 var app = builder.Build();
+
+app.UseCors(PlayerClientCorsPolicy);
 
 app.UseHealthChecks("/health");
 

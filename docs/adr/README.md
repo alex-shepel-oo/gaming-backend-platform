@@ -18,4 +18,4 @@ See the template: [0000-template.md](0000-template.md).
 | [0009](0009-email-confirmation-flow.md) | Email Confirmation Flow | Accepted | 1 |
 | [0010](0010-transactional-outbox-event-bus.md) | Messaging: Manual Outbox and Conversion Saga behind an `IEventBus` Abstraction | Accepted | 2 |
 | [0011](0011-web-auth-cookie-flow.md) | Web Auth: Cookie-Based Refresh Flow | Accepted | 2 |
-| 0012 | Frontend Security and Route Guards | Planned | 2 |
+| [0012](0012-frontend-security-and-guards.md) | Frontend Security and Route Guards | Accepted | 2 |
