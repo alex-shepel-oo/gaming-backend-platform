@@ -28,4 +28,6 @@ resources:
   - worker/deployment.yaml
   - mailpit/deployment.yaml
   - mailpit/service.yaml
+  - player-client/deployment.yaml
+  - player-client/service.yaml
   - gateway
