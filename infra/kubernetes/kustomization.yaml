@@ -14,12 +14,14 @@ resources:
   - identity/configmap.yaml
   - identity/db-statefulset.yaml
   - identity/db-service.yaml
+  - identity/migration-job.yaml
   - identity/deployment.yaml
   - identity/service.yaml
   - identity/hpa.yaml
   - economy/configmap.yaml
   - economy/db-statefulset.yaml
   - economy/db-service.yaml
+  - economy/migration-job.yaml
   - economy/deployment.yaml
   - economy/service.yaml
   - economy/hpa.yaml
