@@ -78,6 +78,35 @@ public class OcelotConfigurationTests
         }
     }
 
+    // ocelot.json and ocelot.{Environment}.json merge as chained AddJsonFile
+    // configuration sources, which IConfiguration flattens to keys like
+    // "Routes:9:ServiceName" -- arrays merge by index, not by matching
+    // UpstreamPathTemplate. A route appended to ocelot.json without a
+    // matching entry appended to the environment files doesn't fail the
+    // build or throw at startup; it just silently loses its host
+    // resolution, because it either lands past the end of the shorter
+    // array or shifts onto an unrelated route's entry.
+    [Fact]
+    public void AllEnvironmentFilesHaveMatchingRouteCount()
+    {
+        var baseCount = LoadFileRoutes("ocelot.json").Count;
+
+        foreach (var fileName in new[] { "ocelot.Development.json", "ocelot.Kubernetes.json" })
+        {
+            LoadFileRoutes(fileName).Count.Should().Be(baseCount,
+                $"{fileName} must carry one host-resolution entry per route in ocelot.json, in the same order");
+        }
+    }
+
+    private static List<FileRoute> LoadFileRoutes(string fileName)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddJsonFile(Path.Combine(ConfigDirectory, fileName), optional: false)
+            .Build();
+
+        return configuration.Get<FileConfiguration>()!.Routes;
+    }
+
     private static List<FileRoute> LoadMergedRoutes(string environment)
     {
         var configuration = new ConfigurationBuilder()
