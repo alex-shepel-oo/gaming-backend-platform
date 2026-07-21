@@ -147,9 +147,12 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:5100/api/ident
 
 ## Economy API
 
-EconomyService is not yet wired behind the gateway (that lands with the CORS/
-gateway work later in this slice), so it is reached directly at
-`http://localhost:5001`.
+Reachable directly at `http://localhost:5001`, and also proxied through the
+gateway at `http://localhost:5100/api/economy/...` (same paths, `/api/economy`
+prefix) for `balances/me`, `transactions/me`, and `conversions` — the routes
+player-client actually calls. `currencies`, `balances/{userId}/adjust`,
+`transactions/grant`, and `transactions/spend` stay direct-only for now; no
+current client goes through the gateway for them.
 
 Currencies come in two scopes: **platform** currencies (`gameId` is `null`,
 shared across every game) and **game** currencies (`gameId` set, scoped to one

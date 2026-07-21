@@ -79,6 +79,74 @@
         "MinimumThroughput": 5,
         "BreakDuration": 30000
       }
+    },
+    {
+      "DownstreamPathTemplate": "/balances/me",
+      "DownstreamScheme": "http",
+      "UpstreamPathTemplate": "/api/economy/balances/me",
+      "UpstreamHttpMethod": [ "GET" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKeys": [ "Bearer" ],
+        "AllowedScopes": []
+      },
+      "QoSOptions": {
+        "Timeout": 5000,
+        "FailureRatio": 0.5,
+        "SamplingDuration": 10000,
+        "MinimumThroughput": 5,
+        "BreakDuration": 30000
+      }
+    },
+    {
+      "DownstreamPathTemplate": "/transactions/me",
+      "DownstreamScheme": "http",
+      "UpstreamPathTemplate": "/api/economy/transactions/me",
+      "UpstreamHttpMethod": [ "GET" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKeys": [ "Bearer" ],
+        "AllowedScopes": []
+      },
+      "QoSOptions": {
+        "Timeout": 5000,
+        "FailureRatio": 0.5,
+        "SamplingDuration": 10000,
+        "MinimumThroughput": 5,
+        "BreakDuration": 30000
+      }
+    },
+    {
+      "DownstreamPathTemplate": "/conversions",
+      "DownstreamScheme": "http",
+      "UpstreamPathTemplate": "/api/economy/conversions",
+      "UpstreamHttpMethod": [ "POST" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKeys": [ "Bearer" ],
+        "AllowedScopes": []
+      },
+      "QoSOptions": {
+        "Timeout": 5000,
+        "FailureRatio": 0.5,
+        "SamplingDuration": 10000,
+        "MinimumThroughput": 5,
+        "BreakDuration": 30000
+      }
+    },
+    {
+      "DownstreamPathTemplate": "/conversions/{id}",
+      "DownstreamScheme": "http",
+      "UpstreamPathTemplate": "/api/economy/conversions/{id}",
+      "UpstreamHttpMethod": [ "GET" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKeys": [ "Bearer" ],
+        "AllowedScopes": []
+      },
+      "QoSOptions": {
+        "Timeout": 5000,
+        "FailureRatio": 0.5,
+        "SamplingDuration": 10000,
+        "MinimumThroughput": 5,
+        "BreakDuration": 30000
+      }
     }
   ],
   "GlobalConfiguration": {}

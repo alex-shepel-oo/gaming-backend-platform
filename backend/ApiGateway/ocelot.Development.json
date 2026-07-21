@@ -14,6 +14,18 @@
     },
     {
       "ServiceName": "identity-service"
+    },
+    {
+      "ServiceName": "economy-service"
+    },
+    {
+      "ServiceName": "economy-service"
+    },
+    {
+      "ServiceName": "economy-service"
+    },
+    {
+      "ServiceName": "economy-service"
     }
   ],
   "GlobalConfiguration": {
