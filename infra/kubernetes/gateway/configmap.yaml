@@ -32,6 +32,51 @@ data:
           "DownstreamHostAndPorts": [
             { "Host": "identity-service.gaming-platform.svc.cluster.local", "Port": 5000 }
           ]
+        },
+        {
+          "DownstreamHostAndPorts": [
+            { "Host": "identity-service.gaming-platform.svc.cluster.local", "Port": 5000 }
+          ]
+        },
+        {
+          "DownstreamHostAndPorts": [
+            { "Host": "economy-service.gaming-platform.svc.cluster.local", "Port": 5001 }
+          ]
+        },
+        {
+          "DownstreamHostAndPorts": [
+            { "Host": "economy-service.gaming-platform.svc.cluster.local", "Port": 5001 }
+          ]
+        },
+        {
+          "DownstreamHostAndPorts": [
+            { "Host": "economy-service.gaming-platform.svc.cluster.local", "Port": 5001 }
+          ]
+        },
+        {
+          "DownstreamHostAndPorts": [
+            { "Host": "economy-service.gaming-platform.svc.cluster.local", "Port": 5001 }
+          ]
+        },
+        {
+          "DownstreamHostAndPorts": [
+            { "Host": "economy-service.gaming-platform.svc.cluster.local", "Port": 5001 }
+          ]
+        },
+        {
+          "DownstreamHostAndPorts": [
+            { "Host": "economy-service.gaming-platform.svc.cluster.local", "Port": 5001 }
+          ]
+        },
+        {
+          "DownstreamHostAndPorts": [
+            { "Host": "economy-service.gaming-platform.svc.cluster.local", "Port": 5001 }
+          ]
+        },
+        {
+          "DownstreamHostAndPorts": [
+            { "Host": "economy-service.gaming-platform.svc.cluster.local", "Port": 5001 }
+          ]
         }
       ]
     }
