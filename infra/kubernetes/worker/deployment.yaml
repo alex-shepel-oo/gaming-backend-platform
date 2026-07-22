@@ -16,6 +16,7 @@ spec:
       containers:
         - name: platform-worker
           image: ghcr.io/alex-shepel-oo/platform-worker:latest
+          imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
                 name: identity-secrets

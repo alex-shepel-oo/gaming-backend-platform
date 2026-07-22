@@ -16,6 +16,7 @@ spec:
       containers:
         - name: player-client
           image: ghcr.io/alex-shepel-oo/player-client:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
           livenessProbe:

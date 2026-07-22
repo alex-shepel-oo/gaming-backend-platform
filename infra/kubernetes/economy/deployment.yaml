@@ -16,6 +16,7 @@ spec:
       containers:
         - name: economy-service
           image: ghcr.io/alex-shepel-oo/economy-service:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5001
           envFrom:
