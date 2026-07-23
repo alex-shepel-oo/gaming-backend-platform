@@ -2,15 +2,13 @@
 
 html {
   height: 100%;
+  // Fallback before ThemeService runs (also covers no-JS): defer to the OS.
+  // ThemeService sets an explicit light/dark value here once the app boots.
+  color-scheme: light dark;
   @include theme.apply();
 }
 
 body {
-  // Default the application to a light color theme. This can be changed to
-  // `dark` to enable the dark color theme, or to `light dark` to defer to the
-  // user's system settings.
-  color-scheme: light;
-
   background-color: var(--mat-sys-surface);
   color: var(--mat-sys-on-surface);
   font: var(--mat-sys-body-medium);
