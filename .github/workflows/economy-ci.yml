@@ -40,18 +40,11 @@ jobs:
       - name: Test
         run: dotnet test backend/EconomyService.Tests/EconomyService.Tests.csproj --no-build --configuration Release
 
-      - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.36.0
+      - name: Trivy filesystem scan
+        uses: ./.github/actions/trivy-scan
         with:
           scan-type: fs
-          scan-ref: backend/EconomyService
-          format: sarif
-          output: trivy-fs-results.sarif
-
-      - name: Upload filesystem scan results
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: trivy-fs-results.sarif
+          target: backend/EconomyService
           category: trivy-fs
 
       - name: Log in to GHCR
@@ -71,17 +64,10 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/economy-service:${{ github.sha }}
 
-      - name: Run Trivy image scan
+      - name: Trivy image scan
         if: github.event_name == 'push'
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: ./.github/actions/trivy-scan
         with:
-          image-ref: ghcr.io/${{ github.repository_owner }}/economy-service:${{ github.sha }}
-          format: sarif
-          output: trivy-image-results.sarif
-
-      - name: Upload image scan results
-        if: github.event_name == 'push'
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: trivy-image-results.sarif
+          scan-type: image
+          target: ghcr.io/${{ github.repository_owner }}/economy-service:${{ github.sha }}
           category: trivy-image

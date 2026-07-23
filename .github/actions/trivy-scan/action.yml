@@ -1,0 +1,45 @@
+name: trivy-scan
+description: Run a Trivy filesystem or image scan and upload the result to the Security tab
+
+inputs:
+  scan-type:
+    description: fs or image
+    required: true
+  target:
+    description: path to scan (fs) or image reference to scan (image)
+    required: true
+  category:
+    description: SARIF category to upload under
+    required: true
+  severity:
+    description: comma-separated severities to report
+    required: false
+    default: CRITICAL,HIGH
+
+runs:
+  using: composite
+  steps:
+    - name: Run Trivy filesystem scan
+      if: inputs.scan-type == 'fs'
+      uses: aquasecurity/trivy-action@0.36.0
+      with:
+        scan-type: fs
+        scan-ref: ${{ inputs.target }}
+        format: sarif
+        output: trivy-results.sarif
+        severity: ${{ inputs.severity }}
+
+    - name: Run Trivy image scan
+      if: inputs.scan-type == 'image'
+      uses: aquasecurity/trivy-action@0.36.0
+      with:
+        image-ref: ${{ inputs.target }}
+        format: sarif
+        output: trivy-results.sarif
+        severity: ${{ inputs.severity }}
+
+    - name: Upload scan results
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: trivy-results.sarif
+        category: ${{ inputs.category }}
