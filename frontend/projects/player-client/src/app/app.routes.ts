@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard } from 'shared';
+import { authGuard, guestGuard } from 'shared';
 import { AuthShell } from './auth-shell/auth-shell';
 import { Convert } from './convert/convert';
 import { Games } from './games/games';
@@ -8,7 +8,7 @@ import { Wallet } from './wallet/wallet';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'login' },
-  { path: 'login', component: AuthShell },
+  { path: 'login', component: AuthShell, canActivate: [guestGuard] },
   {
     path: '',
     component: Shell,
@@ -19,4 +19,5 @@ export const routes: Routes = [
       { path: 'convert', component: Convert },
     ],
   },
+  { path: '**', redirectTo: '' },
 ];
