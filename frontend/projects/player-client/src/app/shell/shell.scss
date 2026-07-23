@@ -4,6 +4,14 @@
   z-index: 10;
   gap: var(--app-space-md);
   border-bottom: 1px solid var(--mat-sys-outline-variant);
+
+  // Below ~600px the brand + nav + game badge + logout no longer fit on one
+  // row; wrap instead of letting the toolbar force horizontal page scroll.
+  @media (max-width: 599px) {
+    flex-wrap: wrap;
+    height: auto;
+    padding-block: var(--app-space-sm);
+  }
 }
 
 .shell-brand {
@@ -14,6 +22,7 @@
 .shell-nav {
   display: flex;
   gap: var(--app-space-xs);
+  flex-wrap: wrap;
 }
 
 .shell-nav-link-active {

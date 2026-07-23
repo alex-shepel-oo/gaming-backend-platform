@@ -37,8 +37,13 @@
   font-weight: 500;
 }
 
+.history-table-scroll {
+  overflow-x: auto;
+}
+
 .history-table {
   width: 100%;
+  min-width: 480px;
   border-collapse: collapse;
   font: var(--mat-sys-body-medium);
 }
