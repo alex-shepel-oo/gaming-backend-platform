@@ -19,6 +19,14 @@
   @include forms.error-text();
 }
 
+.convert-receive-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-xs);
+  margin: 0;
+  font: var(--mat-sys-body-medium);
+}
+
 .conversion-status {
   margin-top: var(--app-space-lg);
   padding: var(--app-space-md);

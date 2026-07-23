@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -13,9 +13,11 @@ import {
   ConversionService,
   ConversionStatus,
   GameSelectionService,
+  GamesService,
   WalletService,
   isTerminalConversionStatus,
 } from 'shared';
+import { NotAvailable } from '../ui/not-available/not-available';
 
 const POLL_INTERVAL_MS = 1500;
 
@@ -47,7 +49,14 @@ const STATUS_STYLE_CLASSES: Record<ConversionStatus, string> = {
 
 @Component({
   selector: 'app-convert',
-  imports: [ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatButtonModule, MatProgressSpinnerModule],
+  imports: [
+    ReactiveFormsModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatButtonModule,
+    MatProgressSpinnerModule,
+    NotAvailable,
+  ],
   templateUrl: './convert.html',
   styleUrl: './convert.scss',
 })
@@ -55,29 +64,65 @@ export class Convert {
   private readonly formBuilder = inject(FormBuilder);
   private readonly conversionService = inject(ConversionService);
   private readonly walletService = inject(WalletService);
+  private readonly gamesService = inject(GamesService);
   private readonly gameSelection = inject(GameSelectionService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly ConversionStatus = ConversionStatus;
 
-  protected readonly form = this.formBuilder.nonNullable.group({
-    fromCurrencyId: ['', Validators.required],
-    toCurrencyId: ['', Validators.required],
-    fromAmount: [0, [Validators.required, Validators.min(0.01)]],
-  });
-
   protected readonly currencies = signal<Balance[]>([]);
   protected readonly currenciesLoading = signal(true);
   protected readonly currenciesError = signal(false);
+  protected readonly gameNames = signal<Map<string, string>>(new Map());
+
+  private readonly insufficientBalanceValidator: ValidatorFn = (control) => {
+    const fromCurrencyId = control.parent?.get('fromCurrencyId')?.value as string | undefined;
+    const currency = this.currencies().find((candidate) => candidate.currencyId === fromCurrencyId);
+
+    return currency && control.value > currency.amount ? { insufficientBalance: true } : null;
+  };
+
+  protected readonly form = this.formBuilder.nonNullable.group({
+    fromCurrencyId: ['', Validators.required],
+    targetGameId: [''],
+    toCurrencyId: ['', Validators.required],
+    fromAmount: [0, [Validators.required, Validators.min(0.01), this.insufficientBalanceValidator]],
+  });
 
   protected readonly submitting = signal(false);
   protected readonly error = signal<ConvertError | null>(null);
   protected readonly conversion = signal<Conversion | null>(null);
 
-  protected readonly toCurrencyOptions = computed(() => {
+  private readonly rawToCurrencyOptions = computed(() => {
     const fromCurrencyId = this.form.controls.fromCurrencyId.value;
 
     return this.currencies().filter((currency) => currency.currencyId !== fromCurrencyId);
+  });
+
+  // Grouping is real and data-driven (currency.gameId), not fabricated -- with
+  // today's single-game demo data it always collapses to "no choice needed"
+  // and the picker stays hidden. It activates on its own once a second game's
+  // currency exists in the player's balances.
+  protected readonly toGameOptions = computed(() => {
+    const gameIds = new Set(
+      this.rawToCurrencyOptions()
+        .filter((currency) => currency.gameId !== null)
+        .map((currency) => currency.gameId as string),
+    );
+
+    return Array.from(gameIds);
+  });
+
+  protected readonly showGamePicker = computed(() => this.toGameOptions().length > 1);
+
+  protected readonly toCurrencyOptions = computed(() => {
+    if (!this.showGamePicker()) {
+      return this.rawToCurrencyOptions();
+    }
+
+    const targetGameId = this.form.controls.targetGameId.value;
+
+    return this.rawToCurrencyOptions().filter((currency) => currency.gameId === targetGameId);
   });
 
   private pollSubscription: Subscription | null = null;
@@ -89,12 +134,25 @@ export class Convert {
       next: (balances) => {
         this.currencies.set(balances);
         this.currenciesLoading.set(false);
+        this.form.controls.fromAmount.updateValueAndValidity();
       },
       error: () => {
         this.currenciesLoading.set(false);
         this.currenciesError.set(true);
       },
     });
+
+    this.gamesService.listPublicGames().subscribe((games) => {
+      this.gameNames.set(new Map(games.map((game) => [game.id, game.name])));
+    });
+
+    this.form.controls.fromCurrencyId.valueChanges.subscribe(() => {
+      this.form.controls.fromAmount.updateValueAndValidity();
+    });
+  }
+
+  protected gameNameFor(gameId: string): string {
+    return this.gameNames().get(gameId) ?? gameId;
   }
 
   protected statusLabel(status: ConversionStatus): string {
@@ -139,7 +197,15 @@ export class Convert {
     this.pollSubscription = timer(POLL_INTERVAL_MS, POLL_INTERVAL_MS)
       .pipe(
         switchMap(() => this.conversionService.get(conversionId)),
-        tap((conversion) => this.conversion.set(conversion)),
+        tap((conversion) => {
+          this.conversion.set(conversion);
+
+          if (conversion.status === ConversionStatus.Completed) {
+            this.walletService
+              .refreshBalances(this.gameSelection.selected()?.id)
+              .subscribe((balances) => this.currencies.set(balances));
+          }
+        }),
         takeWhile((conversion) => !isTerminalConversionStatus(conversion.status), true),
       )
       .subscribe();

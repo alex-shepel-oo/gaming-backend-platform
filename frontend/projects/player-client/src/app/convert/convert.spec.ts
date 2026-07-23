@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Conversion, ConversionStatus, CurrencyScope, EconomyEndpoints } from 'shared';
+import { Conversion, ConversionStatus, CurrencyScope, EconomyEndpoints, IdentityGameEndpoints, WalletService } from 'shared';
 import { Convert } from './convert';
 
 const POLL_INTERVAL_MS = 1500;
@@ -49,15 +49,22 @@ describe('Convert', () => {
     vi.useRealTimers();
   });
 
-  function createWithCurrencies(): ComponentFixture<Convert> {
+  function flushGamesList(): void {
+    httpMock
+      .expectOne((req) => req.url === IdentityGameEndpoints.publicGames)
+      .flush([{ id: 'game-1', slug: 'demo-shooter', name: 'Demo Shooter' }]);
+  }
+
+  function createWithCurrencies(balancesResponse: unknown[] = balances): ComponentFixture<Convert> {
     const currentFixture = TestBed.createComponent(Convert);
-    httpMock.expectOne((req) => req.url === EconomyEndpoints.balances).flush(balances);
+    httpMock.expectOne((req) => req.url === EconomyEndpoints.balances).flush(balancesResponse);
+    flushGamesList();
     currentFixture.detectChanges();
 
     return currentFixture;
   }
 
-  function fillAndSubmit(currentFixture: ComponentFixture<Convert>): void {
+  function fillAndSubmit(currentFixture: ComponentFixture<Convert>, amount = '10'): void {
     const element = currentFixture.nativeElement as HTMLElement;
     const fromSelect = element.querySelector('select[formcontrolname="fromCurrencyId"]') as HTMLSelectElement;
     const toSelect = element.querySelector('select[formcontrolname="toCurrencyId"]') as HTMLSelectElement;
@@ -70,16 +77,18 @@ describe('Convert', () => {
     toSelect.dispatchEvent(new Event('change'));
 
     const amountInput = element.querySelector('input[type="number"]') as HTMLInputElement;
-    amountInput.value = '10';
+    amountInput.value = amount;
     amountInput.dispatchEvent(new Event('input'));
     currentFixture.detectChanges();
 
     element.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    currentFixture.detectChanges();
   }
 
   it('shows an empty state when the player has no currencies to convert', () => {
     fixture = TestBed.createComponent(Convert);
     httpMock.expectOne((req) => req.url === EconomyEndpoints.balances).flush([]);
+    flushGamesList();
     fixture.detectChanges();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
@@ -110,7 +119,28 @@ describe('Convert', () => {
     expect(secondKey).not.toBe(firstKey);
   });
 
-  it('polls the conversion status until it reaches Completed, then stops', () => {
+  it('disables the submit button when the requested amount exceeds the available balance', () => {
+    fixture = createWithCurrencies();
+
+    fillAndSubmit(fixture, '1000');
+
+    const submitButton = (fixture.nativeElement as HTMLElement).querySelector(
+      'button[type="submit"]',
+    ) as HTMLButtonElement;
+    expect(submitButton.disabled).toBe(true);
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Amount exceeds your available balance.');
+  });
+
+  it('does not show a game picker when only one game is available', () => {
+    fixture = createWithCurrencies();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toContain('Convert into game');
+  });
+
+  it('polls the conversion status until it reaches Completed, refreshing balances, then stops', () => {
     fixture = createWithCurrencies();
 
     fillAndSubmit(fixture);
@@ -133,8 +163,18 @@ describe('Convert', () => {
     httpMock.expectOne(EconomyEndpoints.conversion('conv-1')).flush(conversionResponse('conv-1', ConversionStatus.Completed));
     fixture.detectChanges();
 
+    httpMock
+      .expectOne((req) => req.url === EconomyEndpoints.balances)
+      .flush([{ ...balances[0], amount: 90 }, balances[1]]);
+    fixture.detectChanges();
+
     text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Status: Completed');
+    expect(text).toContain('90 available');
+
+    // The shell toolbar reads this same shared signal -- proving it also
+    // reflects the post-conversion balance, not just Convert's own view.
+    expect(TestBed.inject(WalletService).balances()).toEqual([{ ...balances[0], amount: 90 }, balances[1]]);
 
     vi.advanceTimersByTime(POLL_INTERVAL_MS * 3);
     expect(httpMock.match(EconomyEndpoints.conversion('conv-1'))).toHaveLength(0);
