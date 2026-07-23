@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$REPO_ROOT/infra"
+
+SERVICES=(
+  identity_db
+  economy_db
+  consul
+  identity-migrator
+  identity-service
+  rabbitmq
+  economy-migrator
+  economy-service
+  platform-worker
+  api-gateway
+  mailpit
+)
+
+echo "Starting backend services: ${SERVICES[*]}"
+docker compose up -d --build "${SERVICES[@]}"
+echo "Backend stack up."
