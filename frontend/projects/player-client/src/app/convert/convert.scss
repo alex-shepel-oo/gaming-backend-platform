@@ -1,0 +1,47 @@
+@use '../../styles/forms';
+@use '../../styles/states';
+
+.state-panel {
+  @include states.state-panel();
+}
+
+.state-error {
+  @include states.error-text();
+}
+
+.convert-form {
+  @include forms.stack();
+  @include forms.full-width-field();
+  max-width: 420px;
+}
+
+.convert-error {
+  @include forms.error-text();
+}
+
+.conversion-status {
+  margin-top: var(--app-space-lg);
+  padding: var(--app-space-md);
+  border-radius: 4px;
+  max-width: 420px;
+}
+
+.status-progress {
+  background-color: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
+}
+
+.status-success {
+  background-color: var(--app-color-success-container);
+  color: var(--app-color-on-success-container);
+}
+
+.status-warning {
+  background-color: var(--app-color-warning-container);
+  color: var(--app-color-on-warning-container);
+}
+
+.status-error {
+  background-color: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}

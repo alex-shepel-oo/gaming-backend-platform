@@ -1,34 +1,69 @@
-<form [formGroup]="form" (ngSubmit)="submit()">
-  <label>
-    From currency ID
-    <input type="text" formControlName="fromCurrencyId" />
-  </label>
+<h1>Convert</h1>
 
-  <label>
-    To currency ID
-    <input type="text" formControlName="toCurrencyId" />
-  </label>
+@if (currenciesLoading()) {
+  <div class="state-panel">
+    <mat-spinner diameter="32" />
+    <p>Loading your currencies…</p>
+  </div>
+} @else if (currenciesError()) {
+  <div class="state-panel">
+    <p class="state-error" role="alert">We couldn't load your currencies. Please try again later.</p>
+  </div>
+} @else if (currencies().length === 0) {
+  <div class="state-panel">
+    <p>You don't have any currencies to convert yet.</p>
+  </div>
+} @else {
+  <form class="convert-form" [formGroup]="form" (ngSubmit)="submit()">
+    <mat-form-field appearance="outline">
+      <mat-label>From currency</mat-label>
+      <select matNativeControl formControlName="fromCurrencyId" required>
+        <option value="" disabled>Select a currency</option>
+        @for (currency of currencies(); track currency.currencyId) {
+          <option [value]="currency.currencyId">{{ currency.currencyCode }} &mdash; {{ currency.amount }} available</option>
+        }
+      </select>
+    </mat-form-field>
 
-  <label>
-    Amount
-    <input type="number" formControlName="fromAmount" step="0.01" />
-  </label>
+    <mat-form-field appearance="outline">
+      <mat-label>To currency</mat-label>
+      <select matNativeControl formControlName="toCurrencyId" required>
+        <option value="" disabled>Select a currency</option>
+        @for (currency of toCurrencyOptions(); track currency.currencyId) {
+          <option [value]="currency.currencyId">{{ currency.currencyCode }}</option>
+        }
+      </select>
+    </mat-form-field>
 
-  @if (error() === 'insufficient-funds') {
-    <p role="alert">Insufficient funds for this conversion.</p>
-  }
+    <mat-form-field appearance="outline">
+      <mat-label>Amount</mat-label>
+      <input matInput type="number" formControlName="fromAmount" step="0.01" required />
+    </mat-form-field>
 
-  @if (error() === 'conflict') {
-    <p role="alert">This conversion could not be started. Please try again.</p>
-  }
+    @if (error() === 'insufficient-funds') {
+      <p class="convert-error" role="alert">Insufficient funds for this conversion.</p>
+    }
 
-  <button type="submit" [disabled]="form.invalid || submitting()">Convert</button>
-</form>
+    @if (error() === 'conflict') {
+      <p class="convert-error" role="alert">This conversion could not be started. Please try again.</p>
+    }
+
+    <button type="submit" mat-flat-button color="primary" [disabled]="form.invalid || submitting()">
+      @if (submitting()) {
+        <mat-spinner diameter="20" />
+      } @else {
+        Convert
+      }
+    </button>
+  </form>
+}
 
 @if (conversion(); as currentConversion) {
-  <p>Status: {{ ConversionStatus[currentConversion.status] }}</p>
+  <div class="conversion-status" [class]="statusStyleClass(currentConversion.status)">
+    <p>Status: <strong>{{ statusLabel(currentConversion.status) }}</strong></p>
 
-  @if (currentConversion.status === ConversionStatus.Failed && currentConversion.failureReason) {
-    <p role="alert">{{ currentConversion.failureReason }}</p>
-  }
+    @if (currentConversion.status === ConversionStatus.Failed && currentConversion.failureReason) {
+      <p role="alert">{{ currentConversion.failureReason }}</p>
+    }
+  </div>
 }

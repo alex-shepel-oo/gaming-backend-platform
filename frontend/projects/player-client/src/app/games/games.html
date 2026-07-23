@@ -1,17 +1,41 @@
-<ul>
-  @for (game of games(); track game.id) {
-    <li>
-      <button
-        type="button"
-        [attr.aria-pressed]="gameSelection.selected()?.id === game.id"
-        (click)="select(game)"
-      >
-        {{ game.name }} ({{ game.slug }})
-      </button>
-    </li>
-  }
-</ul>
+<h1>Games</h1>
 
-@if (gameSelection.selected(); as selectedGame) {
-  <p>Selected game: {{ selectedGame.name }}</p>
+@if (loading()) {
+  <div class="state-panel">
+    <mat-spinner diameter="32" />
+    <p>Loading games…</p>
+  </div>
+} @else if (loadError()) {
+  <div class="state-panel">
+    <p class="state-error" role="alert">We couldn't load the games list. Please try again later.</p>
+  </div>
+} @else if (games().length === 0) {
+  <div class="state-panel">
+    <p>No games are available right now.</p>
+  </div>
+} @else {
+  <div class="games-grid">
+    @for (game of games(); track game.id) {
+      <mat-card class="game-card" [class.game-card-selected]="isSelected(game)">
+        <mat-card-header>
+          <mat-card-title>{{ game.name }}</mat-card-title>
+          <mat-card-subtitle>{{ game.slug }}</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-actions>
+          <button
+            type="button"
+            mat-flat-button
+            [color]="isSelected(game) ? 'primary' : undefined"
+            [attr.aria-pressed]="isSelected(game)"
+            (click)="select(game)"
+          >
+            @if (isSelected(game)) {
+              <mat-icon aria-hidden="true">check</mat-icon>
+            }
+            {{ isSelected(game) ? 'Selected' : 'Select' }}
+          </button>
+        </mat-card-actions>
+      </mat-card>
+    }
+  </div>
 }

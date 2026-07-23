@@ -1,10 +1,15 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Conversion, ConversionStatus, EconomyEndpoints } from 'shared';
+import { Conversion, ConversionStatus, CurrencyScope, EconomyEndpoints } from 'shared';
 import { Convert } from './convert';
 
 const POLL_INTERVAL_MS = 1500;
+
+const balances = [
+  { currencyId: 'currency-a', currencyCode: 'GOLD', scope: CurrencyScope.Platform, gameId: null, amount: 100 },
+  { currencyId: 'currency-b', currencyCode: 'GEMS', scope: CurrencyScope.Game, gameId: 'game-1', amount: 50 },
+];
 
 function conversionResponse(conversionId: string, status: ConversionStatus, overrides: Partial<Conversion> = {}): Conversion {
   return {
@@ -44,24 +49,45 @@ describe('Convert', () => {
     vi.useRealTimers();
   });
 
+  function createWithCurrencies(): ComponentFixture<Convert> {
+    const currentFixture = TestBed.createComponent(Convert);
+    httpMock.expectOne((req) => req.url === EconomyEndpoints.balances).flush(balances);
+    currentFixture.detectChanges();
+
+    return currentFixture;
+  }
+
   function fillAndSubmit(currentFixture: ComponentFixture<Convert>): void {
     const element = currentFixture.nativeElement as HTMLElement;
-    const inputs = element.querySelectorAll('input');
+    const fromSelect = element.querySelector('select[formcontrolname="fromCurrencyId"]') as HTMLSelectElement;
+    const toSelect = element.querySelector('select[formcontrolname="toCurrencyId"]') as HTMLSelectElement;
 
-    (inputs[0] as HTMLInputElement).value = 'currency-a';
-    inputs[0].dispatchEvent(new Event('input'));
-    (inputs[1] as HTMLInputElement).value = 'currency-b';
-    inputs[1].dispatchEvent(new Event('input'));
-    (inputs[2] as HTMLInputElement).value = '10';
-    inputs[2].dispatchEvent(new Event('input'));
+    fromSelect.value = 'currency-a';
+    fromSelect.dispatchEvent(new Event('change'));
+    currentFixture.detectChanges();
+
+    toSelect.value = 'currency-b';
+    toSelect.dispatchEvent(new Event('change'));
+
+    const amountInput = element.querySelector('input[type="number"]') as HTMLInputElement;
+    amountInput.value = '10';
+    amountInput.dispatchEvent(new Event('input'));
     currentFixture.detectChanges();
 
     element.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
   }
 
-  it('generates a new Idempotency-Key for every new submit, not just the first', () => {
+  it('shows an empty state when the player has no currencies to convert', () => {
     fixture = TestBed.createComponent(Convert);
+    httpMock.expectOne((req) => req.url === EconomyEndpoints.balances).flush([]);
     fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain("don't have any currencies to convert yet");
+  });
+
+  it('generates a new Idempotency-Key for every new submit, not just the first', () => {
+    fixture = createWithCurrencies();
 
     fillAndSubmit(fixture);
     const firstRequest = httpMock.expectOne(EconomyEndpoints.conversions);
@@ -85,8 +111,7 @@ describe('Convert', () => {
   });
 
   it('polls the conversion status until it reaches Completed, then stops', () => {
-    fixture = TestBed.createComponent(Convert);
-    fixture.detectChanges();
+    fixture = createWithCurrencies();
 
     fillAndSubmit(fixture);
     httpMock
@@ -102,7 +127,7 @@ describe('Convert', () => {
     fixture.detectChanges();
 
     text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Status: DebitDone');
+    expect(text).toContain('Status: Processing');
 
     vi.advanceTimersByTime(POLL_INTERVAL_MS);
     httpMock.expectOne(EconomyEndpoints.conversion('conv-1')).flush(conversionResponse('conv-1', ConversionStatus.Completed));
@@ -116,8 +141,7 @@ describe('Convert', () => {
   });
 
   it('polls the conversion status until it reaches Failed, then stops', () => {
-    fixture = TestBed.createComponent(Convert);
-    fixture.detectChanges();
+    fixture = createWithCurrencies();
 
     fillAndSubmit(fixture);
     httpMock
@@ -146,8 +170,7 @@ describe('Convert', () => {
   });
 
   it('shows an insufficient-funds message on a 402, before any conversionId is known', () => {
-    fixture = TestBed.createComponent(Convert);
-    fixture.detectChanges();
+    fixture = createWithCurrencies();
 
     fillAndSubmit(fixture);
     httpMock
@@ -161,8 +184,7 @@ describe('Convert', () => {
   });
 
   it('shows a generic error on a 409 idempotency-key conflict', () => {
-    fixture = TestBed.createComponent(Convert);
-    fixture.detectChanges();
+    fixture = createWithCurrencies();
 
     fillAndSubmit(fixture);
     httpMock

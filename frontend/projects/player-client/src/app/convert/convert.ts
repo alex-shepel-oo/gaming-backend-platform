@@ -1,9 +1,21 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Subscription, timer } from 'rxjs';
 import { switchMap, takeWhile, tap } from 'rxjs/operators';
-import { Conversion, ConversionService, ConversionStatus, isTerminalConversionStatus } from 'shared';
+import {
+  Balance,
+  Conversion,
+  ConversionService,
+  ConversionStatus,
+  GameSelectionService,
+  WalletService,
+  isTerminalConversionStatus,
+} from 'shared';
 
 const POLL_INTERVAL_MS = 1500;
 
@@ -17,14 +29,33 @@ function classifyConvertError(error: unknown): ConvertError {
   return 'conflict';
 }
 
+const STATUS_LABELS: Record<ConversionStatus, string> = {
+  [ConversionStatus.Started]: 'Started',
+  [ConversionStatus.DebitDone]: 'Processing',
+  [ConversionStatus.Completed]: 'Completed',
+  [ConversionStatus.Compensating]: 'Reversing',
+  [ConversionStatus.Failed]: 'Failed',
+};
+
+const STATUS_STYLE_CLASSES: Record<ConversionStatus, string> = {
+  [ConversionStatus.Started]: 'status-progress',
+  [ConversionStatus.DebitDone]: 'status-progress',
+  [ConversionStatus.Completed]: 'status-success',
+  [ConversionStatus.Compensating]: 'status-warning',
+  [ConversionStatus.Failed]: 'status-error',
+};
+
 @Component({
   selector: 'app-convert',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatButtonModule, MatProgressSpinnerModule],
   templateUrl: './convert.html',
+  styleUrl: './convert.scss',
 })
 export class Convert {
   private readonly formBuilder = inject(FormBuilder);
   private readonly conversionService = inject(ConversionService);
+  private readonly walletService = inject(WalletService);
+  private readonly gameSelection = inject(GameSelectionService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly ConversionStatus = ConversionStatus;
@@ -35,14 +66,43 @@ export class Convert {
     fromAmount: [0, [Validators.required, Validators.min(0.01)]],
   });
 
+  protected readonly currencies = signal<Balance[]>([]);
+  protected readonly currenciesLoading = signal(true);
+  protected readonly currenciesError = signal(false);
+
   protected readonly submitting = signal(false);
   protected readonly error = signal<ConvertError | null>(null);
   protected readonly conversion = signal<Conversion | null>(null);
+
+  protected readonly toCurrencyOptions = computed(() => {
+    const fromCurrencyId = this.form.controls.fromCurrencyId.value;
+
+    return this.currencies().filter((currency) => currency.currencyId !== fromCurrencyId);
+  });
 
   private pollSubscription: Subscription | null = null;
 
   constructor() {
     this.destroyRef.onDestroy(() => this.pollSubscription?.unsubscribe());
+
+    this.walletService.getBalances(this.gameSelection.selected()?.id).subscribe({
+      next: (balances) => {
+        this.currencies.set(balances);
+        this.currenciesLoading.set(false);
+      },
+      error: () => {
+        this.currenciesLoading.set(false);
+        this.currenciesError.set(true);
+      },
+    });
+  }
+
+  protected statusLabel(status: ConversionStatus): string {
+    return STATUS_LABELS[status];
+  }
+
+  protected statusStyleClass(status: ConversionStatus): string {
+    return STATUS_STYLE_CLASSES[status];
   }
 
   protected submit(): void {

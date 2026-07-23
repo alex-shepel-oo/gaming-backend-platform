@@ -1,0 +1,19 @@
+@use '../../styles/states';
+
+.state-panel {
+  @include states.state-panel();
+}
+
+.state-error {
+  @include states.error-text();
+}
+
+.games-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--app-space-md);
+}
+
+.game-card-selected {
+  outline: 2px solid var(--mat-sys-primary);
+}
