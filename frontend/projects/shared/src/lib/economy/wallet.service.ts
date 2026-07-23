@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Injectable, inject, signal } from '@angular/core';
+import { Observable, tap } from 'rxjs';
 import { EconomyEndpoints } from './economy-endpoints';
 import { Balance, PagedResult, TransactionHistoryEntry } from './wallet.models';
 
@@ -13,6 +13,21 @@ export interface TransactionHistoryQuery {
 @Injectable({ providedIn: 'root' })
 export class WalletService {
   private readonly http = inject(HttpClient);
+
+  // Cross-screen snapshot (shell toolbar, Convert) so navigating between
+  // screens doesn't each independently re-fetch the same balances -- Wallet
+  // itself keeps its own loading/error signals built on getBalances() below,
+  // this is additive, not a replacement.
+  private readonly balancesSignal = signal<Balance[] | null>(null);
+  readonly balances = this.balancesSignal.asReadonly();
+
+  refreshBalances(gameId?: string): Observable<Balance[]> {
+    return this.getBalances(gameId).pipe(tap((balances) => this.balancesSignal.set(balances)));
+  }
+
+  clearBalances(): void {
+    this.balancesSignal.set(null);
+  }
 
   getBalances(gameId?: string): Observable<Balance[]> {
     const params = gameId ? new HttpParams().set('gameId', gameId) : undefined;
