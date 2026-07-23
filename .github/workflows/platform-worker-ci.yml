@@ -1,0 +1,87 @@
+name: platform-worker-ci
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'backend/Platform.Worker/**'
+      - 'backend/Platform.Worker.Tests/**'
+      - 'backend/Directory.*.props'
+      - 'global.json'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'backend/Platform.Worker/**'
+      - 'backend/Platform.Worker.Tests/**'
+      - 'backend/Directory.*.props'
+      - 'global.json'
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore backend/Platform.Worker.Tests/Platform.Worker.Tests.csproj
+
+      - name: Build
+        run: dotnet build backend/Platform.Worker.Tests/Platform.Worker.Tests.csproj --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test backend/Platform.Worker.Tests/Platform.Worker.Tests.csproj --no-build --configuration Release
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: fs
+          scan-ref: backend/Platform.Worker
+          format: sarif
+          output: trivy-fs-results.sarif
+
+      - name: Upload filesystem scan results
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-fs-results.sarif
+          category: trivy-fs
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/Platform.Worker/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/platform-worker:${{ github.sha }}
+
+      - name: Run Trivy image scan
+        if: github.event_name == 'push'
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: ghcr.io/${{ github.repository_owner }}/platform-worker:${{ github.sha }}
+          format: sarif
+          output: trivy-image-results.sarif
+
+      - name: Upload image scan results
+        if: github.event_name == 'push'
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-image-results.sarif
+          category: trivy-image
