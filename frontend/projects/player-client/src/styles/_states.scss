@@ -1,0 +1,16 @@
+// Shared loading/error/empty presentation for the three data-driven screens
+// (Games, Wallet, Convert) so each one doesn't redefine the same panel.
+
+@mixin state-panel() {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--app-space-md);
+  padding: var(--app-space-xl) var(--app-space-md);
+  text-align: center;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+@mixin error-text() {
+  color: var(--mat-sys-error);
+}
