@@ -62,7 +62,7 @@ cp infra/kubernetes/economy/secret.example.yaml /tmp/economy-secrets.yaml
 cp infra/kubernetes/rabbitmq/secret.example.yaml /tmp/rabbitmq-secrets.yaml
 # edit each of the three with real values, then:
 kubectl apply -f /tmp/identity-secrets.yaml -f /tmp/economy-secrets.yaml -f /tmp/rabbitmq-secrets.yaml
-scripts/k8s-apply.sh
+scripts/k8s/apply.sh
 ```
 
 `gateway` and `economy-service` both read the JWT signing key out of
@@ -70,7 +70,7 @@ scripts/k8s-apply.sh
 deployed at all here — Kubernetes Services and kube-DNS already provide
 discovery (ADR 0002).
 
-`scripts/k8s-apply.sh` (no argument defaults to the whole `infra/kubernetes`
+`scripts/k8s/apply.sh` (no argument defaults to the whole `infra/kubernetes`
 tree) does more than a bare `kubectl apply -f`: the two database
 StatefulSets are applied and waited on first, then the `identity-migrator`/
 `economy-migrator` Jobs are applied and waited on to completion, and only
