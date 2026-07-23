@@ -1,0 +1,87 @@
+name: economy-ci
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'backend/EconomyService/**'
+      - 'backend/EconomyService.Tests/**'
+      - 'backend/Directory.*.props'
+      - 'global.json'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'backend/EconomyService/**'
+      - 'backend/EconomyService.Tests/**'
+      - 'backend/Directory.*.props'
+      - 'global.json'
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore backend/EconomyService.Tests/EconomyService.Tests.csproj
+
+      - name: Build
+        run: dotnet build backend/EconomyService.Tests/EconomyService.Tests.csproj --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test backend/EconomyService.Tests/EconomyService.Tests.csproj --no-build --configuration Release
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: fs
+          scan-ref: backend/EconomyService
+          format: sarif
+          output: trivy-fs-results.sarif
+
+      - name: Upload filesystem scan results
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-fs-results.sarif
+          category: trivy-fs
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/EconomyService/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/economy-service:${{ github.sha }}
+
+      - name: Run Trivy image scan
+        if: github.event_name == 'push'
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: ghcr.io/${{ github.repository_owner }}/economy-service:${{ github.sha }}
+          format: sarif
+          output: trivy-image-results.sarif
+
+      - name: Upload image scan results
+        if: github.event_name == 'push'
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-image-results.sarif
+          category: trivy-image
