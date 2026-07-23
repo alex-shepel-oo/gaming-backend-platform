@@ -21,3 +21,6 @@ SERVICES=(
 echo "Starting backend services: ${SERVICES[*]}"
 docker compose up -d --build "${SERVICES[@]}"
 echo "Backend stack up."
+echo ""
+echo "Gateway:    http://localhost:5100"
+echo "Mailpit UI: http://localhost:8025"

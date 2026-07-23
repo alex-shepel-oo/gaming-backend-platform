@@ -7,3 +7,5 @@ cd "$REPO_ROOT/infra"
 echo "Starting player-client (compose will bring up its dependencies too)..."
 docker compose up -d --build player-client
 echo "player-client up."
+echo ""
+echo "player-client: http://localhost:8080"
