@@ -1,0 +1,10 @@
+.game-details-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-sm);
+}
+
+.game-details-slug {
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+}

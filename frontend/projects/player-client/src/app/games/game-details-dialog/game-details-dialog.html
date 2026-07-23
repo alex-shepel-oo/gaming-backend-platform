@@ -1,0 +1,15 @@
+<h2 mat-dialog-title>{{ data.game.name }}</h2>
+
+<mat-dialog-content class="game-details-content">
+  <p class="game-details-slug">{{ data.game.slug }}</p>
+
+  <h3>About this game</h3>
+  <app-not-available message="Game description isn't available yet" />
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button type="button" mat-button mat-dialog-close>Close</button>
+  <button type="button" mat-flat-button color="primary" [disabled]="data.isSelected" (click)="select()">
+    {{ data.isSelected ? 'Selected' : 'Select this game' }}
+  </button>
+</mat-dialog-actions>

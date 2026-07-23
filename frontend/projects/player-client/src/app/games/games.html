@@ -16,25 +16,28 @@
 } @else {
   <div class="games-grid">
     @for (game of games(); track game.id) {
-      <mat-card class="game-card" [class.game-card-selected]="isSelected(game)">
+      <mat-card
+        class="game-card"
+        [class.game-card-selected]="isSelected(game)"
+        tabindex="0"
+        role="button"
+        [attr.aria-label]="'View details for ' + game.name"
+        (click)="openDetails(game)"
+        (keydown.enter)="openDetails(game)"
+        (keydown.space)="$event.preventDefault(); openDetails(game)"
+      >
         <mat-card-header>
           <mat-card-title>{{ game.name }}</mat-card-title>
           <mat-card-subtitle>{{ game.slug }}</mat-card-subtitle>
         </mat-card-header>
-        <mat-card-actions>
-          <button
-            type="button"
-            mat-flat-button
-            [color]="isSelected(game) ? 'primary' : undefined"
-            [attr.aria-pressed]="isSelected(game)"
-            (click)="select(game)"
-          >
-            @if (isSelected(game)) {
+        @if (isSelected(game)) {
+          <mat-card-content>
+            <span class="game-selected-badge">
               <mat-icon aria-hidden="true">check</mat-icon>
-            }
-            {{ isSelected(game) ? 'Selected' : 'Select' }}
-          </button>
-        </mat-card-actions>
+              Selected
+            </span>
+          </mat-card-content>
+        }
       </mat-card>
     }
   </div>
