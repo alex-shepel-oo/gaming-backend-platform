@@ -6,7 +6,7 @@ metadata:
 data:
   POSTGRES_DB: "identity_db"
   POSTGRES_USER: "identity"
-  ASPNETCORE_ENVIRONMENT: "Production"
+  ASPNETCORE_ENVIRONMENT: "Development"
   ASPNETCORE_URLS: "http://+:5000"
   # Mailpit host: valid for local kind clusters and the sandbox namespace
   # only (see the mailpit manifests). Production supplies its own value

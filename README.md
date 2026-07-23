@@ -31,10 +31,12 @@ cd infra
 docker compose up
 ```
 
-This brings up Postgres, Consul, Mailpit, IdentityService and ApiGateway.
-Everything is reached through the gateway at `http://localhost:5100`; Mailpit's
-UI (for reading verification emails without a real mailbox) is at
-`http://localhost:8025`.
+This brings up the whole stack in one command: both Postgres instances,
+Consul, RabbitMQ, Mailpit, IdentityService, EconomyService, Platform.Worker,
+ApiGateway and player-client. The browser client is at
+`http://localhost:8080`; anything hitting the API directly goes through the
+gateway at `http://localhost:5100`. Mailpit's UI (for reading verification
+emails without a real mailbox) is at `http://localhost:8025`.
 
 The values in `infra/.env.example` are committed on purpose and are not
 production secrets: the stack only binds to `localhost`, so nothing in it is
@@ -43,31 +45,60 @@ reachable from outside the machine it runs on, and every clone gets its own
 
 ## Running on Kubernetes
 
-Manifests live under `infra/kubernetes/` (`base/`, `identity/`, `gateway/`,
-`mailpit/`). They target a local `kind` cluster or a sandbox namespace, not
+Manifests live under `infra/kubernetes/` — `base/`, `identity/`, `economy/`,
+`rabbitmq/`, `worker/`, `player-client/`, `gateway/`, `mailpit/` — one
+namespace (`gaming-platform`) with the same services as the compose stack
+above. They target a local `kind` cluster or a sandbox namespace, not
 production — see [docs/architecture.md](docs/architecture.md#local-vs-kubernetes)
-for the full local-vs-cluster breakdown.
+for the full local-vs-cluster breakdown, including why the environment is
+pinned to `Development` here.
+
+Secrets are never committed; each service ships a `secret.example.yaml`
+template instead:
 
 ```
-kubectl apply -f infra/kubernetes/base/
 cp infra/kubernetes/identity/secret.example.yaml /tmp/identity-secrets.yaml
-# edit /tmp/identity-secrets.yaml with real values, then:
-kubectl apply -f /tmp/identity-secrets.yaml
-kubectl apply -f infra/kubernetes/identity/
-kubectl apply -f infra/kubernetes/gateway/
-kubectl apply -f infra/kubernetes/mailpit/   # kind/sandbox only, skip in production
+cp infra/kubernetes/economy/secret.example.yaml /tmp/economy-secrets.yaml
+cp infra/kubernetes/rabbitmq/secret.example.yaml /tmp/rabbitmq-secrets.yaml
+# edit each of the three with real values, then:
+kubectl apply -f /tmp/identity-secrets.yaml -f /tmp/economy-secrets.yaml -f /tmp/rabbitmq-secrets.yaml
+scripts/k8s-apply.sh
 ```
 
-`identity/secret.example.yaml` is a template with placeholder values, not a
-real Secret — never commit the filled-in copy. The gateway reads its JWT
-signing key from that same Secret rather than a copy of its own, and Consul
-is not deployed here: Kubernetes Services and kube-DNS already provide
+`gateway` and `economy-service` both read the JWT signing key out of
+`identity-secrets` rather than holding a copy of their own, and Consul is not
+deployed at all here — Kubernetes Services and kube-DNS already provide
 discovery (ADR 0002).
 
-Reach the gateway through its Ingress (assumes `ingress-nginx`), or:
+`scripts/k8s-apply.sh` (no argument defaults to the whole `infra/kubernetes`
+tree) does more than a bare `kubectl apply -f`: the two database
+StatefulSets are applied and waited on first, then the `identity-migrator`/
+`economy-migrator` Jobs are applied and waited on to completion, and only
+after that does the rest of the tree — including `mailpit` and
+`player-client` — get applied. That ordering is spelled out explicitly
+because a Kubernetes `Job` has no `depends_on: condition:
+service_completed_successfully` equivalent the way compose's migrator
+containers do.
+
+The `gateway/` part of that same render-and-apply step goes through
+Kustomize rather than being folded into a plain file list: its ConfigMap is
+generated directly from `backend/ApiGateway/ocelot.Kubernetes.json`, so
+there's no hand-copied routing table that can drift from the real one. That
+source file lives outside `infra/kubernetes/gateway/`, though, and `kubectl
+apply -k` has no flag to let Kustomize read outside the kustomization's own
+directory — only the separate `kubectl kustomize` render command does — so
+the script renders with `kubectl kustomize
+--load-restrictor=LoadRestrictionsNone` first and pipes the result into
+`kubectl apply -f -`.
+
+Reach the stack through the Ingress (assumes `ingress-nginx`; its one rule
+routes `/` to `player-client`, which proxies `/api` onward to the gateway
+itself — see [docs/architecture.md](docs/architecture.md#local-vs-kubernetes)),
+or port-forward directly:
 
 ```
-kubectl -n gaming-platform port-forward svc/gateway 5100:5100
+kubectl -n gaming-platform port-forward svc/player-client 8080:8080
+kubectl -n gaming-platform port-forward svc/api-gateway 5100:5100
 kubectl -n gaming-platform port-forward svc/mailpit 8025:8025   # kind/sandbox only
 ```
 
@@ -424,3 +455,11 @@ that service's own rules. It does so through narrow, cleanup-only
 - EconomyService validates the same shared HS256 key as IdentityService
   (see above) rather than a key of its own — the same inherited limitation,
   not a new one this service introduces.
+- Kubernetes Secrets are plain `Secret` objects applied from the
+  `*.secret.example.yaml` templates, not sourced from an external
+  secrets manager. Kustomize's `secretGenerator` came up as the natural next
+  step here and wasn't built in this group.
+- RabbitMQ and both Postgres instances run as dev/sandbox-only images
+  (`rabbitmq:4-management-alpine`, `postgres:17-alpine`) in every environment
+  this repo currently deploys to. A production target would point at managed
+  instances of both instead.

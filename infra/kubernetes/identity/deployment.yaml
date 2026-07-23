@@ -16,6 +16,7 @@ spec:
       containers:
         - name: identity-service
           image: ghcr.io/alex-shepel-oo/identity-service:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5000
           envFrom:

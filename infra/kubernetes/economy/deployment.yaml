@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: economy-service
+  namespace: gaming-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: economy-service
+  template:
+    metadata:
+      labels:
+        app: economy-service
+    spec:
+      containers:
+        - name: economy-service
+          image: ghcr.io/alex-shepel-oo/economy-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5001
+          envFrom:
+            - configMapRef:
+                name: shared-config
+            - configMapRef:
+                name: economy-config
+            - secretRef:
+                name: economy-secrets
+          env:
+            # Same signing key identity-service uses (ADR-0008): economy-service
+            # validates the same HS256 tokens Identity issues, so both read
+            # from the one Secret rather than each holding its own copy that
+            # could drift apart on rotation.
+            - name: Jwt__Key
+              valueFrom:
+                secretKeyRef:
+                  name: identity-secrets
+                  key: Jwt__Key
+            # Reuses the broker's own credentials Secret rather than copying
+            # the values into economy-secrets -- one Secret, every consumer
+            # of the broker (this Deployment, platform-worker later) reads it.
+            - name: RabbitMq__Username
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secrets
+                  key: RABBITMQ_DEFAULT_USER
+            - name: RabbitMq__Password
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secrets
+                  key: RABBITMQ_DEFAULT_PASS
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            # Checks Postgres (see AddEconomyHealthChecks). A pod that can't
+            # reach economy_db should drop out of the Service's endpoints,
+            # not get killed and restarted into the same failure.
+            httpGet:
+              path: /health/ready
+              port: 5001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
