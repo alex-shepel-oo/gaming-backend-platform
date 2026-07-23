@@ -8,7 +8,11 @@ The project implements a multi-tenant backend platform for games. Each game has 
 
 [![identity-ci](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/identity-ci.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/identity-ci.yml)
 [![gateway-ci](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/gateway-ci.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/gateway-ci.yml)
+[![economy-ci](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/economy-ci.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/economy-ci.yml)
+[![platform-worker-ci](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/platform-worker-ci.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/platform-worker-ci.yml)
+[![player-client-ci](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/player-client-ci.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/player-client-ci.yml)
 [![k8s-validate](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/k8s-validate.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/k8s-validate.yml)
+[![gitleaks](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/gitleaks.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/gitleaks.yml)
 
 ## Tech stack
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet)
@@ -19,6 +23,36 @@ The project implements a multi-tenant backend platform for games. Each game has 
 ![Ocelot](https://img.shields.io/badge/Ocelot-API%20Gateway-008080)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?logo=kubernetes)
+
+## CI
+
+| Workflow | Triggers on | Checks |
+|---|---|---|
+| [identity-ci](.github/workflows/identity-ci.yml) | `backend/IdentityService/**`, `backend/IdentityService.Tests/**`, `backend/Directory.*.props`, `global.json` | `dotnet build` + `dotnet test`, then pushes `identity-service` to GHCR |
+| [gateway-ci](.github/workflows/gateway-ci.yml) | `backend/ApiGateway/**`, `backend/ApiGateway.Tests/**`, `backend/Directory.*.props`, `global.json` | `dotnet build` + `dotnet test`, then pushes `api-gateway` to GHCR |
+| [economy-ci](.github/workflows/economy-ci.yml) | `backend/EconomyService/**`, `backend/EconomyService.Tests/**`, `backend/Directory.*.props`, `global.json` | `dotnet build` + `dotnet test`, Trivy filesystem scan, pushes `economy-service` to GHCR, then Trivy image scan |
+| [platform-worker-ci](.github/workflows/platform-worker-ci.yml) | `backend/Platform.Worker/**`, `backend/Platform.Worker.Tests/**`, `backend/Directory.*.props`, `global.json` | same shape as `economy-ci`, scoped to `platform-worker` |
+| [player-client-ci](.github/workflows/player-client-ci.yml) | `frontend/**` | Node 22, `npm ci` + `npm run build` + `npm run test` (Vitest), Trivy filesystem scan, pushes `player-client` to GHCR, then Trivy image scan |
+| [k8s-validate](.github/workflows/k8s-validate.yml) | `infra/kubernetes/**` | renders the Kustomize tree and validates it with `kubeconform` |
+| [gitleaks](.github/workflows/gitleaks.yml) | every push/PR to `main`/`develop`, whole repository | scans the full git history (not just the diff) for committed secrets |
+
+Path filters mean touching `backend/EconomyService/` doesn't trigger
+`identity-ci`, and vice versa — each service only rebuilds and retests on the
+changes that could actually affect it.
+
+**Gitleaks results don't go to the Security tab.** It's a job-summary/PR-comment
+report instead, on purpose: gitleaks scans the whole git history, so a hit
+means the secret is sitting in some past commit, not just the working tree. A
+Security tab alert reads as "fix the code, dismiss the alert" — the actual fix
+here is rotating the leaked credential, which no code change accomplishes, so
+routing it through the same UI as a code-scanning finding would be misleading.
+
+**Trivy results do go to the Security tab** — both the dependency scan and the
+image scan upload SARIF via `github/codeql-action/upload-sarif`. There's no
+standalone `trivy` badge above because Trivy isn't its own workflow: it runs
+as a step inside `economy-ci`, `platform-worker-ci` and `player-client-ci`
+(`.github/actions/trivy-scan`), right after each one pushes its image, so
+what gets scanned is the image that would actually reach the cluster.
 
 ## Architecture
 [docs/architecture.md](docs/architecture.md).
@@ -62,7 +96,7 @@ cp infra/kubernetes/economy/secret.example.yaml /tmp/economy-secrets.yaml
 cp infra/kubernetes/rabbitmq/secret.example.yaml /tmp/rabbitmq-secrets.yaml
 # edit each of the three with real values, then:
 kubectl apply -f /tmp/identity-secrets.yaml -f /tmp/economy-secrets.yaml -f /tmp/rabbitmq-secrets.yaml
-scripts/k8s-apply.sh
+scripts/k8s/apply.sh
 ```
 
 `gateway` and `economy-service` both read the JWT signing key out of
@@ -70,7 +104,7 @@ scripts/k8s-apply.sh
 deployed at all here — Kubernetes Services and kube-DNS already provide
 discovery (ADR 0002).
 
-`scripts/k8s-apply.sh` (no argument defaults to the whole `infra/kubernetes`
+`scripts/k8s/apply.sh` (no argument defaults to the whole `infra/kubernetes`
 tree) does more than a bare `kubectl apply -f`: the two database
 StatefulSets are applied and waited on first, then the `identity-migrator`/
 `economy-migrator` Jobs are applied and waited on to completion, and only
@@ -101,6 +135,37 @@ kubectl -n gaming-platform port-forward svc/player-client 8080:8080
 kubectl -n gaming-platform port-forward svc/api-gateway 5100:5100
 kubectl -n gaming-platform port-forward svc/mailpit 8025:8025   # kind/sandbox only
 ```
+
+## Local automation
+
+`scripts/` mirrors the CI steps above for local use — each script calls the
+same commands its corresponding workflow does, rather than a parallel set of
+commands that could quietly drift from what CI actually checks.
+
+```
+scripts/
+├── backend/
+│   ├── build.sh    # dotnet build backend/GamingBackendPlatform.slnx
+│   ├── test.sh     # dotnet test backend/GamingBackendPlatform.slnx
+│   └── deploy.sh   # docker compose up -d, every backend service, no player-client
+├── frontend/
+│   ├── build.sh    # npm ci && npm run build (shared, then player-client)
+│   ├── test.sh     # npm run test (Vitest, both projects)
+│   └── deploy.sh   # docker compose up -d player-client
+├── all/
+│   ├── verify.sh   # backend build+test, then frontend build+test -- no deploy
+│   ├── deploy.sh   # docker compose up -d, the whole stack
+│   ├── ci.sh       # verify.sh, then deploy.sh
+│   └── stop.sh     # docker compose down (--clean also drops volumes and prunes images)
+└── k8s/
+    ├── apply.sh     # render infra/kubernetes with Kustomize and apply it (see above)
+    └── teardown.sh  # kind delete cluster --name gbp
+```
+
+**`verify.sh` vs `ci.sh`:** `verify.sh` is the quick local gate — build and
+test both sides and stop there, nothing gets deployed afterward. `ci.sh` is
+`verify.sh` plus a full-stack deploy at the end, for when the goal is a
+running stack, not just confirmation that everything builds and passes.
 
 ## Identity API
 
