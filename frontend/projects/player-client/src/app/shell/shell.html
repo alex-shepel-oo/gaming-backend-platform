@@ -9,8 +9,27 @@
 
   <span class="shell-spacer"></span>
 
+  @for (balance of platformBalances(); track balance.currencyId) {
+    <span class="shell-balance" title="Platform balance">{{ balance.amount }} {{ balance.currencyCode }}</span>
+  }
+
   @if (gameSelection.selected(); as game) {
     <span class="shell-game" title="Selected game">{{ game.name }}</span>
+  }
+
+  <button
+    type="button"
+    mat-icon-button
+    (click)="theme.toggle()"
+    [attr.aria-label]="theme.mode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+  >
+    <mat-icon aria-hidden="true">{{ theme.mode() === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
+  </button>
+
+  @if (tokenStore.claims(); as claims) {
+    <a routerLink="/profile" class="shell-avatar-link" title="Profile">
+      <app-avatar [name]="claims.displayName" style="--avatar-size: 32px" />
+    </a>
   }
 
   <button type="button" mat-button (click)="logout()">

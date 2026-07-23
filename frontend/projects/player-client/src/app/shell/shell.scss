@@ -34,10 +34,21 @@
   flex: 1 1 auto;
 }
 
+.shell-balance {
+  font: var(--mat-sys-label-large);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .shell-game {
   font: var(--mat-sys-label-large);
   opacity: 0.85;
   white-space: nowrap;
+}
+
+.shell-avatar-link {
+  display: inline-flex;
+  border-radius: 50%;
 }
 
 .shell-content {
