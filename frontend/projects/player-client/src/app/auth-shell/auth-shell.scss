@@ -1,0 +1,27 @@
+.auth-page {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100%;
+  padding: var(--app-space-xl) var(--app-space-md);
+  box-sizing: border-box;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  padding: var(--app-space-md);
+}
+
+.auth-tab-content {
+  padding-top: var(--app-space-lg);
+}
+
+.auth-notice {
+  margin: var(--app-space-md) 0 0;
+  padding: var(--app-space-sm) var(--app-space-md);
+  border-radius: 4px;
+  background-color: var(--app-color-success-container);
+  color: var(--app-color-on-success-container);
+  font: var(--mat-sys-body-medium);
+}

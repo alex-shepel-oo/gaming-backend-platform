@@ -3,6 +3,12 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 import { IdentityAuthEndpoints, WEB_CLIENT_TYPE_HEADERS } from './identity-auth-endpoints';
+import {
+  ConfirmEmailRequest,
+  RegisterRequest,
+  RegistrationAcceptedResponse,
+  ResendVerificationRequest,
+} from './registration.models';
 import { TokenStore } from './token-store';
 
 export interface LoginCredentials {
@@ -19,6 +25,18 @@ interface AccessTokenResponse {
 export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly tokenStore = inject(TokenStore);
+
+  register(request: RegisterRequest): Observable<RegistrationAcceptedResponse> {
+    return this.http.post<RegistrationAcceptedResponse>(IdentityAuthEndpoints.register, request);
+  }
+
+  confirmEmail(request: ConfirmEmailRequest): Observable<void> {
+    return this.http.post<void>(IdentityAuthEndpoints.confirmEmail, request);
+  }
+
+  resendVerification(request: ResendVerificationRequest): Observable<void> {
+    return this.http.post<void>(IdentityAuthEndpoints.resendVerification, request);
+  }
 
   login(credentials: LoginCredentials): Observable<void> {
     return this.http

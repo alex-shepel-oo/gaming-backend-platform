@@ -1,0 +1,25 @@
+@use '../../styles/forms';
+
+.confirm-email {
+  @include forms.stack(var(--app-space-lg));
+}
+
+.auth-form {
+  @include forms.stack();
+  @include forms.full-width-field();
+}
+
+.auth-error {
+  @include forms.error-text();
+}
+
+.confirm-email-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-sm);
+}
+
+.confirm-email-resent {
+  font: var(--mat-sys-body-small);
+  opacity: 0.8;
+}
