@@ -28,6 +28,14 @@ describe('Wallet', () => {
     httpMock.verify();
   });
 
+  function nextPageButton(fixture: { nativeElement: unknown }): HTMLButtonElement {
+    const element = fixture.nativeElement as HTMLElement;
+
+    return Array.from(element.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Next page'),
+    ) as HTMLButtonElement;
+  }
+
   it('renders platform and in-game balances and the transaction history', () => {
     const fixture = TestBed.createComponent(Wallet);
 
@@ -53,6 +61,36 @@ describe('Wallet', () => {
     expect(text).toContain('PLATFORM_CREDITS');
     expect(text).toContain('SHOOTER_GOLD');
     expect(text).toContain('platform-1');
+    expect(text).toContain('Grant');
+  });
+
+  it('shows an empty state when there are no balances or transactions yet', () => {
+    const fixture = TestBed.createComponent(Wallet);
+
+    httpMock.expectOne((req) => req.url === EconomyEndpoints.balances).flush([]);
+    httpMock
+      .expectOne((req) => req.url === EconomyEndpoints.transactions)
+      .flush({ items: [], page: 1, pageSize: 20, totalCount: 0 });
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('No balances yet.');
+    expect(text).toContain('No transactions yet.');
+  });
+
+  it('shows an error state when balances fail to load', () => {
+    const fixture = TestBed.createComponent(Wallet);
+
+    httpMock
+      .expectOne((req) => req.url === EconomyEndpoints.balances)
+      .flush({ status: 500, title: 'Server error' }, { status: 500, statusText: 'Internal Server Error' });
+    httpMock
+      .expectOne((req) => req.url === EconomyEndpoints.transactions)
+      .flush({ items: [], page: 1, pageSize: 20, totalCount: 0 });
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain("couldn't load your balances");
   });
 
   it('requests the next page with an incremented page number', () => {
@@ -64,10 +102,28 @@ describe('Wallet', () => {
       .flush({ items: [], page: 1, pageSize: 20, totalCount: 40 });
     fixture.detectChanges();
 
-    (fixture.nativeElement as HTMLElement).querySelector('button')!.dispatchEvent(new Event('click'));
+    nextPageButton(fixture).dispatchEvent(new Event('click'));
 
     httpMock
       .expectOne((req) => req.url === EconomyEndpoints.transactions && req.params.get('page') === '2')
       .flush({ items: [], page: 2, pageSize: 20, totalCount: 40 });
+  });
+
+  it('disables both Previous and Next when everything fits on one page', () => {
+    const fixture = TestBed.createComponent(Wallet);
+
+    httpMock.expectOne((req) => req.url === EconomyEndpoints.balances).flush([]);
+    httpMock
+      .expectOne((req) => req.url === EconomyEndpoints.transactions && req.params.get('page') === '1')
+      .flush({ items: [], page: 1, pageSize: 20, totalCount: 10 });
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    const previousButton = Array.from(element.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Previous'),
+    ) as HTMLButtonElement;
+
+    expect(previousButton.disabled).toBe(true);
+    expect(nextPageButton(fixture).disabled).toBe(true);
   });
 });

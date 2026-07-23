@@ -1,0 +1,43 @@
+@use '../../styles/states';
+
+.state-panel {
+  @include states.state-panel();
+}
+
+.state-error {
+  @include states.error-text();
+}
+
+.games-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--app-space-md);
+}
+
+.game-card {
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+
+  &:hover,
+  &:focus-visible {
+    box-shadow: var(--mat-sys-level2);
+  }
+}
+
+.game-card-selected {
+  outline: 2px solid var(--mat-sys-primary);
+}
+
+.game-selected-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-xs);
+  color: var(--mat-sys-primary);
+  font: var(--mat-sys-label-large);
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+}

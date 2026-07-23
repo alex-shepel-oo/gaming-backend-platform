@@ -1,0 +1,43 @@
+<mat-toolbar class="shell-toolbar">
+  <span class="shell-brand">Gaming Backend Platform</span>
+
+  <nav class="shell-nav" aria-label="Main navigation">
+    <a mat-button routerLink="/games" routerLinkActive="shell-nav-link-active">Games</a>
+    <a mat-button routerLink="/wallet" routerLinkActive="shell-nav-link-active">Wallet</a>
+    <a mat-button routerLink="/convert" routerLinkActive="shell-nav-link-active">Convert</a>
+  </nav>
+
+  <span class="shell-spacer"></span>
+
+  @for (balance of platformBalances(); track balance.currencyId) {
+    <span class="shell-balance" title="Platform balance">{{ balance.amount }} {{ balance.currencyCode }}</span>
+  }
+
+  @if (gameSelection.selected(); as game) {
+    <span class="shell-game" title="Selected game">{{ game.name }}</span>
+  }
+
+  <button
+    type="button"
+    mat-icon-button
+    (click)="theme.toggle()"
+    [attr.aria-label]="theme.mode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+  >
+    <mat-icon aria-hidden="true">{{ theme.mode() === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
+  </button>
+
+  @if (tokenStore.claims(); as claims) {
+    <a routerLink="/profile" class="shell-avatar-link" title="Profile">
+      <app-avatar [name]="claims.displayName" style="--avatar-size: 32px" />
+    </a>
+  }
+
+  <button type="button" mat-button (click)="logout()">
+    <mat-icon aria-hidden="true">logout</mat-icon>
+    Log out
+  </button>
+</mat-toolbar>
+
+<main class="shell-content">
+  <router-outlet />
+</main>

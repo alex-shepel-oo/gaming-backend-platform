@@ -1,0 +1,46 @@
+<div class="confirm-email">
+  <p>
+    We sent a 6-digit verification code to <strong>{{ email() }}</strong>. Enter it below to confirm your
+    account.
+  </p>
+
+  <form class="auth-form" [formGroup]="form" (ngSubmit)="submit()">
+    <mat-form-field appearance="outline">
+      <mat-label>Verification code</mat-label>
+      <input
+        matInput
+        type="text"
+        inputmode="numeric"
+        maxlength="6"
+        formControlName="code"
+        autocomplete="one-time-code"
+        required
+      />
+    </mat-form-field>
+
+    @if (error() === 'invalid-code') {
+      <p class="auth-error" role="alert">That code is incorrect or has expired.</p>
+    }
+
+    @if (error() === 'unknown') {
+      <p class="auth-error" role="alert">Something went wrong. Please try again.</p>
+    }
+
+    <button type="submit" mat-flat-button color="primary" [disabled]="form.invalid || submitting()">
+      @if (submitting()) {
+        <mat-spinner diameter="20" />
+      } @else {
+        Confirm email
+      }
+    </button>
+  </form>
+
+  <div class="confirm-email-actions">
+    <button type="button" mat-button (click)="resend()" [disabled]="resending()">Resend code</button>
+    @if (resent()) {
+      <span class="confirm-email-resent">A new code was sent if one was needed.</span>
+    }
+  </div>
+
+  <button type="button" mat-button (click)="backToLogin.emit()">Back to log in</button>
+</div>

@@ -21,7 +21,7 @@ runs:
   steps:
     - name: Run Trivy filesystem scan
       if: inputs.scan-type == 'fs'
-      uses: aquasecurity/trivy-action@0.36.0
+      uses: aquasecurity/trivy-action@v0.36.0
       with:
         scan-type: fs
         scan-ref: ${{ inputs.target }}
@@ -31,7 +31,7 @@ runs:
 
     - name: Run Trivy image scan
       if: inputs.scan-type == 'image'
-      uses: aquasecurity/trivy-action@0.36.0
+      uses: aquasecurity/trivy-action@v0.36.0
       with:
         image-ref: ${{ inputs.target }}
         format: sarif

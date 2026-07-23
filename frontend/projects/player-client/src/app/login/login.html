@@ -1,21 +1,27 @@
-<form [formGroup]="form" (ngSubmit)="submit()">
-  <label>
-    Email
-    <input type="email" formControlName="email" autocomplete="email" />
-  </label>
+<form class="auth-form" [formGroup]="form" (ngSubmit)="submit()">
+  <mat-form-field appearance="outline">
+    <mat-label>Email</mat-label>
+    <input matInput type="email" formControlName="email" autocomplete="email" required />
+  </mat-form-field>
 
-  <label>
-    Password
-    <input type="password" formControlName="password" autocomplete="current-password" />
-  </label>
+  <mat-form-field appearance="outline">
+    <mat-label>Password</mat-label>
+    <input matInput type="password" formControlName="password" autocomplete="current-password" required />
+  </mat-form-field>
 
   @if (error() === 'invalid-credentials') {
-    <p role="alert">Invalid email or password.</p>
+    <p class="auth-error" role="alert">Invalid email or password.</p>
   }
 
   @if (error() === 'email-not-confirmed') {
-    <p role="alert">Please confirm your email address before logging in.</p>
+    <p class="auth-error" role="alert">Please confirm your email address before logging in.</p>
   }
 
-  <button type="submit" [disabled]="form.invalid || submitting()">Log in</button>
+  <button type="submit" mat-flat-button color="primary" [disabled]="form.invalid || submitting()">
+    @if (submitting()) {
+      <mat-spinner diameter="20" />
+    } @else {
+      Log in
+    }
+  </button>
 </form>
