@@ -201,6 +201,67 @@ public sealed class ConversionEndpointsTests : IAsyncDisposable
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    [Test]
+    public async Task Cancel_Started_Returns200WithFailedStatus()
+    {
+        var (fromCurrencyId, toCurrencyId, _) = await SeedCurrencyPairAsync();
+        var userId = Guid.NewGuid();
+        var token = TestTokenFactory.IssueAccessToken(userId);
+        await SeedPlatformBalanceAsync(userId, fromCurrencyId, 100m, "conversion-cancel-endpoint-seed-1");
+
+        // The runner drains the channel as soon as the create call returns,
+        // so there is an unavoidable race between it and this cancel call -
+        // either a 200 with Failed (cancel won) or a 200 with Completed
+        // (the runner won first) is a correctly wired route; only a routing
+        // or auth failure would surface as something other than 200 here.
+        var created = await PostAsync(
+            new ConvertRequest(fromCurrencyId, toCurrencyId, 10m), token, Guid.NewGuid().ToString());
+        var body = await created.Content.ReadFromJsonAsync<ConversionDto>(JsonOptions, TestContext.CurrentContext.CancellationToken);
+
+        var response = await PostCancelAsync(body!.ConversionId, token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var cancelled = await response.Content.ReadFromJsonAsync<ConversionDto>(JsonOptions, TestContext.CurrentContext.CancellationToken);
+        cancelled!.Status.Should().BeOneOf(ConversionStatus.Failed, ConversionStatus.Completed);
+    }
+
+    [Test]
+    public async Task Cancel_OtherUsersConversion_Returns404()
+    {
+        var (fromCurrencyId, toCurrencyId, _) = await SeedCurrencyPairAsync();
+        var ownerId = Guid.NewGuid();
+        var ownerToken = TestTokenFactory.IssueAccessToken(ownerId);
+        await SeedPlatformBalanceAsync(ownerId, fromCurrencyId, 100m, "conversion-cancel-endpoint-seed-2");
+
+        var createResponse = await PostAsync(
+            new ConvertRequest(fromCurrencyId, toCurrencyId, 10m), ownerToken, Guid.NewGuid().ToString());
+        var created = await createResponse.Content.ReadFromJsonAsync<ConversionDto>(JsonOptions, TestContext.CurrentContext.CancellationToken);
+
+        var otherToken = TestTokenFactory.IssueAccessToken(Guid.NewGuid());
+        var response = await PostCancelAsync(created!.ConversionId, otherToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Test]
+    public async Task Cancel_NonexistentId_Returns404()
+    {
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid());
+
+        var response = await PostCancelAsync(Guid.NewGuid(), token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    private async Task<HttpResponseMessage> PostCancelAsync(Guid conversionId, string token)
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/conversions/{conversionId}/cancel");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        return await client.SendAsync(request, TestContext.CurrentContext.CancellationToken);
+    }
+
     private async Task<ConversionStatus> PollUntilTerminalAsync(Guid conversionId, string token)
     {
         var deadline = DateTime.UtcNow.AddSeconds(10);

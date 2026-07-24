@@ -15,6 +15,7 @@ public sealed partial class GlobalExceptionHandler(
         {
             MissingIdempotencyKeyException => (StatusCodes.Status400BadRequest, "Idempotency-Key required", exception.Message),
             UnsupportedConversionPairException => (StatusCodes.Status400BadRequest, "Unsupported conversion pair", exception.Message),
+            ConversionNotCancellableException => (StatusCodes.Status409Conflict, "Conversion cannot be cancelled", exception.Message),
             InsufficientFundsException => (StatusCodes.Status402PaymentRequired, "Insufficient funds", exception.Message),
             IdempotencyKeyConflictException => (StatusCodes.Status409Conflict, "Idempotency-Key conflict", exception.Message),
             _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred",

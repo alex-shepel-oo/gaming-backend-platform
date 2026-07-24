@@ -97,6 +97,90 @@ public sealed class ConversionSaga(
         }
     }
 
+    public async Task TryCancelAsync(Guid conversionId, CancellationToken cancellationToken = default)
+    {
+        var request = await dbContext.ConversionRequests
+            .AsNoTracking()
+            .SingleAsync(r => r.Id == conversionId, cancellationToken);
+
+        if (request.Status is ConversionStatus.Completed or ConversionStatus.Failed or ConversionStatus.Compensating)
+        {
+            throw new ConversionNotCancellableException();
+        }
+
+        await CancelInFlightAsync(request, cancellationToken);
+    }
+
+    // Cancels a conversion that was Started or DebitDone when read. A lost
+    // guard here means the runner (or, in the Started branch, a second
+    // cancel call) already advanced the conversion first - that is a race
+    // outcome, not a client error, so it is reported by simply returning
+    // rather than throwing; the endpoint re-reads the row afterwards and
+    // reports whatever status actually won.
+    private async Task CancelInFlightAsync(ConversionRequest request, CancellationToken cancellationToken)
+    {
+        if (request.Status == ConversionStatus.Started)
+        {
+            var now = timeProvider.GetUtcNow();
+            const string reason = "cancelled by user";
+
+            if (await TryTransitionAsync(
+                    request.Id,
+                    ConversionStatus.Started,
+                    setters => setters
+                        .SetProperty(r => r.Status, ConversionStatus.Failed)
+                        .SetProperty(r => r.FailureReason, reason)
+                        .SetProperty(r => r.UpdatedAt, now),
+                    cancellationToken))
+            {
+                await outboxWriter.WriteAsync(
+                    new ConversionFailedEvent
+                    {
+                        Id = Guid.CreateVersion7(),
+                        OccurredAt = now,
+                        ConversionRequestId = request.Id,
+                        UserId = request.UserId,
+                        FromCurrencyId = request.FromCurrencyId,
+                        FromAmount = request.FromAmount,
+                        Reason = reason,
+                        CompensatingLedgerEntryId = null,
+                    },
+                    cancellationToken);
+                return;
+            }
+
+            // The runner already moved this conversion to DebitDone before
+            // the guard above could land - fall through and cancel from
+            // there instead of reporting a failure that didn't happen.
+            var refreshed = await dbContext.ConversionRequests
+                .AsNoTracking()
+                .SingleAsync(r => r.Id == request.Id, cancellationToken);
+
+            if (refreshed.Status == ConversionStatus.DebitDone)
+            {
+                await CancelInFlightAsync(refreshed, cancellationToken);
+            }
+
+            return;
+        }
+
+        // DebitDone: reuse the saga's own compensating path rather than a
+        // second copy of it - one piece of money-moving logic, not two that
+        // can drift apart over time.
+        try
+        {
+            await MarkCompensatingAsync(request.Id, cancellationToken);
+        }
+        catch (ConversionStatusRaceLostException)
+        {
+            // The runner already finished the credit step first - cancel
+            // arrived too late to stop it, nothing left to undo.
+            return;
+        }
+
+        await CompensateAsync(request, "cancelled by user", cancellationToken);
+    }
+
     // Compare-and-swap on the conversion's own status column, the same
     // technique LedgerService already uses on Balance.Version: the status
     // moves through a known, monotonic sequence, so "expected old value" is
