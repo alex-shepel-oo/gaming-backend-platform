@@ -12,6 +12,7 @@ public sealed class AuthenticationService(
     IEmailVerificationService emailVerificationService,
     IRefreshTokenService refreshTokenService,
     ITokenService tokenService,
+    IPermissionResolver permissionResolver,
     TimeProvider timeProvider) : IAuthenticationService
 {
     public async Task<RegistrationResult> RegisterAsync(
@@ -139,8 +140,11 @@ public sealed class AuthenticationService(
             throw new NoAccessToGameException();
         }
 
+        var scope = gameId is null ? TokenScope.Platform : TokenScope.Game;
+        var permissions = await permissionResolver.ResolveAsync(role.Role, gameId, cancellationToken);
+
         var issued = await refreshTokenService.IssueFamilyAsync(user.Id, gameId, ip, userAgent, cancellationToken);
-        var accessToken = tokenService.IssueAccessToken(user, gameId, role.Role, issued.Family.Id);
+        var accessToken = tokenService.IssueAccessToken(user, gameId, role.Role, issued.Family.Id, scope, permissions);
 
         return new LoginResult(accessToken, issued.RawToken);
     }

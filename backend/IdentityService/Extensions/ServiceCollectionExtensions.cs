@@ -89,6 +89,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEmailVerificationService, EmailVerificationService>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<ISessionService, SessionService>();
+        services.AddScoped<IPermissionResolver, PermissionResolver>();
 
         return services;
     }
@@ -110,7 +111,7 @@ public static class ServiceCollectionExtensions
                 bearerOptions.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidIssuer = options.Issuer,
-                    ValidAudience = options.Audience,
+                    ValidAudiences = options.Audiences,
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.Key)),
                     ClockSkew = TimeSpan.FromSeconds(options.ClockSkewSeconds),
                 };

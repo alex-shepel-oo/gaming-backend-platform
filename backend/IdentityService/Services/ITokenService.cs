@@ -5,5 +5,6 @@ namespace IdentityService.Services;
 
 public interface ITokenService
 {
-    string IssueAccessToken(User user, Guid? gameId, PlatformRole role, Guid familyId);
+    string IssueAccessToken(
+        User user, Guid? gameId, PlatformRole role, Guid familyId, TokenScope scope, IReadOnlyList<string> permissions);
 }

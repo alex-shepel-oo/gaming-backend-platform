@@ -14,7 +14,7 @@ public sealed class EconomyRoutingTests : IDisposable
 {
     private const string SigningKey = "integration-test-signing-key-at-least-32-bytes-long";
     private const string Issuer = "gaming-backend-platform/identity";
-    private const string Audience = "gaming-backend-platform";
+    private const string Audience = "gbp-player";
 
     private static readonly JsonWebTokenHandler TokenHandler = new();
 

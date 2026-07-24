@@ -13,6 +13,7 @@ public sealed partial class RefreshTokenService(
     IdentityDbContext dbContext,
     IRefreshTokenGenerator generator,
     ITokenService tokenService,
+    IPermissionResolver permissionResolver,
     IOptions<RefreshTokenOptions> options,
     TimeProvider timeProvider,
     ILogger<RefreshTokenService> logger) : IRefreshTokenService
@@ -146,7 +147,9 @@ public sealed partial class RefreshTokenService(
 
         await transaction.CommitAsync(cancellationToken);
 
-        var accessToken = tokenService.IssueAccessToken(user, family.GameId, role.Role, family.Id);
+        var scope = family.GameId is null ? TokenScope.Platform : TokenScope.Game;
+        var permissions = await permissionResolver.ResolveAsync(role.Role, family.GameId, cancellationToken);
+        var accessToken = tokenService.IssueAccessToken(user, family.GameId, role.Role, family.Id, scope, permissions);
 
         return new RefreshRotationResult(accessToken, newRawToken, newToken, family);
     }

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
+using IdentityService.Auth;
 using IdentityService.Contracts.Requests;
 using IdentityService.Contracts.Responses;
 using IdentityService.Domain;
@@ -11,6 +12,7 @@ using IdentityService.Services;
 using IdentityService.Tests.Integration.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Xunit;
 
 namespace IdentityService.Tests.Integration;
@@ -21,6 +23,8 @@ public sealed class LoginEndpointTests(IdentityApiFactory factory) : IClassFixtu
     private const string Password = "correct-horse-battery";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    private static readonly JsonWebTokenHandler TokenHandler = new();
 
     public ValueTask InitializeAsync() => new(factory.ResetAsync());
 
@@ -163,6 +167,44 @@ public sealed class LoginEndpointTests(IdentityApiFactory factory) : IClassFixtu
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
+    [Fact]
+    public async Task Login_PlatformAdmin_TokenCarriesPlatformScopeAndResolvedPermissions()
+    {
+        var user = await SeedUserAsync(gameId: null, confirmed: true, active: true, role: PlatformRole.Admin);
+        await SeedRolePermissionsAsync(PlatformRole.Admin, gameId: null, Permissions.PlatformGamesManage, Permissions.GameBalanceAdjust);
+        using var client = factory.CreateClient();
+
+        var response = await LoginAsync(client, gameSlug: null, user.Email, Password);
+        var jwt = await DecodeAccessTokenAsync(response);
+
+        jwt.GetClaim(IdentityClaims.Scope).Value.Should().Be(nameof(TokenScope.Platform));
+        jwt.Audiences.Should().ContainSingle().Which.Should().Be(TokenAudiences.Player);
+        jwt.Claims.Where(c => c.Type == IdentityClaims.Perms).Select(c => c.Value).Should()
+            .BeEquivalentTo([Permissions.PlatformGamesManage, Permissions.GameBalanceAdjust]);
+    }
+
+    [Fact]
+    public async Task Login_Player_TokenCarriesGameScopeAndEmptyPermissions()
+    {
+        var game = await SeedGameAsync();
+        var user = await SeedUserAsync(game.Id, confirmed: true, active: true);
+        using var client = factory.CreateClient();
+
+        var response = await LoginAsync(client, game.Slug, user.Email, Password);
+        var jwt = await DecodeAccessTokenAsync(response);
+
+        jwt.GetClaim(IdentityClaims.Scope).Value.Should().Be(nameof(TokenScope.Game));
+        jwt.GetClaim(IdentityClaims.GameId).Value.Should().Be(game.Id.ToString());
+        jwt.Claims.Where(c => c.Type == IdentityClaims.Perms).Should().BeEmpty();
+    }
+
+    private static async Task<JsonWebToken> DecodeAccessTokenAsync(HttpResponseMessage response)
+    {
+        var body = await response.Content.ReadFromJsonAsync<TokenPairResponse>(JsonOptions, TestContext.Current.CancellationToken);
+
+        return TokenHandler.ReadJsonWebToken(body!.AccessToken);
+    }
+
     private static Task<HttpResponseMessage> LoginAsync(HttpClient client, string? gameSlug, string email, string password) =>
         client.PostAsJsonAsync(
             "/api/identity/auth/login",
@@ -202,7 +244,7 @@ public sealed class LoginEndpointTests(IdentityApiFactory factory) : IClassFixtu
         return game;
     }
 
-    private async Task<User> SeedUserAsync(Guid? gameId, bool confirmed, bool active)
+    private async Task<User> SeedUserAsync(Guid? gameId, bool confirmed, bool active, PlatformRole role = PlatformRole.Player)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
@@ -228,13 +270,31 @@ public sealed class LoginEndpointTests(IdentityApiFactory factory) : IClassFixtu
             Id = Guid.CreateVersion7(),
             UserId = user.Id,
             GameId = gameId,
-            Role = PlatformRole.Player,
+            Role = role,
             GrantedAt = now,
         });
 
         await dbContext.SaveChangesAsync();
 
         return user;
+    }
+
+    private async Task SeedRolePermissionsAsync(PlatformRole role, Guid? gameId, params string[] permissions)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var now = factory.TimeProvider.GetUtcNow();
+
+        dbContext.RolePermissions.AddRange(permissions.Select(permission => new RolePermission
+        {
+            Id = Guid.CreateVersion7(),
+            Role = role,
+            GameId = gameId,
+            Permission = permission,
+            GrantedAt = now,
+        }));
+
+        await dbContext.SaveChangesAsync();
     }
 
     private async Task ConfirmUserAsync(Guid userId)

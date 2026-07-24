@@ -41,7 +41,7 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
         bearerOptions.TokenValidationParameters = new TokenValidationParameters
         {
             ValidIssuer = options.Issuer,
-            ValidAudience = options.Audience,
+            ValidAudiences = options.Audiences,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.Key)),
             ClockSkew = TimeSpan.FromSeconds(options.ClockSkewSeconds),
         };

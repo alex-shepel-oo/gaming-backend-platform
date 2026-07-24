@@ -18,7 +18,7 @@ public class JwtOptionsValidationTests
                 .Configure(options =>
                 {
                     options.Issuer = "gaming-backend-platform/identity";
-                    options.Audience = "gaming-backend-platform";
+                    options.Audiences = ["gaming-backend-platform"];
                     options.Key = "too-short-key";
                     options.AccessTokenLifetimeMinutes = 15;
                     options.ClockSkewSeconds = 30;
