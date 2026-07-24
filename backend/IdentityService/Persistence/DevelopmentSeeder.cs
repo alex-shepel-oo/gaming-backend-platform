@@ -11,6 +11,10 @@ public sealed class DevelopmentSeeder(IdentityDbContext dbContext, TimeProvider 
     // production secret: nothing built so far can log in with it yet.
     private const string SeedPassword = "DemoPassword123!";
 
+    // Second demo tenant, kept alongside demo-shooter so tenant-isolation scenarios have
+    // two real games to exercise instead of just one.
+    private static readonly Guid DemoRacerGameId = Guid.Parse("00000000-0000-7000-8000-000000000002");
+
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
         if (await dbContext.Games.AnyAsync(cancellationToken))
@@ -29,12 +33,23 @@ public sealed class DevelopmentSeeder(IdentityDbContext dbContext, TimeProvider 
             CreatedAt = now,
         };
 
+        var demoRacer = new Game
+        {
+            Id = DemoRacerGameId,
+            Slug = "demo-racer",
+            Name = "Demo Racer",
+            IsActive = true,
+            CreatedAt = now,
+        };
+
         var admin = CreateUser("admin@demo-shooter.dev", "Demo Admin", now);
         var playerOne = CreateUser("player.one@demo-shooter.dev", "Player One", now);
         var playerTwo = CreateUser("player.two@demo-shooter.dev", "Player Two", now);
+        var racerAdmin = CreateUser("gameadmin@demo-racer.dev", "Demo Racer Admin", now);
+        var playerThree = CreateUser("player.three@demo-racer.dev", "Player Three", now);
 
-        dbContext.Games.Add(game);
-        dbContext.Users.AddRange(admin, playerOne, playerTwo);
+        dbContext.Games.AddRange(game, demoRacer);
+        dbContext.Users.AddRange(admin, playerOne, playerTwo, racerAdmin, playerThree);
         dbContext.UserGameRoles.AddRange(
             new UserGameRole
             {
@@ -59,7 +74,28 @@ public sealed class DevelopmentSeeder(IdentityDbContext dbContext, TimeProvider 
                 GameId = game.Id,
                 Role = PlatformRole.Player,
                 GrantedAt = now,
+            },
+            new UserGameRole
+            {
+                Id = Guid.CreateVersion7(),
+                UserId = racerAdmin.Id,
+                GameId = demoRacer.Id,
+                Role = PlatformRole.Admin,
+                GrantedAt = now,
+            },
+            new UserGameRole
+            {
+                Id = Guid.CreateVersion7(),
+                UserId = playerThree.Id,
+                GameId = demoRacer.Id,
+                Role = PlatformRole.Player,
+                GrantedAt = now,
             });
+
+        // demo-shooter predates DefaultRolePermissions and never got these rows either -
+        // backfilling it here closes the same gap CreateGameAsync now closes for new games.
+        dbContext.RolePermissions.AddRange(DefaultRolePermissions.ForGame(game.Id, now));
+        dbContext.RolePermissions.AddRange(DefaultRolePermissions.ForGame(demoRacer.Id, now));
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }
