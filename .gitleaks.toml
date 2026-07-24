@@ -1,0 +1,11 @@
+title = "gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known non-secret JWT signing keys used only in test fixtures (integration/unit tests mint their own tokens with these fixed placeholder keys, never a real credential)"
+regexes = [
+  '''[a-z]+-test-signing-key-at-least-32-bytes(-long)?''',
+  '''a-completely-different-32-byte-key''',
+]
