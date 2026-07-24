@@ -27,6 +27,8 @@ public sealed class CurrentUser(IHttpContextAccessor httpContextAccessor) : ICur
     public DateTimeOffset ExpiresAt =>
         DateTimeOffset.FromUnixTimeSeconds(long.Parse(RequireClaim(JwtRegisteredClaimNames.Exp), CultureInfo.InvariantCulture));
 
+    public IReadOnlyList<string> Perms => Principal.FindAll(IdentityClaims.Perms).Select(c => c.Value).ToArray();
+
     private string RequireClaim(string claimType) =>
         Principal.FindFirstValue(claimType)
         ?? throw new InvalidOperationException($"The current principal has no '{claimType}' claim.");

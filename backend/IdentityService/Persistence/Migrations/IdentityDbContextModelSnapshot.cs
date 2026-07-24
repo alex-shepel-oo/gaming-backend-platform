@@ -272,6 +272,58 @@ namespace IdentityService.Persistence.Migrations
                     b.ToTable("revoked_access_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("IdentityService.Domain.RolePermission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("GameId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("game_id");
+
+                    b.Property<DateTimeOffset>("GrantedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("granted_at");
+
+                    b.Property<Guid?>("GrantedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("granted_by");
+
+                    b.Property<string>("Permission")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("permission");
+
+                    b.Property<short>("Role")
+                        .HasColumnType("smallint")
+                        .HasColumnName("role");
+
+                    b.HasKey("Id")
+                        .HasName("pk_role_permissions");
+
+                    b.HasIndex("GameId")
+                        .HasDatabaseName("ix_role_permissions_game_id");
+
+                    b.HasIndex("Role", "GameId")
+                        .HasDatabaseName("ix_role_permissions_role_game_id");
+
+                    b.HasIndex("Role", "Permission")
+                        .IsUnique()
+                        .HasDatabaseName("ix_role_permissions_role_permission_platform")
+                        .HasFilter("game_id IS NULL");
+
+                    b.HasIndex("Role", "GameId", "Permission")
+                        .IsUnique()
+                        .HasDatabaseName("ix_role_permissions_role_game_id_permission")
+                        .HasFilter("game_id IS NOT NULL");
+
+                    b.ToTable("role_permissions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_role_permissions_platform_scope", "permission NOT LIKE 'platform.%' OR game_id IS NULL");
+                        });
+                });
+
             modelBuilder.Entity("IdentityService.Domain.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -422,6 +474,17 @@ namespace IdentityService.Persistence.Migrations
                     b.Navigation("Game");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("IdentityService.Domain.RolePermission", b =>
+                {
+                    b.HasOne("IdentityService.Domain.Game", "Game")
+                        .WithMany()
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_role_permissions_games_game_id");
+
+                    b.Navigation("Game");
                 });
 
             modelBuilder.Entity("IdentityService.Domain.UserGameRole", b =>

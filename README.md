@@ -185,7 +185,14 @@ policies underneath regardless of what the gateway already checked.
 | GET | `/api/identity/users/{userId}` | bearer | Look up a user in the caller's game (moderator and above) |
 | GET | `/api/identity/users` | bearer | Search/paginate users in the caller's game (moderator and above) |
 | POST | `/api/identity/users/{userId}/revoke-sessions` | bearer | Revoke all of a user's sessions (admin) |
-| GET | `/api/identity/games` | bearer, admin role required | List registered games, all fields |
+| GET | `/api/identity/users/{userId}/roles` | bearer; scope and ownership checked by the service | A user's role in a given scope (`?gameId=`) |
+| PATCH | `/api/identity/users/{userId}/roles` | bearer; scope and ownership checked by the service | Assign a role to a user |
+| GET | `/api/identity/permissions` | bearer, moderator or above | The permission catalog — every key the code actually enforces |
+| GET | `/api/identity/roles/{role}/permissions` | bearer; scope and ownership checked by the service | A role's effective permissions, optionally scoped to a game (`?gameId=`) |
+| PUT | `/api/identity/roles/{role}/permissions` | bearer; scope and ownership checked by the service | Replace a role's permission set |
+| GET | `/api/identity/games` | bearer, `platform.games.manage` permission | List registered games, all fields |
+| POST | `/api/identity/games` | bearer, `platform.games.manage` permission | Register a new game |
+| PATCH | `/api/identity/games/{id}` | bearer, `platform.games.manage` permission | Update a game's name or active flag |
 | GET | `/api/identity/games/public` | bearer, any player | List active games only, `id`/`slug`/`name` only - the catalog a player picks a game from |
 | GET | `/openapi/identity/v1.json` | anonymous | IdentityService's OpenAPI document, proxied through the gateway |
 | GET | `/scalar/identity` | anonymous | Interactive API reference (Scalar) |
@@ -240,6 +247,81 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:5100/api/ident
   -H "Content-Type: application/json" \
   -d '{"refreshToken":"<refreshToken from step 4>"}'
 ```
+
+### RBAC walkthrough
+
+Logs in as `demo-racer`'s seeded Game-Admin and reads that role's own
+permissions - the kind of call `demo-racer` exists to exercise, scoped to
+one game rather than the platform-wide admin `demo-shooter` already had.
+
+```bash
+# 1. Log in as demo-racer's Game-Admin
+curl -s -X POST http://localhost:5100/api/identity/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"gameadmin@demo-racer.dev","password":"DemoPassword123!","gameSlug":"demo-racer"}'
+
+# 2. Read the Admin role's permissions for demo-racer (use the accessToken from
+#    step 1; demo-racer's seeded id is 00000000-0000-7000-8000-000000000002)
+curl -s "http://localhost:5100/api/identity/roles/Admin/permissions?gameId=00000000-0000-7000-8000-000000000002" \
+  -H "Authorization: Bearer <accessToken from step 1>"
+```
+
+## Permission-based RBAC
+
+A role is no longer just a name carried on the token - it's a set of
+permissions, resolved fresh at login and refresh time. See
+[ADR 0013](docs/adr/0013-permission-based-rbac-and-audience-scoped-tokens.md)
+for the full reasoning behind this shape.
+
+### Catalog and assignments
+
+The catalog of permissions that exist at all is a fixed list of code
+constants (`IdentityService/Auth/Permissions.cs`): five `platform.*` keys
+that apply across every game (`platform.games.manage`,
+`platform.currency.manage`, `platform.roles.manage`, `platform.users.read`,
+`platform.balance.adjust`) and five `game.*` keys scoped to one game
+(`game.metadata.edit`, `game.currency.manage`, `game.balance.adjust`,
+`game.roles.manage`, `game.players.moderate`). Nothing outside that list can
+be enforced, on purpose - a permission only exists once some service actually
+checks for it.
+
+Which of those keys each role holds is the editable part, kept in a
+`role_permissions` table and scoped by `game_id` (`NULL` for a platform-wide
+role, a specific game for that role within just that game). A platform
+role's authority over every game isn't special-cased anywhere in the
+resolver - it's just that Platform-Admin's default rows happen to include
+`game.*` keys alongside its `platform.*` ones, both under `game_id = NULL`.
+
+### Token claims
+
+Three claims ride alongside the existing `role` and `game_id`:
+
+- `scope` - `Game` or `Platform` for every token issued today (`Account`
+  is a reserved third value for a future ecosystem-wide login that doesn't
+  require picking a game up front).
+- `perms` - the caller's resolved permissions for that session, as an
+  array.
+- `aud` - `gbp-player` on every token minted right now; `gbp-admin` is
+  reserved for an admin surface a later slice adds, and isn't issued yet.
+
+### Anti-escalation
+
+Editing a role's permissions and assigning a role to a user both go through
+the same check: whoever's making the change has to be acting inside their
+own scope (their own game's `game.*` rows, or platform-wide rows only with
+`platform.roles.manage`), and can only hand out permissions they already
+hold themselves. Assigning a role resolves that role's current effective
+permissions first and checks those, not the role's name - so granting a
+role can't be used as a shortcut around the same guard that a direct
+permission edit goes through.
+
+### demo-racer
+
+`demo-racer` is a second seeded game, with its own seeded Game-Admin
+(`gameadmin@demo-racer.dev`) scoped to just that game - unlike
+`demo-shooter`'s seeded admin, which is platform-wide. It exists to give
+the anti-escalation checks above (and any multi-tenant testing) a second
+real game to fail against, instead of only ever seeing a lone tenant.
 
 ## Economy API
 
@@ -493,6 +575,13 @@ that service's own rules. It does so through narrow, cleanup-only
   under it, since their `jti`s were never recorded at issue time. A revoked
   session's access token stays valid for up to its own 15-minute lifetime.
   See ADR 0008.
+- A permission change to `role_permissions` isn't instant: the caller keeps
+  the `perms` an already-issued access token carries until their next
+  refresh (bounded by that token's own lifetime, ≤15 minutes). Forcing an
+  immediate cutoff still means `revoke-sessions`, same as above but for a
+  different reason - one caps how long a *revoked* session's token stays
+  valid, this one caps how stale a *still-valid* session's permissions can
+  get. See [ADR 0013](docs/adr/0013-permission-based-rbac-and-audience-scoped-tokens.md).
 - Token signing is HS256 with one symmetric key shared by every service
   that validates tokens. RS256 with a JWKS endpoint is the intended next
   step, not implemented in this slice.

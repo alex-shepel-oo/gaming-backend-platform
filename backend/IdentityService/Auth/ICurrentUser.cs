@@ -11,4 +11,5 @@ public interface ICurrentUser
     Guid FamilyId { get; }
     Guid Jti { get; }
     DateTimeOffset ExpiresAt { get; }
+    IReadOnlyList<string> Perms { get; }
 }

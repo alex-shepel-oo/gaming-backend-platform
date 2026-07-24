@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
+using IdentityService.Auth;
 using IdentityService.Contracts.Requests;
 using IdentityService.Contracts.Responses;
 using IdentityService.Domain;
@@ -114,8 +115,9 @@ public sealed class UserEndpointsTests(IdentityApiFactory factory) : IClassFixtu
     {
         var gameA = await SeedGameAsync();
         var gameB = await SeedGameAsync();
-        var admin = await SeedUserAsync(gameA.Id, PlatformRole.Admin);
-        var (client, accessToken) = await LoginAsync(admin.Id, gameA.Id);
+        var platformAdmin = await SeedUserAsync(gameId: null, PlatformRole.Admin);
+        await SeedRolePermissionsAsync(PlatformRole.Admin, gameId: null, Permissions.PlatformGamesManage);
+        var (client, accessToken) = await LoginAsync(platformAdmin.Id, gameId: null);
 
         var response = await GetAuthorizedAsync(client, "/api/identity/games", accessToken);
 
@@ -132,17 +134,17 @@ public sealed class UserEndpointsTests(IdentityApiFactory factory) : IClassFixtu
         return client.SendAsync(request, TestContext.Current.CancellationToken);
     }
 
-    private async Task<(HttpClient Client, string AccessToken)> LoginAsync(Guid userId, Guid gameId)
+    private async Task<(HttpClient Client, string AccessToken)> LoginAsync(Guid userId, Guid? gameId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var user = await dbContext.Users.SingleAsync(u => u.Id == userId);
-        var game = await dbContext.Games.SingleAsync(g => g.Id == gameId);
+        var gameSlug = gameId is null ? null : (await dbContext.Games.SingleAsync(g => g.Id == gameId)).Slug;
 
         var client = factory.CreateClient();
         var response = await client.PostAsJsonAsync(
             "/api/identity/auth/login",
-            new LoginRequest(game.Slug, user.Email, Password),
+            new LoginRequest(gameSlug, user.Email, Password),
             JsonOptions,
             TestContext.Current.CancellationToken);
 
@@ -173,7 +175,7 @@ public sealed class UserEndpointsTests(IdentityApiFactory factory) : IClassFixtu
         return game;
     }
 
-    private async Task<User> SeedUserAsync(Guid gameId, PlatformRole role, string displayName = "Test User")
+    private async Task<User> SeedUserAsync(Guid? gameId, PlatformRole role, string displayName = "Test User")
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
@@ -206,5 +208,23 @@ public sealed class UserEndpointsTests(IdentityApiFactory factory) : IClassFixtu
         await dbContext.SaveChangesAsync();
 
         return user;
+    }
+
+    private async Task SeedRolePermissionsAsync(PlatformRole role, Guid? gameId, params string[] permissions)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var now = factory.TimeProvider.GetUtcNow();
+
+        dbContext.RolePermissions.AddRange(permissions.Select(permission => new RolePermission
+        {
+            Id = Guid.CreateVersion7(),
+            Role = role,
+            GameId = gameId,
+            Permission = permission,
+            GrantedAt = now,
+        }));
+
+        await dbContext.SaveChangesAsync();
     }
 }

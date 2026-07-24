@@ -10,6 +10,9 @@ public sealed class DevelopmentSeeder(EconomyDbContext dbContext, TimeProvider t
     // cross-database foreign key (ADR-0001) - just an agreed constant.
     private static readonly Guid DemoShooterGameId = Guid.Parse("00000000-0000-7000-8000-000000000001");
 
+    // Same convention, matching identity's demo-racer Game.Id.
+    private static readonly Guid DemoRacerGameId = Guid.Parse("00000000-0000-7000-8000-000000000002");
+
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
         if (await dbContext.Currencies.AnyAsync(cancellationToken))
@@ -39,16 +42,35 @@ public sealed class DevelopmentSeeder(EconomyDbContext dbContext, TimeProvider t
             CreatedAt = now,
         };
 
-        dbContext.Currencies.AddRange(platformCredits, shooterGold);
-
-        dbContext.ConversionRates.Add(new ConversionRate
+        var racerTokens = new Currency
         {
             Id = Guid.CreateVersion7(),
-            FromCurrencyId = platformCredits.Id,
-            ToCurrencyId = shooterGold.Id,
-            Rate = 100m,
+            Code = "RACER_TOKENS",
+            DisplayName = "Racer Tokens",
+            Scope = CurrencyScope.Game,
+            GameId = DemoRacerGameId,
             CreatedAt = now,
-        });
+        };
+
+        dbContext.Currencies.AddRange(platformCredits, shooterGold, racerTokens);
+
+        dbContext.ConversionRates.AddRange(
+            new ConversionRate
+            {
+                Id = Guid.CreateVersion7(),
+                FromCurrencyId = platformCredits.Id,
+                ToCurrencyId = shooterGold.Id,
+                Rate = 100m,
+                CreatedAt = now,
+            },
+            new ConversionRate
+            {
+                Id = Guid.CreateVersion7(),
+                FromCurrencyId = platformCredits.Id,
+                ToCurrencyId = racerTokens.Id,
+                Rate = 40m,
+                CreatedAt = now,
+            });
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }

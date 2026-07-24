@@ -50,6 +50,7 @@ app.MapHealthEndpoints();
 app.MapAuthEndpoints();
 app.MapUserEndpoints();
 app.MapGameEndpoints();
+app.MapRolePermissionEndpoints();
 
 app.Run();
 

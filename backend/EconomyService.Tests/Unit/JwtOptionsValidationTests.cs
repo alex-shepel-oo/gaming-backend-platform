@@ -19,7 +19,7 @@ public sealed class JwtOptionsValidationTests
                 .Configure(options =>
                 {
                     options.Issuer = "gaming-backend-platform/identity";
-                    options.Audience = "gaming-backend-platform";
+                    options.Audiences = ["gaming-backend-platform"];
                     options.Key = "too-short-key";
                     options.ClockSkewSeconds = 30;
                 })
@@ -41,7 +41,7 @@ public sealed class JwtOptionsValidationTests
                 .Configure(options =>
                 {
                     options.Issuer = "gaming-backend-platform/identity";
-                    options.Audience = "gaming-backend-platform";
+                    options.Audiences = ["gaming-backend-platform"];
                     options.Key = string.Empty;
                     options.ClockSkewSeconds = 30;
                 })

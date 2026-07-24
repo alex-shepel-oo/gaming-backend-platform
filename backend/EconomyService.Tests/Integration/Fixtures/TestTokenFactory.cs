@@ -11,7 +11,7 @@ namespace EconomyService.Tests.Integration.Fixtures;
 public static class TestTokenFactory
 {
     private const string Issuer = "gaming-backend-platform/identity";
-    private const string Audience = "gaming-backend-platform";
+    private const string Audience = "gbp-player";
 
     private static readonly JsonWebTokenHandler Handler = new();
 

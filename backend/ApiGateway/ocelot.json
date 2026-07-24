@@ -17,7 +17,7 @@
       "DownstreamPathTemplate": "/api/identity/users/{everything}",
       "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/identity/users/{everything}",
-      "UpstreamHttpMethod": [ "GET", "POST" ],
+      "UpstreamHttpMethod": [ "GET", "POST", "PATCH" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKeys": [ "Bearer" ],
         "AllowedScopes": []
@@ -34,13 +34,13 @@
       "DownstreamPathTemplate": "/api/identity/games",
       "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/identity/games",
-      "UpstreamHttpMethod": [ "GET" ],
+      "UpstreamHttpMethod": [ "GET", "POST" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKeys": [ "Bearer" ],
         "AllowedScopes": []
       },
       "RouteClaimsRequirement": {
-        "role": "Admin"
+        "scope": "Platform"
       },
       "QoSOptions": {
         "Timeout": 5000,
@@ -204,6 +204,60 @@
       "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/economy/balances/{userId}/adjust",
       "UpstreamHttpMethod": [ "POST" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKeys": [ "Bearer" ],
+        "AllowedScopes": []
+      },
+      "QoSOptions": {
+        "Timeout": 5000,
+        "FailureRatio": 0.5,
+        "SamplingDuration": 10000,
+        "MinimumThroughput": 5,
+        "BreakDuration": 30000
+      }
+    },
+    {
+      "DownstreamPathTemplate": "/api/identity/games/{id}",
+      "DownstreamScheme": "http",
+      "UpstreamPathTemplate": "/api/identity/games/{id}",
+      "UpstreamHttpMethod": [ "PATCH" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKeys": [ "Bearer" ],
+        "AllowedScopes": []
+      },
+      "RouteClaimsRequirement": {
+        "scope": "Platform"
+      },
+      "QoSOptions": {
+        "Timeout": 5000,
+        "FailureRatio": 0.5,
+        "SamplingDuration": 10000,
+        "MinimumThroughput": 5,
+        "BreakDuration": 30000
+      }
+    },
+    {
+      "DownstreamPathTemplate": "/api/identity/permissions",
+      "DownstreamScheme": "http",
+      "UpstreamPathTemplate": "/api/identity/permissions",
+      "UpstreamHttpMethod": [ "GET" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKeys": [ "Bearer" ],
+        "AllowedScopes": []
+      },
+      "QoSOptions": {
+        "Timeout": 5000,
+        "FailureRatio": 0.5,
+        "SamplingDuration": 10000,
+        "MinimumThroughput": 5,
+        "BreakDuration": 30000
+      }
+    },
+    {
+      "DownstreamPathTemplate": "/api/identity/roles/{role}/permissions",
+      "DownstreamScheme": "http",
+      "UpstreamPathTemplate": "/api/identity/roles/{role}/permissions",
+      "UpstreamHttpMethod": [ "GET", "PUT" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKeys": [ "Bearer" ],
         "AllowedScopes": []

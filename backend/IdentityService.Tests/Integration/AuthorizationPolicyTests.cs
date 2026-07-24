@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
+using IdentityService.Auth;
 using IdentityService.Contracts.Requests;
 using IdentityService.Contracts.Responses;
 using IdentityService.Domain;
@@ -77,15 +78,18 @@ public sealed class AuthorizationPolicyTests(IdentityApiFactory factory) : IClas
     }
 
     [Fact]
-    public async Task ListGames_AsAdmin_Returns200()
+    public async Task ListGames_AsGameScopedAdminWithoutPlatformGamesManage_Returns403()
     {
+        // /games moved off the role-based Admin policy onto a platform.games.manage
+        // permission check (see GameEndpointsTests) - a game-scoped Admin no longer
+        // gets a free pass just by holding the Admin role in their own game.
         var game = await SeedGameAsync();
         var admin = await SeedUserAsync(game.Id, PlatformRole.Admin);
         var (client, accessToken) = await LoginAsync(admin.Id, game.Id);
 
         var response = await GetAuthorizedAsync(client, "/api/identity/games", accessToken);
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     private static Task<HttpResponseMessage> GetAuthorizedAsync(HttpClient client, string url, string accessToken)
