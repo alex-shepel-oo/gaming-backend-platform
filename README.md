@@ -4,7 +4,7 @@ This is a portfolio project designed to demonstrate practical experience in buil
 
 The project implements a multi-tenant backend platform for games. Each game has its own economy, inventory, progression, and validation rules while leveraging a shared set of backend services and infrastructure. Games integrate through an SDK, enabling them to reuse common functionality while remaining logically isolated.
 
-> **Status:** Slice 2 in progress — cookie-based web auth for IdentityService, EconomyService, player-client (Angular).
+> **Status:** Slice 3 in progress — permission-based RBAC, admin panel, NotificationService (SignalR), auth improvements (3a); InventoryService + cross-service choreography saga (3b)
 
 [![identity-ci](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/identity-ci.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/identity-ci.yml)
 [![gateway-ci](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/gateway-ci.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/gateway-ci.yml)
