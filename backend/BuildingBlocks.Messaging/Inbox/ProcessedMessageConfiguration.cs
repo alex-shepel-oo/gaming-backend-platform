@@ -1,8 +1,7 @@
-using EconomyService.Inbox;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace EconomyService.Persistence.Configurations;
+namespace BuildingBlocks.Messaging.Inbox;
 
 public sealed class ProcessedMessageConfiguration : IEntityTypeConfiguration<ProcessedMessage>
 {

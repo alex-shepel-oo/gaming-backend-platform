@@ -1,7 +1,7 @@
 using System.Text;
 using BuildingBlocks.Messaging;
+using BuildingBlocks.Messaging.Inbox;
 using EconomyService.Auth;
-using EconomyService.Inbox;
 using EconomyService.Infrastructure;
 using EconomyService.Messaging;
 using EconomyService.Options;

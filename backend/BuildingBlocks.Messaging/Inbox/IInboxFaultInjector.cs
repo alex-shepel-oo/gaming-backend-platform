@@ -1,4 +1,4 @@
-namespace EconomyService.Inbox;
+namespace BuildingBlocks.Messaging.Inbox;
 
 // A seam the consumer checks after applying the side effect but before
 // committing the transaction. Production always runs the no-op below; tests

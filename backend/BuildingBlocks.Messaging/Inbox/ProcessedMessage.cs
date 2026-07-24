@@ -1,4 +1,4 @@
-namespace EconomyService.Inbox;
+namespace BuildingBlocks.Messaging.Inbox;
 
 // A dedup ledger, not a full inbox: one row per message id the consumer has
 // already handled. The consumer checks for a row before doing any work, and

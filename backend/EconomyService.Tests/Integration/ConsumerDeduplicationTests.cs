@@ -1,6 +1,6 @@
 using AwesomeAssertions;
 using BuildingBlocks.Messaging;
-using EconomyService.Inbox;
+using BuildingBlocks.Messaging.Inbox;
 using EconomyService.Messaging;
 using EconomyService.Persistence;
 using Microsoft.EntityFrameworkCore;

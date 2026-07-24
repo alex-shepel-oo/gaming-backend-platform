@@ -1,3 +1,4 @@
+using BuildingBlocks.Messaging.Inbox;
 using BuildingBlocks.Messaging.Outbox;
 using EconomyService.Domain;
 using EconomyService.Inbox;
