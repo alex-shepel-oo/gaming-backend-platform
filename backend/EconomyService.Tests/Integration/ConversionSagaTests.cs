@@ -221,6 +221,70 @@ public sealed class ConversionSagaTests : IAsyncDisposable
         updatedRequest.Status.Should().Be(ConversionStatus.Failed);
     }
 
+    [Test]
+    public async Task ExecuteAsync_RacesAgainstConcurrentStatusTransition_NeverLeavesDebitUncompensated()
+    {
+        var platformCurrencyId = await SeedPlatformCurrencyAsync();
+        var (gameCurrencyId, gameId) = await SeedGameCurrencyAsync();
+        var cancellationToken = TestContext.CurrentContext.CancellationToken;
+
+        for (var iteration = 0; iteration < 5; iteration++)
+        {
+            var userId = Guid.NewGuid();
+            await GrantAsync(userId, platformCurrencyId, 100m, $"conversion-race-seed-{iteration}");
+            var request = await SeedConversionRequestAsync(userId, platformCurrencyId, gameCurrencyId, gameId, 10m, 1000m, 100m);
+
+            await using var runnerContext = CreateDbContext();
+            await using var racerContext = CreateDbContext();
+            var runnerSaga = CreateSaga(runnerContext);
+            var racerSaga = CreateSaga(racerContext);
+
+            // The racer stands in for the cancellation endpoint added in the
+            // next commit: an independent writer attempting the same
+            // Started -> Failed transition the runner's own debit step is
+            // racing towards Started -> DebitDone.
+            var runnerTask = runnerSaga.ExecuteAsync(request.Id, cancellationToken);
+            var racerTask = racerSaga.TryTransitionAsync(
+                request.Id,
+                ConversionStatus.Started,
+                setters => setters
+                    .SetProperty(r => r.Status, ConversionStatus.Failed)
+                    .SetProperty(r => r.FailureReason, "external cancel simulated")
+                    .SetProperty(r => r.UpdatedAt, DateTimeOffset.UtcNow),
+                cancellationToken);
+
+            await Task.WhenAll(runnerTask, racerTask);
+
+            await using var verifyContext = CreateDbContext();
+            var updatedRequest = await verifyContext.ConversionRequests.SingleAsync(r => r.Id == request.Id, cancellationToken);
+            updatedRequest.Status.Should().BeOneOf(ConversionStatus.Completed, ConversionStatus.Failed);
+
+            var platformBalance = await verifyContext.Balances
+                .SingleAsync(b => b.UserId == userId && b.CurrencyId == platformCurrencyId, cancellationToken);
+            var conversionOutCount = await verifyContext.LedgerEntries.CountAsync(
+                e => e.UserId == userId && e.CurrencyId == platformCurrencyId && e.TransactionType == TransactionType.ConversionOut,
+                cancellationToken);
+            var conversionInCount = await verifyContext.LedgerEntries.CountAsync(
+                e => e.UserId == userId && e.CurrencyId == gameCurrencyId && e.TransactionType == TransactionType.ConversionIn,
+                cancellationToken);
+
+            if (updatedRequest.Status == ConversionStatus.Completed)
+            {
+                platformBalance.Amount.Should().Be(90m);
+                conversionOutCount.Should().Be(1);
+                conversionInCount.Should().Be(1);
+            }
+            else
+            {
+                // The racer won - debit must never have landed, since it was
+                // still guarded by the Started status the racer just took.
+                platformBalance.Amount.Should().Be(100m);
+                conversionOutCount.Should().Be(0);
+                conversionInCount.Should().Be(0);
+            }
+        }
+    }
+
     private static ConversionSaga CreateSaga(EconomyDbContext dbContext, IConversionCreditFaultInjector? faultInjector = null)
     {
         var idempotencyStore = new IdempotencyStore(dbContext);

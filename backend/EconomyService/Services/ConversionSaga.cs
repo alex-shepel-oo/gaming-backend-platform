@@ -1,9 +1,11 @@
 using BuildingBlocks.Messaging.Outbox;
 using EconomyService.Domain;
 using EconomyService.Domain.Enums;
+using EconomyService.Exceptions;
 using EconomyService.Messaging.Events;
 using EconomyService.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Query;
 
 namespace EconomyService.Services;
 
@@ -41,40 +43,79 @@ public sealed class ConversionSaga(
             return;
         }
 
-        if (status == ConversionStatus.Started)
+        try
         {
-            await DebitAsync(request, cancellationToken);
-            status = ConversionStatus.DebitDone;
-        }
-
-        if (status == ConversionStatus.DebitDone)
-        {
-            string failureReason;
-
-            try
+            if (status == ConversionStatus.Started)
             {
-                await creditFaultInjector.BeforeCreditAsync(request, cancellationToken);
-                await CreditAsync(request, cancellationToken);
+                await DebitAsync(request, cancellationToken);
+                status = ConversionStatus.DebitDone;
+            }
+
+            if (status == ConversionStatus.DebitDone)
+            {
+                string failureReason;
+
+                try
+                {
+                    await creditFaultInjector.BeforeCreditAsync(request, cancellationToken);
+                    await CreditAsync(request, cancellationToken);
+                    return;
+                }
+                catch (ConversionStatusRaceLostException)
+                {
+                    // Not a credit failure - another writer (cancellation)
+                    // already moved this conversion past DebitDone before the
+                    // credit step's own guarded transition could land.
+                    // Whoever won the race owns finishing the conversion.
+                    return;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // Any other failure of the credit step - a constraint
+                    // violation, an injected fault, anything - triggers
+                    // compensation. This is a business-level reversal, not a
+                    // database rollback: the debit transaction already
+                    // committed and is not going anywhere.
+                    failureReason = ex.Message;
+                }
+
+                await MarkCompensatingAsync(request.Id, cancellationToken);
+                await CompensateAsync(request, failureReason, cancellationToken);
                 return;
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                // Any failure of the credit step - a constraint violation, an
-                // injected fault, anything - triggers compensation. This is a
-                // business-level reversal, not a database rollback: the debit
-                // transaction already committed and is not going anywhere.
-                failureReason = ex.Message;
-            }
 
-            await MarkCompensatingAsync(request.Id, cancellationToken);
-            await CompensateAsync(request, failureReason, cancellationToken);
+            if (status == ConversionStatus.Compensating)
+            {
+                await CompensateAsync(request, request.FailureReason ?? "credit step failed", cancellationToken);
+            }
+        }
+        catch (ConversionStatusRaceLostException)
+        {
+            // Someone else already advanced this conversion past the status
+            // this run expected - stop rather than clobber their outcome.
             return;
         }
+    }
 
-        if (status == ConversionStatus.Compensating)
-        {
-            await CompensateAsync(request, request.FailureReason ?? "credit step failed", cancellationToken);
-        }
+    // Compare-and-swap on the conversion's own status column, the same
+    // technique LedgerService already uses on Balance.Version: the status
+    // moves through a known, monotonic sequence, so "expected old value" is
+    // itself a sufficient CAS key - a separate version counter would just
+    // duplicate information the status already carries. Internal (rather
+    // than private) so the concurrency test can drive it directly to
+    // simulate a second writer racing the saga, without the cancellation
+    // endpoint that will call it for real existing yet.
+    internal async Task<bool> TryTransitionAsync(
+        Guid conversionId,
+        ConversionStatus from,
+        Action<UpdateSettersBuilder<ConversionRequest>> setPropertyCalls,
+        CancellationToken cancellationToken)
+    {
+        var affected = await dbContext.ConversionRequests
+            .Where(r => r.Id == conversionId && r.Status == from)
+            .ExecuteUpdateAsync(setPropertyCalls, cancellationToken);
+
+        return affected == 1;
     }
 
     private async Task DebitAsync(ConversionRequest request, CancellationToken cancellationToken)
@@ -86,13 +127,19 @@ public sealed class ConversionSaga(
                 request.UserId, request.FromCurrencyId, request.FromAmount, $"conversion:{request.Id}:debit", "conversion debit"),
             async (result, ct) =>
             {
-                await dbContext.ConversionRequests
-                    .Where(r => r.Id == request.Id)
-                    .ExecuteUpdateAsync(
+                if (!await TryTransitionAsync(
+                        request.Id,
+                        ConversionStatus.Started,
                         setters => setters
                             .SetProperty(r => r.Status, ConversionStatus.DebitDone)
                             .SetProperty(r => r.UpdatedAt, now),
-                        ct);
+                        ct))
+                {
+                    // Losing this CAS means the ledger insert and balance
+                    // update above must not stick either - throwing here
+                    // rolls back the whole onPosted transaction.
+                    throw new ConversionStatusRaceLostException();
+                }
 
                 await outboxWriter.WriteAsync(
                     new ConversionDebitedEvent
@@ -119,13 +166,16 @@ public sealed class ConversionSaga(
                 request.UserId, request.ToCurrencyId, request.ToAmount, $"conversion:{request.Id}:credit", "conversion credit"),
             async (result, ct) =>
             {
-                await dbContext.ConversionRequests
-                    .Where(r => r.Id == request.Id)
-                    .ExecuteUpdateAsync(
+                if (!await TryTransitionAsync(
+                        request.Id,
+                        ConversionStatus.DebitDone,
                         setters => setters
                             .SetProperty(r => r.Status, ConversionStatus.Completed)
                             .SetProperty(r => r.UpdatedAt, now),
-                        ct);
+                        ct))
+                {
+                    throw new ConversionStatusRaceLostException();
+                }
 
                 await outboxWriter.WriteAsync(
                     new ConversionCompletedEvent
@@ -143,14 +193,19 @@ public sealed class ConversionSaga(
             cancellationToken);
     }
 
-    private Task<int> MarkCompensatingAsync(Guid conversionId, CancellationToken cancellationToken) =>
-        dbContext.ConversionRequests
-            .Where(r => r.Id == conversionId)
-            .ExecuteUpdateAsync(
+    private async Task MarkCompensatingAsync(Guid conversionId, CancellationToken cancellationToken)
+    {
+        if (!await TryTransitionAsync(
+                conversionId,
+                ConversionStatus.DebitDone,
                 setters => setters
                     .SetProperty(r => r.Status, ConversionStatus.Compensating)
                     .SetProperty(r => r.UpdatedAt, timeProvider.GetUtcNow()),
-                cancellationToken);
+                cancellationToken))
+        {
+            throw new ConversionStatusRaceLostException();
+        }
+    }
 
     private async Task CompensateAsync(ConversionRequest request, string failureReason, CancellationToken cancellationToken)
     {
@@ -161,14 +216,17 @@ public sealed class ConversionSaga(
                 request.UserId, request.FromCurrencyId, request.FromAmount, $"conversion:{request.Id}:compensation", "conversion compensation"),
             async (result, ct) =>
             {
-                await dbContext.ConversionRequests
-                    .Where(r => r.Id == request.Id)
-                    .ExecuteUpdateAsync(
+                if (!await TryTransitionAsync(
+                        request.Id,
+                        ConversionStatus.Compensating,
                         setters => setters
                             .SetProperty(r => r.Status, ConversionStatus.Failed)
                             .SetProperty(r => r.FailureReason, failureReason)
                             .SetProperty(r => r.UpdatedAt, now),
-                        ct);
+                        ct))
+                {
+                    throw new ConversionStatusRaceLostException();
+                }
 
                 await outboxWriter.WriteAsync(
                     new ConversionFailedEvent
