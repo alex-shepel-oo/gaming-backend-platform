@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace EconomyService.Options;
+namespace BuildingBlocks.Messaging.Outbox;
 
 public sealed class OutboxDispatcherOptions
 {

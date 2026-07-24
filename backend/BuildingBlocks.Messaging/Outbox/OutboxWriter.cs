@@ -1,16 +1,15 @@
 using System.Text.Json;
-using BuildingBlocks.Messaging;
-using EconomyService.Domain;
-using EconomyService.Persistence;
+using Microsoft.EntityFrameworkCore;
 
-namespace EconomyService.Services;
+namespace BuildingBlocks.Messaging.Outbox;
 
-public sealed class OutboxWriter(EconomyDbContext dbContext) : IOutboxWriter
+public sealed class OutboxWriter<TDbContext>(TDbContext dbContext) : IOutboxWriter
+    where TDbContext : DbContext
 {
     public Task WriteAsync<TEvent>(TEvent integrationEvent, CancellationToken cancellationToken = default)
         where TEvent : IntegrationEvent
     {
-        dbContext.OutboxMessages.Add(new OutboxMessage
+        dbContext.Set<OutboxMessage>().Add(new OutboxMessage
         {
             Id = Guid.CreateVersion7(),
             Type = integrationEvent.Type,

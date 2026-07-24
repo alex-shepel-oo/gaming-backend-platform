@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AwesomeAssertions;
+using BuildingBlocks.Messaging.Outbox;
 using EconomyService.Domain;
 using EconomyService.Domain.Enums;
 using EconomyService.Exceptions;
@@ -232,7 +233,7 @@ public sealed class LedgerServiceTests : IAsyncDisposable
         var userId = Guid.NewGuid();
 
         await using var dbContext = CreateDbContext();
-        var outboxWriter = new OutboxWriter(dbContext);
+        var outboxWriter = new OutboxWriter<EconomyDbContext>(dbContext);
         var entry = new LedgerEntry
         {
             Id = Guid.CreateVersion7(),
@@ -341,7 +342,7 @@ public sealed class LedgerServiceTests : IAsyncDisposable
         dbContext = CreateDbContext();
         var idempotencyStore = new IdempotencyStore(dbContext);
         var balanceService = new BalanceService(dbContext);
-        var outboxWriter = new OutboxWriter(dbContext);
+        var outboxWriter = new OutboxWriter<EconomyDbContext>(dbContext);
         return new LedgerService(dbContext, idempotencyStore, balanceService, outboxWriter, TimeProvider.System);
     }
 

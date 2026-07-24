@@ -97,25 +97,12 @@ public static class ServiceCollectionExtensions
     {
         services.AddScoped<IIdempotencyStore, IdempotencyStore>();
         services.AddScoped<IBalanceService, BalanceService>();
-        services.AddScoped<IOutboxWriter, OutboxWriter>();
         services.AddScoped<ILedgerService, LedgerService>();
         services.AddScoped<IConversionCreditFaultInjector, NoOpConversionCreditFaultInjector>();
         services.AddScoped<IConversionSaga, ConversionSaga>();
         services.AddSingleton<ConversionSagaChannel>();
         services.AddScoped<IConversionRequestService, ConversionRequestService>();
         services.AddHostedService<ConversionSagaRunner>();
-
-        return services;
-    }
-
-    public static IServiceCollection AddOutboxDispatcher(this IServiceCollection services, IConfiguration configuration)
-    {
-        services.AddOptions<OutboxDispatcherOptions>()
-            .Bind(configuration.GetSection(OutboxDispatcherOptions.SectionName))
-            .ValidateDataAnnotations()
-            .ValidateOnStart();
-
-        services.AddHostedService<OutboxDispatcherService>();
 
         return services;
     }

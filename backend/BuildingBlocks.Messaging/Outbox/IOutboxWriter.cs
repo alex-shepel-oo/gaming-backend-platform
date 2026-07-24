@@ -1,6 +1,4 @@
-using BuildingBlocks.Messaging;
-
-namespace EconomyService.Services;
+namespace BuildingBlocks.Messaging.Outbox;
 
 public interface IOutboxWriter
 {
