@@ -24,11 +24,7 @@ public sealed class ConversionRequestService(
             return ReplayOrConflict(existing, request);
         }
 
-        var rate = await dbContext.ConversionRates
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                r => r.FromCurrencyId == request.FromCurrencyId && r.ToCurrencyId == request.ToCurrencyId, cancellationToken)
-            ?? throw new UnsupportedConversionPairException();
+        var rate = await GetRateAsync(request.FromCurrencyId, request.ToCurrencyId, cancellationToken);
 
         // Checked before the row is ever written - a caller who can't cover
         // the debit never gets a Started conversion sitting in the table.
@@ -80,6 +76,15 @@ public sealed class ConversionRequestService(
         await sagaChannel.Writer.WriteAsync(conversionRequest.Id, cancellationToken);
 
         return new ConversionCreationResult(conversionRequest, IsReplay: false);
+    }
+
+    public async Task<ConversionRate> GetRateAsync(
+        Guid fromCurrencyId, Guid toCurrencyId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.ConversionRates
+            .AsNoTracking()
+            .SingleOrDefaultAsync(r => r.FromCurrencyId == fromCurrencyId && r.ToCurrencyId == toCurrencyId, cancellationToken)
+            ?? throw new UnsupportedConversionPairException();
     }
 
     private static ConversionCreationResult ReplayOrConflict(ConversionRequest existing, ConversionCreationRequest request)

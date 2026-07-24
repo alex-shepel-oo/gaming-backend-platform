@@ -165,6 +165,42 @@ public sealed class ConversionEndpointsTests : IAsyncDisposable
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    [Test]
+    public async Task GetRate_KnownPair_Returns200WithRate()
+    {
+        var (fromCurrencyId, toCurrencyId, rate) = await SeedCurrencyPairAsync();
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid());
+
+        var response = await GetAsync($"/conversions/rate?fromCurrencyId={fromCurrencyId}&toCurrencyId={toCurrencyId}", token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<ConversionRateDto>(JsonOptions, TestContext.CurrentContext.CancellationToken);
+        body!.Rate.Should().Be(rate);
+    }
+
+    [Test]
+    public async Task GetRate_UnknownPair_Returns400()
+    {
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid());
+
+        var response = await GetAsync($"/conversions/rate?fromCurrencyId={Guid.NewGuid()}&toCurrencyId={Guid.NewGuid()}", token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Test]
+    public async Task GetRate_NoAuthorizationHeader_Returns401()
+    {
+        var (fromCurrencyId, toCurrencyId, _) = await SeedCurrencyPairAsync();
+
+        using var client = _factory.CreateClient();
+        var response = await client.GetAsync(
+            $"/conversions/rate?fromCurrencyId={fromCurrencyId}&toCurrencyId={toCurrencyId}",
+            TestContext.CurrentContext.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
     private async Task<ConversionStatus> PollUntilTerminalAsync(Guid conversionId, string token)
     {
         var deadline = DateTime.UtcNow.AddSeconds(10);

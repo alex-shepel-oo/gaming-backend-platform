@@ -19,6 +19,7 @@ public static class ConversionEndpoints
 
         group.MapPost("", CreateAsync).RequireAuthorization();
         group.MapGet("/{id:guid}", GetAsync).RequireAuthorization();
+        group.MapGet("/rate", GetRateAsync).RequireAuthorization();
     }
 
     private static async Task<Accepted<ConversionDto>> CreateAsync(
@@ -67,6 +68,16 @@ public static class ConversionEndpoints
         }
 
         return conversionId;
+    }
+
+    private static async Task<Ok<ConversionRateDto>> GetRateAsync(
+        Guid fromCurrencyId,
+        Guid toCurrencyId,
+        IConversionRequestService conversionRequestService,
+        CancellationToken cancellationToken)
+    {
+        var rate = await conversionRequestService.GetRateAsync(fromCurrencyId, toCurrencyId, cancellationToken);
+        return TypedResults.Ok(new ConversionRateDto(rate.FromCurrencyId, rate.ToCurrencyId, rate.Rate));
     }
 
     private static ConversionDto ToDto(ConversionRequest request) => new(
