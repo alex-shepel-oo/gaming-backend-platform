@@ -1,6 +1,6 @@
 using System.Text.Json;
+using BuildingBlocks.Messaging;
 using EconomyService.Domain;
-using EconomyService.Messaging;
 using EconomyService.Persistence;
 
 namespace EconomyService.Services;

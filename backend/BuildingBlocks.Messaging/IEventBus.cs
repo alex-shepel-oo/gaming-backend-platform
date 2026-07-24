@@ -1,4 +1,4 @@
-namespace EconomyService.Messaging;
+namespace BuildingBlocks.Messaging;
 
 public interface IEventBus
 {

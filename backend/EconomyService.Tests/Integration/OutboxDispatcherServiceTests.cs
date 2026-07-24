@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json.Nodes;
 using AwesomeAssertions;
+using BuildingBlocks.Messaging;
 using EconomyService.Domain;
 using EconomyService.Messaging;
 using EconomyService.Options;

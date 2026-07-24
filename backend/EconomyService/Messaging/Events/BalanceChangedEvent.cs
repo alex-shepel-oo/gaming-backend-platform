@@ -1,3 +1,4 @@
+using BuildingBlocks.Messaging;
 using EconomyService.Domain.Enums;
 
 namespace EconomyService.Messaging.Events;

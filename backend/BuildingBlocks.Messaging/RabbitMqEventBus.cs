@@ -1,10 +1,9 @@
 using System.Text;
 using System.Text.Json;
-using EconomyService.Options;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 
-namespace EconomyService.Messaging;
+namespace BuildingBlocks.Messaging;
 
 public sealed class RabbitMqEventBus(IRabbitMqConnection connection, IOptions<RabbitMqOptions> options) : IEventBus
 {

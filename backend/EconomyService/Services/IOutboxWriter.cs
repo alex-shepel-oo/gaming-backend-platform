@@ -1,4 +1,4 @@
-using EconomyService.Messaging;
+using BuildingBlocks.Messaging;
 
 namespace EconomyService.Services;
 

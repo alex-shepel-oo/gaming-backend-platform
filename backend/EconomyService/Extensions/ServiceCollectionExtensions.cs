@@ -1,4 +1,5 @@
 using System.Text;
+using BuildingBlocks.Messaging;
 using EconomyService.Auth;
 using EconomyService.Inbox;
 using EconomyService.Infrastructure;
@@ -107,19 +108,6 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddEconomyMessaging(this IServiceCollection services, IConfiguration configuration)
-    {
-        services.AddOptions<RabbitMqOptions>()
-            .Bind(configuration.GetSection(RabbitMqOptions.SectionName))
-            .ValidateDataAnnotations()
-            .ValidateOnStart();
-
-        services.AddSingleton<IRabbitMqConnection, RabbitMqConnection>();
-        services.AddHostedService<RabbitMqTopologyInitializer>();
-
-        return services;
-    }
-
     public static IServiceCollection AddOutboxDispatcher(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<OutboxDispatcherOptions>()
@@ -127,7 +115,6 @@ public static class ServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.AddSingleton<IEventBus, RabbitMqEventBus>();
         services.AddHostedService<OutboxDispatcherService>();
 
         return services;

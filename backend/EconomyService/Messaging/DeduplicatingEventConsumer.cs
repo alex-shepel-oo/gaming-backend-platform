@@ -1,6 +1,6 @@
 using System.Text.Json;
+using BuildingBlocks.Messaging;
 using EconomyService.Inbox;
-using EconomyService.Options;
 using EconomyService.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

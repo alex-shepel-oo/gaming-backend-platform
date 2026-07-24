@@ -1,3 +1,4 @@
+using BuildingBlocks.Messaging;
 using EconomyService.Domain;
 using EconomyService.Options;
 using EconomyService.Persistence;
