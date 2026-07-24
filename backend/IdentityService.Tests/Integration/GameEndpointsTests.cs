@@ -47,6 +47,42 @@ public sealed class GameEndpointsTests(IdentityApiFactory factory) : IClassFixtu
     }
 
     [Fact]
+    public async Task PostGame_SeedsDefaultRolePermissionsForAdminAndModerator()
+    {
+        var platformAdmin = await SeedUserAsync(gameId: null, PlatformRole.Admin);
+        await SeedRolePermissionsAsync(
+            PlatformRole.Admin, gameId: null, Permissions.PlatformGamesManage, Permissions.PlatformRolesManage);
+        var (client, accessToken) = await LoginAsync(platformAdmin.Id, gameId: null);
+
+        var postResponse = await PostAuthorizedAsync(
+            client, "/api/identity/games", new CreateGameRequest($"slug-{Guid.NewGuid():N}", "New Game"), accessToken);
+        var game = await postResponse.Content.ReadFromJsonAsync<GameDto>(JsonOptions, TestContext.Current.CancellationToken);
+
+        var adminPermsResponse = await GetAuthorizedAsync(
+            client, $"/api/identity/roles/{PlatformRole.Admin}/permissions?gameId={game!.Id}", accessToken);
+        var adminPerms = await adminPermsResponse.Content.ReadFromJsonAsync<string[]>(JsonOptions, TestContext.Current.CancellationToken);
+        adminPerms.Should().BeEquivalentTo(
+        [
+            Permissions.GameMetadataEdit,
+            Permissions.GameCurrencyManage,
+            Permissions.GameBalanceAdjust,
+            Permissions.GameRolesManage,
+            Permissions.GamePlayersModerate,
+        ]);
+
+        var moderatorPermsResponse = await GetAuthorizedAsync(
+            client, $"/api/identity/roles/{PlatformRole.Moderator}/permissions?gameId={game.Id}", accessToken);
+        var moderatorPerms = await moderatorPermsResponse.Content.ReadFromJsonAsync<string[]>(
+            JsonOptions, TestContext.Current.CancellationToken);
+        moderatorPerms.Should().BeEquivalentTo(
+        [
+            Permissions.GameMetadataEdit,
+            Permissions.GamePlayersModerate,
+            Permissions.GameBalanceAdjust,
+        ]);
+    }
+
+    [Fact]
     public async Task PostGame_DuplicateSlug_Returns409()
     {
         var platformAdmin = await SeedUserAsync(gameId: null, PlatformRole.Admin);

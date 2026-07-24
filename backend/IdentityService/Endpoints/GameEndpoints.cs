@@ -4,6 +4,7 @@ using IdentityService.Contracts.Responses;
 using IdentityService.Domain;
 using IdentityService.Exceptions;
 using IdentityService.Persistence;
+using IdentityService.Services;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
@@ -62,6 +63,7 @@ public static class GameEndpoints
         };
 
         dbContext.Games.Add(game);
+        dbContext.RolePermissions.AddRange(DefaultRolePermissions.ForGame(game.Id, timeProvider.GetUtcNow()));
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new GameDto(game.Id, game.Slug, game.Name, game.IsActive, game.CreatedAt));
