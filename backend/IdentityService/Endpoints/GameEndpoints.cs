@@ -1,5 +1,8 @@
 using IdentityService.Auth;
+using IdentityService.Contracts.Requests;
 using IdentityService.Contracts.Responses;
+using IdentityService.Domain;
+using IdentityService.Exceptions;
 using IdentityService.Persistence;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +13,13 @@ public static class GameEndpoints
 {
     public static void MapGameEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/identity/games", ListGamesAsync).RequireAuthorization(Policies.Admin);
+        var group = app.MapGroup("/api/identity/games")
+            .RequireAuthorization(policy => policy.RequireClaim(IdentityClaims.Perms, Permissions.PlatformGamesManage));
+
+        group.MapGet("", ListGamesAsync);
+        group.MapPost("", CreateGameAsync);
+        group.MapPatch("/{id:guid}", UpdateGameAsync);
+
         app.MapGet("/api/identity/games/public", ListPublicGamesAsync).RequireAuthorization(Policies.Player);
     }
 
@@ -33,5 +42,53 @@ public static class GameEndpoints
             .ToArrayAsync(cancellationToken);
 
         return TypedResults.Ok(games);
+    }
+
+    private static async Task<Ok<GameDto>> CreateGameAsync(
+        CreateGameRequest request, IdentityDbContext dbContext, TimeProvider timeProvider, CancellationToken cancellationToken)
+    {
+        if (await dbContext.Games.AnyAsync(g => g.Slug == request.Slug, cancellationToken))
+        {
+            throw new GameSlugAlreadyExistsException();
+        }
+
+        var game = new Game
+        {
+            Id = Guid.CreateVersion7(),
+            Slug = request.Slug,
+            Name = request.Name,
+            IsActive = true,
+            CreatedAt = timeProvider.GetUtcNow(),
+        };
+
+        dbContext.Games.Add(game);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return TypedResults.Ok(new GameDto(game.Id, game.Slug, game.Name, game.IsActive, game.CreatedAt));
+    }
+
+    private static async Task<Ok<GameDto>> UpdateGameAsync(
+        Guid id, UpdateGameRequest request, IdentityDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var game = await dbContext.Games.SingleOrDefaultAsync(g => g.Id == id, cancellationToken);
+
+        if (game is null)
+        {
+            throw new GameNotFoundException();
+        }
+
+        if (request.Name is not null)
+        {
+            game.Name = request.Name;
+        }
+
+        if (request.IsActive is not null)
+        {
+            game.IsActive = request.IsActive.Value;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return TypedResults.Ok(new GameDto(game.Id, game.Slug, game.Name, game.IsActive, game.CreatedAt));
     }
 }

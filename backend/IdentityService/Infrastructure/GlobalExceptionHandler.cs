@@ -17,6 +17,7 @@ public sealed partial class GlobalExceptionHandler(
             InvalidCredentialsException => (StatusCodes.Status401Unauthorized, "Invalid credentials", exception.Message, null),
             InvalidRefreshTokenException => (StatusCodes.Status401Unauthorized, "Invalid refresh token", exception.Message, null),
             GameNotFoundException => (StatusCodes.Status404NotFound, "Game not found", exception.Message, null),
+            GameSlugAlreadyExistsException => (StatusCodes.Status409Conflict, "Game slug already exists", exception.Message, null),
             EmailAlreadyExistsException => (StatusCodes.Status409Conflict, "Email already exists", exception.Message, null),
             InvalidVerificationCodeException => (StatusCodes.Status400BadRequest, "Invalid verification code", exception.Message, null),
             AccountDisabledException => (StatusCodes.Status403Forbidden, "Account disabled", exception.Message, null),
