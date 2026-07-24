@@ -1,0 +1,58 @@
+.shell-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  gap: var(--app-space-md);
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+
+  // Below ~600px the brand + nav + game badge + logout no longer fit on one
+  // row; wrap instead of letting the toolbar force horizontal page scroll.
+  @media (max-width: 599px) {
+    flex-wrap: wrap;
+    height: auto;
+    padding-block: var(--app-space-sm);
+  }
+}
+
+.shell-brand {
+  font: var(--mat-sys-title-medium);
+  white-space: nowrap;
+}
+
+.shell-nav {
+  display: flex;
+  gap: var(--app-space-xs);
+  flex-wrap: wrap;
+}
+
+.shell-nav-link-active {
+  background-color: rgb(from var(--mat-sys-primary) r g b / 0.12);
+  font-weight: 600;
+}
+
+.shell-spacer {
+  flex: 1 1 auto;
+}
+
+.shell-balance {
+  font: var(--mat-sys-label-large);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.shell-game {
+  font: var(--mat-sys-label-large);
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+.shell-avatar-link {
+  display: inline-flex;
+  border-radius: 50%;
+}
+
+.shell-content {
+  max-width: var(--app-shell-max-width);
+  margin: 0 auto;
+  padding: var(--app-space-lg) var(--app-space-md);
+}

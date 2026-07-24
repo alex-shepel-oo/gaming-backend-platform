@@ -1,0 +1,67 @@
+# StatefulSet + PVC, not a plain Deployment: the outbox dispatcher (see
+# EconomyService) hands a message to this broker and then marks its own
+# outbox row as processed. A pod recreated between those two points with no
+# persistent volume loses exactly the message the outbox table now believes
+# is delivered -- a silent gap between DB state and what a consumer actually
+# received. The volume closes that gap the same way identity-db's does for
+# Postgres in S1.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+  namespace: gaming-platform
+spec:
+  serviceName: rabbitmq
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:4-management-alpine
+          ports:
+            - containerPort: 5672
+            - containerPort: 15672
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secrets
+                  key: RABBITMQ_DEFAULT_USER
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secrets
+                  key: RABBITMQ_DEFAULT_PASS
+          volumeMounts:
+            - name: rabbitmq-data
+              mountPath: /var/lib/rabbitmq
+          readinessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "check_port_connectivity"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            # rabbitmq-diagnostics is an Erlang escript with real startup
+            # cost of its own; the 1s default timeout kills it before it can
+            # ever return, keeping the pod unready forever.
+            timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: rabbitmq-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

@@ -1,0 +1,74 @@
+name: platform-worker-ci
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'backend/Platform.Worker/**'
+      - 'backend/Platform.Worker.Tests/**'
+      - 'backend/Directory.*.props'
+      - 'global.json'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'backend/Platform.Worker/**'
+      - 'backend/Platform.Worker.Tests/**'
+      - 'backend/Directory.*.props'
+      - 'global.json'
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+  actions: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore backend/Platform.Worker.Tests/Platform.Worker.Tests.csproj
+
+      - name: Build
+        run: dotnet build backend/Platform.Worker.Tests/Platform.Worker.Tests.csproj --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test backend/Platform.Worker.Tests/Platform.Worker.Tests.csproj --no-build --configuration Release
+
+      - name: Trivy filesystem scan
+        uses: ./.github/actions/trivy-scan
+        with:
+          scan-type: fs
+          target: backend/Platform.Worker
+          category: trivy-fs
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/Platform.Worker/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/platform-worker:${{ github.sha }}
+
+      - name: Trivy image scan
+        if: github.event_name == 'push'
+        uses: ./.github/actions/trivy-scan
+        with:
+          scan-type: image
+          target: ghcr.io/${{ github.repository_owner }}/platform-worker:${{ github.sha }}
+          category: trivy-image

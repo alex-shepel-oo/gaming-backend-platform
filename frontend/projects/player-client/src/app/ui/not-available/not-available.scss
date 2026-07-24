@@ -1,0 +1,14 @@
+.not-available {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-xs);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-medium);
+  font-style: italic;
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+}

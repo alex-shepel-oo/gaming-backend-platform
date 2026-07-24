@@ -1,0 +1,12 @@
+{
+  "service": {
+    "name": "economy-service",
+    "port": 5001,
+    "address": "economy-service",
+    "check": {
+      "http": "http://economy-service:5001/health/ready",
+      "interval": "10s",
+      "timeout": "2s"
+    }
+  }
+}

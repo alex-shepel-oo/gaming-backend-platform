@@ -1,0 +1,44 @@
+<h1>Games</h1>
+
+@if (loading()) {
+  <div class="state-panel">
+    <mat-spinner diameter="32" />
+    <p>Loading games…</p>
+  </div>
+} @else if (loadError()) {
+  <div class="state-panel">
+    <p class="state-error" role="alert">We couldn't load the games list. Please try again later.</p>
+  </div>
+} @else if (games().length === 0) {
+  <div class="state-panel">
+    <p>No games are available right now.</p>
+  </div>
+} @else {
+  <div class="games-grid">
+    @for (game of games(); track game.id) {
+      <mat-card
+        class="game-card"
+        [class.game-card-selected]="isSelected(game)"
+        tabindex="0"
+        role="button"
+        [attr.aria-label]="'View details for ' + game.name"
+        (click)="openDetails(game)"
+        (keydown.enter)="openDetails(game)"
+        (keydown.space)="$event.preventDefault(); openDetails(game)"
+      >
+        <mat-card-header>
+          <mat-card-title>{{ game.name }}</mat-card-title>
+          <mat-card-subtitle>{{ game.slug }}</mat-card-subtitle>
+        </mat-card-header>
+        @if (isSelected(game)) {
+          <mat-card-content>
+            <span class="game-selected-badge">
+              <mat-icon aria-hidden="true">check</mat-icon>
+              Selected
+            </span>
+          </mat-card-content>
+        }
+      </mat-card>
+    }
+  </div>
+}

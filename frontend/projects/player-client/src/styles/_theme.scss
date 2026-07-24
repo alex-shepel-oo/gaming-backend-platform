@@ -1,0 +1,40 @@
+// Single source of truth for the player-client visual language. Material
+// components and hand-written app CSS both consume the resulting custom
+// properties (--mat-sys-* from mat.theme, --app-* below) instead of hex
+// values, so swapping the visual language later means editing this file
+// only -- see player-client-design-handoff.md.
+@use '@angular/material' as mat;
+
+@mixin apply() {
+  @include mat.theme(
+    (
+      color: (
+        primary: mat.$azure-palette,
+        tertiary: mat.$blue-palette,
+      ),
+      typography: Roboto,
+      density: 0,
+    )
+  );
+
+  // M3 has no built-in "success"/"warning" roles (only primary/secondary/
+  // tertiary/error), but the Convert saga status needs a third and fourth
+  // state color beyond "in progress" (primary/tertiary) and "failed"
+  // (error). Defined once here, consumed as var(--app-color-success) etc.
+  --app-color-success: #2e7d32;
+  --app-color-on-success: #ffffff;
+  --app-color-success-container: #d7ecd9;
+  --app-color-on-success-container: #1a4d1e;
+
+  --app-color-warning: #8a5700;
+  --app-color-on-warning: #ffffff;
+  --app-color-warning-container: #ffe6b8;
+  --app-color-on-warning-container: #5c3a00;
+
+  --app-shell-max-width: 960px;
+  --app-space-xs: 4px;
+  --app-space-sm: 8px;
+  --app-space-md: 16px;
+  --app-space-lg: 24px;
+  --app-space-xl: 32px;
+}

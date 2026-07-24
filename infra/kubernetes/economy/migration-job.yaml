@@ -1,0 +1,23 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: economy-migrator
+  namespace: gaming-platform
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: economy-migrator
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: economy-migrator
+          image: ghcr.io/alex-shepel-oo/economy-migrator:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: ConnectionStrings__EconomyDb
+              valueFrom:
+                secretKeyRef:
+                  name: economy-secrets
+                  key: ConnectionStrings__EconomyDb

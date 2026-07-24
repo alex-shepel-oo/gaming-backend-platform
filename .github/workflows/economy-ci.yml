@@ -1,0 +1,74 @@
+name: economy-ci
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'backend/EconomyService/**'
+      - 'backend/EconomyService.Tests/**'
+      - 'backend/Directory.*.props'
+      - 'global.json'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'backend/EconomyService/**'
+      - 'backend/EconomyService.Tests/**'
+      - 'backend/Directory.*.props'
+      - 'global.json'
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+  actions: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore backend/EconomyService.Tests/EconomyService.Tests.csproj
+
+      - name: Build
+        run: dotnet build backend/EconomyService.Tests/EconomyService.Tests.csproj --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test backend/EconomyService.Tests/EconomyService.Tests.csproj --no-build --configuration Release
+
+      - name: Trivy filesystem scan
+        uses: ./.github/actions/trivy-scan
+        with:
+          scan-type: fs
+          target: backend/EconomyService
+          category: trivy-fs
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/EconomyService/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/economy-service:${{ github.sha }}
+
+      - name: Trivy image scan
+        if: github.event_name == 'push'
+        uses: ./.github/actions/trivy-scan
+        with:
+          scan-type: image
+          target: ghcr.io/${{ github.repository_owner }}/economy-service:${{ github.sha }}
+          category: trivy-image

@@ -56,9 +56,10 @@ public static class AuthEndpoints
         return TypedResults.Accepted((string?)null);
     }
 
-    private static async Task<Ok<TokenPairResponse>> LoginAsync(
+    private static async Task<Results<Ok<TokenPairResponse>, Ok<AccessTokenResponse>>> LoginAsync(
         LoginRequest request,
         IAuthenticationService authenticationService,
+        ICookieAuthWriter cookieAuthWriter,
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
@@ -68,35 +69,64 @@ public static class AuthEndpoints
         var result = await authenticationService.LoginAsync(
             request.GameSlug, request.Email, request.Password, ip, userAgent, cancellationToken);
 
+        if (ClientMode.IsWeb(httpContext))
+        {
+            cookieAuthWriter.WriteRefresh(httpContext.Response, result.RefreshToken);
+
+            return TypedResults.Ok(new AccessTokenResponse(result.AccessToken));
+        }
+
         return TypedResults.Ok(new TokenPairResponse(result.AccessToken, result.RefreshToken));
     }
 
-    private static async Task<Ok<TokenPairResponse>> RefreshAsync(
-        RefreshRequest request,
+    private static async Task<Results<Ok<TokenPairResponse>, Ok<AccessTokenResponse>>> RefreshAsync(
+        RefreshRequest? request,
         IRefreshTokenService refreshTokenService,
+        ICookieAuthWriter cookieAuthWriter,
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var ip = httpContext.Connection.RemoteIpAddress?.ToString();
+        var isWeb = ClientMode.IsWeb(httpContext);
 
-        var result = await refreshTokenService.RotateAsync(request.RefreshToken, ip, cancellationToken);
+        var rawToken = (isWeb ? cookieAuthWriter.ReadRefresh(httpContext.Request) : request?.RefreshToken) ?? string.Empty;
+
+        var result = await refreshTokenService.RotateAsync(rawToken, ip, cancellationToken);
+
+        if (isWeb)
+        {
+            cookieAuthWriter.WriteRefresh(httpContext.Response, result.RawRefreshToken);
+
+            return TypedResults.Ok(new AccessTokenResponse(result.AccessToken));
+        }
 
         return TypedResults.Ok(new TokenPairResponse(result.AccessToken, result.RawRefreshToken));
     }
 
     private static async Task<NoContent> LogoutAsync(
-        LogoutRequest request,
+        LogoutRequest? request,
         ISessionService sessionService,
+        ICookieAuthWriter cookieAuthWriter,
         ICurrentUser currentUser,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
+        var isWeb = ClientMode.IsWeb(httpContext);
+
+        var rawToken = (isWeb ? cookieAuthWriter.ReadRefresh(httpContext.Request) : request?.RefreshToken) ?? string.Empty;
+
         await sessionService.LogoutAsync(
             currentUser.UserId,
             currentUser.GameId,
             currentUser.Jti,
             currentUser.ExpiresAt,
-            request.RefreshToken,
+            rawToken,
             cancellationToken);
+
+        if (isWeb)
+        {
+            cookieAuthWriter.ClearRefresh(httpContext.Response);
+        }
 
         return TypedResults.NoContent();
     }

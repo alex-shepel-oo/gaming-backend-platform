@@ -1,0 +1,68 @@
+@use '../../styles/states';
+
+.state-panel {
+  @include states.state-panel();
+}
+
+.state-error {
+  @include states.error-text();
+}
+
+.wallet-section {
+  margin-bottom: var(--app-space-xl);
+}
+
+.balances-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--app-space-md);
+}
+
+.balance-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-sm);
+}
+
+.balance-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--app-space-md);
+}
+
+.balance-amount {
+  font-weight: 500;
+}
+
+.history-table-scroll {
+  overflow-x: auto;
+}
+
+.history-table {
+  width: 100%;
+  min-width: 480px;
+  border-collapse: collapse;
+  font: var(--mat-sys-body-medium);
+}
+
+.history-table th {
+  text-align: left;
+  padding: var(--app-space-sm);
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.history-table td {
+  padding: var(--app-space-sm);
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+}
+
+.history-pagination {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-md);
+  margin-top: var(--app-space-md);
+}

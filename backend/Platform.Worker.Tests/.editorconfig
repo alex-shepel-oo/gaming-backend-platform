@@ -1,0 +1,4 @@
+[*.cs]
+# Method_Scenario_ExpectedResult is the standard NUnit test naming
+# convention and is intentionally exempt from CA1707.
+dotnet_diagnostic.CA1707.severity = none

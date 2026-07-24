@@ -17,6 +17,24 @@ services:
     networks:
       - platform-network
 
+  economy_db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: "${ECONOMY_POSTGRES_DB:?ECONOMY_POSTGRES_DB is required, set it in infra/.env}"
+      POSTGRES_USER: "${ECONOMY_POSTGRES_USER:?ECONOMY_POSTGRES_USER is required, set it in infra/.env}"
+      POSTGRES_PASSWORD: "${ECONOMY_POSTGRES_PASSWORD:?ECONOMY_POSTGRES_PASSWORD is required, set it in infra/.env}"
+    ports:
+      - "${ECONOMY_POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - economy_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ECONOMY_POSTGRES_USER:?ECONOMY_POSTGRES_USER is required, set it in infra/.env} -d ${ECONOMY_POSTGRES_DB:?ECONOMY_POSTGRES_DB is required, set it in infra/.env}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - platform-network
+
   consul:
     image: hashicorp/consul:1.21
     command: agent -dev -client=0.0.0.0 -config-dir=/consul/config
@@ -72,6 +90,88 @@ services:
     networks:
       - platform-network
 
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: "${RABBITMQ_USER:?RABBITMQ_USER is required, set it in infra/.env}"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required, set it in infra/.env}"
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - platform-network
+
+  economy-migrator:
+    build:
+      context: ../backend
+      dockerfile: EconomyService/Dockerfile
+      target: migrator
+    env_file:
+      - .env
+    environment:
+      ConnectionStrings__EconomyDb: "Host=economy_db;Port=5432;Database=${ECONOMY_POSTGRES_DB:?ECONOMY_POSTGRES_DB is required, set it in infra/.env};Username=${ECONOMY_POSTGRES_USER:?ECONOMY_POSTGRES_USER is required, set it in infra/.env};Password=${ECONOMY_POSTGRES_PASSWORD:?ECONOMY_POSTGRES_PASSWORD is required, set it in infra/.env}"
+    depends_on:
+      economy_db:
+        condition: service_healthy
+    networks:
+      - platform-network
+
+  economy-service:
+    build:
+      context: ../backend
+      dockerfile: EconomyService/Dockerfile
+    env_file:
+      - .env
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: "http://+:5001"
+      ConnectionStrings__EconomyDb: "Host=economy_db;Port=5432;Database=${ECONOMY_POSTGRES_DB:?ECONOMY_POSTGRES_DB is required, set it in infra/.env};Username=${ECONOMY_POSTGRES_USER:?ECONOMY_POSTGRES_USER is required, set it in infra/.env};Password=${ECONOMY_POSTGRES_PASSWORD:?ECONOMY_POSTGRES_PASSWORD is required, set it in infra/.env}"
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: "5672"
+      RabbitMq__Username: "${RABBITMQ_USER:?RABBITMQ_USER is required, set it in infra/.env}"
+      RabbitMq__Password: "${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required, set it in infra/.env}"
+    ports:
+      - "${ECONOMY_SERVICE_PORT:-5001}:5001"
+    depends_on:
+      economy_db:
+        condition: service_healthy
+      economy-migrator:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5001/health/ready || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - platform-network
+
+  platform-worker:
+    build:
+      context: ../backend
+      dockerfile: Platform.Worker/Dockerfile
+    env_file:
+      - .env
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      ConnectionStrings__IdentityDb: "Host=identity_db;Port=5432;Database=${POSTGRES_DB:?POSTGRES_DB is required, set it in infra/.env};Username=${POSTGRES_USER:?POSTGRES_USER is required, set it in infra/.env};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required, set it in infra/.env}"
+      ConnectionStrings__EconomyDb: "Host=economy_db;Port=5432;Database=${ECONOMY_POSTGRES_DB:?ECONOMY_POSTGRES_DB is required, set it in infra/.env};Username=${ECONOMY_POSTGRES_USER:?ECONOMY_POSTGRES_USER is required, set it in infra/.env};Password=${ECONOMY_POSTGRES_PASSWORD:?ECONOMY_POSTGRES_PASSWORD is required, set it in infra/.env}"
+      CleanupJob__IntervalMinutes: "${CLEANUP_JOB_INTERVAL_MINUTES:-15}"
+      CleanupJob__OutboxRetentionDays: "${CLEANUP_JOB_OUTBOX_RETENTION_DAYS:-7}"
+    depends_on:
+      identity_db:
+        condition: service_healthy
+      economy_db:
+        condition: service_healthy
+    networks:
+      - platform-network
+
   api-gateway:
     build:
       context: ../backend
@@ -96,6 +196,17 @@ services:
     networks:
       - platform-network
 
+  player-client:
+    build:
+      context: ../frontend
+      dockerfile: projects/player-client/Dockerfile
+    ports:
+      - "${PLAYER_CLIENT_PORT:-8080}:8080"
+    depends_on:
+      - api-gateway
+    networks:
+      - platform-network
+
   mailpit:
     image: axllent/mailpit
     environment:
@@ -116,3 +227,4 @@ networks:
 
 volumes:
   identity_db_data:
+  economy_db_data:

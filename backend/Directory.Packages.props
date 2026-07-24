@@ -19,6 +19,9 @@
          8.0.3 floor; the health check's surface (open a connection, run "SELECT 1;") is
          stable across that range. -->
     <PackageVersion Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
+    <!-- Same async-client generation as RabbitMQ.Client 7.2.1 above (the
+         "Rabbitmq.v6" sibling package targets the old synchronous IModel API). -->
+    <PackageVersion Include="AspNetCore.HealthChecks.Rabbitmq" Version="9.0.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
     <!-- Explicit floors: Npgsql.EntityFrameworkCore.PostgreSQL 10.0.3 only
          requires >=10.0.4 of these two. Without the pins, projects that
@@ -32,6 +35,11 @@
     <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.19.2" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
     <PackageVersion Include="MailKit" Version="4.17.0" />
+    <!-- 7.x is a breaking async redesign (IChannel with CreateConnectionAsync/
+         CreateChannelAsync/BasicPublishAsync) versus the 6.x synchronous IModel
+         API most tutorials still show. -->
+    <PackageVersion Include="RabbitMQ.Client" Version="7.2.1" />
+    <PackageVersion Include="Polly.Core" Version="8.6.5" />
     <!-- Transitive pin: Microsoft.AspNetCore.OpenApi 10.0.10 brings in
          Microsoft.OpenApi 2.0.0, which has GHSA-v5pm-xwqc-g5wc (stack
          overflow parsing circular schema refs). Patched in 2.7.5. -->
@@ -39,6 +47,10 @@
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
     <PackageVersion Include="xunit.v3" Version="3.2.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <!-- EconomyService.Tests only: NUnit instead of xUnit, to demonstrate both
+         frameworks across the two services. -->
+    <PackageVersion Include="NUnit" Version="4.6.1" />
+    <PackageVersion Include="NUnit3TestAdapter" Version="6.2.0" />
     <PackageVersion Include="AwesomeAssertions" Version="9.4.0" />
     <PackageVersion Include="NSubstitute" Version="6.0.0" />
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />
@@ -47,6 +59,7 @@
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.8.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.10" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.13.0" />
+    <PackageVersion Include="Testcontainers.RabbitMq" Version="4.13.0" />
     <PackageVersion Include="Respawn" Version="7.0.0" />
     <!-- Explicit floor: Npgsql.EntityFrameworkCore.PostgreSQL 10.0.3 depends
          on this exact Npgsql version. IdentityService.Tests uses NpgsqlConnection
@@ -56,5 +69,13 @@
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.10" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="10.0.10" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.10" />
+    <!-- Platform.Worker only. Quartz itself has no net10.0-specific build yet
+         (net8.0/netstandard2.0), forward-compatible the same way as the
+         Npgsql health check package above. AddQuartzHostedService lives in
+         Quartz.Extensions.Hosting, not Quartz.Extensions.DependencyInjection
+         - both are needed, both pinned to the same release. -->
+    <PackageVersion Include="Quartz" Version="3.18.2" />
+    <PackageVersion Include="Quartz.Extensions.DependencyInjection" Version="3.18.2" />
+    <PackageVersion Include="Quartz.Extensions.Hosting" Version="3.18.2" />
   </ItemGroup>
 </Project>

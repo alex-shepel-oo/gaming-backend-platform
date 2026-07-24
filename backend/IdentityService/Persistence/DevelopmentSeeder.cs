@@ -22,7 +22,7 @@ public sealed class DevelopmentSeeder(IdentityDbContext dbContext, TimeProvider 
 
         var game = new Game
         {
-            Id = Guid.CreateVersion7(),
+            Id = Guid.Parse("00000000-0000-7000-8000-000000000001"),
             Slug = "demo-shooter",
             Name = "Demo Shooter",
             IsActive = true,

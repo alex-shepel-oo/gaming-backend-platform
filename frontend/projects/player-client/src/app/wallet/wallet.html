@@ -1,0 +1,106 @@
+<h1>Wallet</h1>
+
+<section class="wallet-section">
+  <h2>Balances</h2>
+
+  @if (balancesLoading()) {
+    <div class="state-panel">
+      <mat-spinner diameter="32" />
+      <p>Loading balances…</p>
+    </div>
+  } @else if (balancesError()) {
+    <div class="state-panel">
+      <p class="state-error" role="alert">We couldn't load your balances. Please try again later.</p>
+    </div>
+  } @else if (balances().length === 0) {
+    <div class="state-panel">
+      <p>No balances yet.</p>
+    </div>
+  } @else {
+    <div class="balances-grid">
+      @if (platformBalances().length > 0) {
+        <mat-card class="balance-group">
+          <mat-card-header>
+            <mat-card-title>Platform</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <ul class="balance-list">
+              @for (balance of platformBalances(); track balance.currencyId) {
+                <li>
+                  <span class="balance-code">{{ balance.currencyCode }}</span>
+                  <span class="balance-amount">{{ balance.amount }}</span>
+                </li>
+              }
+            </ul>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      @if (gameBalances().length > 0) {
+        <mat-card class="balance-group">
+          <mat-card-header>
+            <mat-card-title>In-game</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <ul class="balance-list">
+              @for (balance of gameBalances(); track balance.currencyId) {
+                <li>
+                  <span class="balance-code">{{ balance.currencyCode }}</span>
+                  <span class="balance-amount">{{ balance.amount }}</span>
+                </li>
+              }
+            </ul>
+          </mat-card-content>
+        </mat-card>
+      }
+    </div>
+  }
+</section>
+
+<section class="wallet-section">
+  <h2>Transaction history</h2>
+
+  @if (historyLoading()) {
+    <div class="state-panel">
+      <mat-spinner diameter="32" />
+      <p>Loading transaction history…</p>
+    </div>
+  } @else if (historyError()) {
+    <div class="state-panel">
+      <p class="state-error" role="alert">We couldn't load your transaction history. Please try again later.</p>
+    </div>
+  } @else if (totalCount() === 0) {
+    <div class="state-panel">
+      <p>No transactions yet.</p>
+    </div>
+  } @else {
+    <div class="history-table-scroll">
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th scope="col">Date</th>
+            <th scope="col">Type</th>
+            <th scope="col">Currency</th>
+            <th scope="col">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (transaction of transactions(); track transaction.id) {
+            <tr>
+              <td>{{ transaction.createdAt }}</td>
+              <td>{{ transactionLabel(transaction) }}</td>
+              <td>{{ transaction.currencyId }}</td>
+              <td>{{ transaction.amount }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="history-pagination">
+      <button type="button" mat-button (click)="previousPage()" [disabled]="!hasPreviousPage()">Previous</button>
+      <span>Page {{ page() }} of {{ totalPages() }}</span>
+      <button type="button" mat-button (click)="nextPage()" [disabled]="!hasNextPage()">Next page</button>
+    </div>
+  }
+</section>
