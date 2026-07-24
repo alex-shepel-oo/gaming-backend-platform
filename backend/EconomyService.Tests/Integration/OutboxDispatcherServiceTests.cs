@@ -2,9 +2,8 @@ using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json.Nodes;
 using AwesomeAssertions;
-using EconomyService.Domain;
-using EconomyService.Messaging;
-using EconomyService.Options;
+using BuildingBlocks.Messaging;
+using BuildingBlocks.Messaging.Outbox;
 using EconomyService.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -336,7 +335,7 @@ public sealed class OutboxDispatcherServiceTests : IAsyncDisposable
         return message.Id;
     }
 
-    private static OutboxDispatcherService CreateDispatcher(
+    private static OutboxDispatcherService<EconomyDbContext> CreateDispatcher(
         ServiceProvider provider, IEventBus eventBus, int maxAttempts, int pollIntervalSeconds = 1, int batchSize = 20) =>
         new(
             provider.GetRequiredService<IServiceScopeFactory>(),
@@ -348,7 +347,7 @@ public sealed class OutboxDispatcherServiceTests : IAsyncDisposable
                 MaxAttempts = maxAttempts,
             }),
             TimeProvider.System,
-            NullLogger<OutboxDispatcherService>.Instance);
+            NullLogger<OutboxDispatcherService<EconomyDbContext>>.Instance);
 
     private ServiceProvider BuildProvider()
     {

@@ -1,6 +1,6 @@
 using RabbitMQ.Client;
 
-namespace EconomyService.Messaging;
+namespace BuildingBlocks.Messaging;
 
 public interface IRabbitMqConnection
 {

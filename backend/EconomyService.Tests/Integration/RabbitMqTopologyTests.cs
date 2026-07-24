@@ -1,6 +1,6 @@
 using System.Globalization;
 using AwesomeAssertions;
-using EconomyService.Extensions;
+using BuildingBlocks.Messaging.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using NUnit.Framework;
@@ -42,7 +42,7 @@ public sealed class RabbitMqTopologyTests
             .Build();
 
         return Host.CreateDefaultBuilder()
-            .ConfigureServices(services => services.AddEconomyMessaging(configuration))
+            .ConfigureServices(services => services.AddRabbitMqEventBus(configuration))
             .Build();
     }
 }

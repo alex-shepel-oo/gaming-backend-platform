@@ -1,6 +1,7 @@
 <Solution>
   <Project Path="ApiGateway.Tests/ApiGateway.Tests.csproj" />
   <Project Path="ApiGateway/ApiGateway.csproj" />
+  <Project Path="BuildingBlocks.Messaging/BuildingBlocks.Messaging.csproj" />
   <Project Path="EconomyService.Tests/EconomyService.Tests.csproj" />
   <Project Path="EconomyService/EconomyService.csproj" />
   <Project Path="IdentityService.Tests/IdentityService.Tests.csproj" />

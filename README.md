@@ -387,9 +387,24 @@ EconomyService publishes an integration event for every state change a future
 consumer might care about (`BalanceChangedEvent` and friends), using the
 transactional outbox pattern rather than publishing to RabbitMQ directly from
 the request path. See [ADR 0003](docs/adr/0003-async-inter-service-communication.md)
-for why events instead of a synchronous call, and
+for why events instead of a synchronous call,
 [ADR 0010](docs/adr/0010-transactional-outbox-event-bus.md) for the
-outbox itself.
+outbox itself, and
+[ADR 0018](docs/adr/0018-shared-messaging-building-block.md) for why the
+mechanism described below lives in a shared library rather than inside
+EconomyService.
+
+The publish/consume machinery itself — `IEventBus`, the outbox writer and
+dispatcher, and the inbox dedup base — lives in `BuildingBlocks.Messaging`,
+a library shared across services rather than code specific to EconomyService.
+The library's boundary is infrastructure only: transport, topology, and the
+generic outbox/inbox entities and dispatch/consume mechanics. Domain events
+(`BalanceChangedEvent` and friends) and domain side effects (the
+`ProjectedEventCount` projection below) stay in EconomyService — the library
+never sees them. Each consuming service also keeps its own `outbox_messages`
+and `processed_messages` tables in its own database; the library gives every
+service the same code to work with, not a shared table, so ADR-0001 still
+holds.
 
 **Flow:** `LedgerService` writes an `outbox_messages` row in the same database
 transaction as the ledger entry it describes — both commit together, or
@@ -427,7 +442,8 @@ reprocessed cleanly rather than silently lost. This is deliberately
 **inbox-lite**, not a full inbox pattern - there's no per-message retry
 bookkeeping or metadata beyond `message_id` and `processed_at`.
 
-**Known limitations:**
+**Known limitations** (of the shared mechanism, so they apply to every
+consumer of `BuildingBlocks.Messaging`, not just EconomyService):
 - No dead-letter queue. A row that keeps failing to publish is parked once
   its attempt count hits the configured ceiling — left unsent, logged, and
   no longer retried — rather than routed anywhere for inspection.

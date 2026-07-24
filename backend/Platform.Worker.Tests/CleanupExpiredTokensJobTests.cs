@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using BuildingBlocks.Messaging.Outbox;
 using EconomyService.Domain;
 using EconomyService.Persistence;
 using IdentityService.Domain;

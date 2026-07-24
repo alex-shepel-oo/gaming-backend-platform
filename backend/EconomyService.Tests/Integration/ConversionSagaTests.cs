@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using BuildingBlocks.Messaging.Outbox;
 using EconomyService.Domain;
 using EconomyService.Domain.Enums;
 using EconomyService.Persistence;
@@ -224,7 +225,7 @@ public sealed class ConversionSagaTests : IAsyncDisposable
     {
         var idempotencyStore = new IdempotencyStore(dbContext);
         var balanceService = new BalanceService(dbContext);
-        var outboxWriter = new OutboxWriter(dbContext);
+        var outboxWriter = new OutboxWriter<EconomyDbContext>(dbContext);
         var ledgerService = new LedgerService(dbContext, idempotencyStore, balanceService, outboxWriter, TimeProvider.System);
 
         return new ConversionSaga(
@@ -236,7 +237,7 @@ public sealed class ConversionSagaTests : IAsyncDisposable
         await using var dbContext = CreateDbContext();
         var idempotencyStore = new IdempotencyStore(dbContext);
         var balanceService = new BalanceService(dbContext);
-        var outboxWriter = new OutboxWriter(dbContext);
+        var outboxWriter = new OutboxWriter<EconomyDbContext>(dbContext);
         var ledgerService = new LedgerService(dbContext, idempotencyStore, balanceService, outboxWriter, TimeProvider.System);
 
         await ledgerService.GrantAsync(

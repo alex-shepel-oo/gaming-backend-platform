@@ -1,8 +1,7 @@
-using EconomyService.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace EconomyService.Persistence.Configurations;
+namespace BuildingBlocks.Messaging.Outbox;
 
 public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<OutboxMessage>
 {

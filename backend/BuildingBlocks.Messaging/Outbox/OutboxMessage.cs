@@ -1,4 +1,4 @@
-namespace EconomyService.Domain;
+namespace BuildingBlocks.Messaging.Outbox;
 
 public sealed class OutboxMessage
 {

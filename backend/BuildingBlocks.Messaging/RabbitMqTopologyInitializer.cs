@@ -1,9 +1,8 @@
-using EconomyService.Options;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 
-namespace EconomyService.Messaging;
+namespace BuildingBlocks.Messaging;
 
 // Declares the producer-side topology only: a topic exchange, so a consumer
 // added later can bind its own queue to a subset of routing keys without the

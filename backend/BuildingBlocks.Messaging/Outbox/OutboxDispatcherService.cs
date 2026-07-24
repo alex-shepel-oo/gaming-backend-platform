@@ -1,6 +1,3 @@
-using EconomyService.Domain;
-using EconomyService.Options;
-using EconomyService.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -9,7 +6,7 @@ using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Retry;
 
-namespace EconomyService.Messaging;
+namespace BuildingBlocks.Messaging.Outbox;
 
 // Producer-side relay: polls outbox_messages for unsent rows and publishes
 // each through IEventBus, at-least-once (ADR-0010). Rows are claimed with
@@ -17,12 +14,13 @@ namespace EconomyService.Messaging;
 // replicas, each claims a disjoint set instead of racing to publish the same
 // row twice - the same reason the in-process rate limiter from slice 1
 // isn't authoritative once you're running more than one instance.
-public sealed partial class OutboxDispatcherService(
+public sealed partial class OutboxDispatcherService<TDbContext>(
     IServiceScopeFactory scopeFactory,
     IEventBus eventBus,
     IOptions<OutboxDispatcherOptions> options,
     TimeProvider timeProvider,
-    ILogger<OutboxDispatcherService> logger) : BackgroundService
+    ILogger<OutboxDispatcherService<TDbContext>> logger) : BackgroundService
+    where TDbContext : DbContext
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -52,13 +50,13 @@ public sealed partial class OutboxDispatcherService(
         var settings = options.Value;
 
         using var scope = scopeFactory.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<EconomyDbContext>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<TDbContext>();
 
         // Held for the whole claim-publish-mark cycle: releasing the lock
         // before publishing would let a concurrent poll grab the same row.
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        var batch = await dbContext.OutboxMessages
+        var batch = await dbContext.Set<OutboxMessage>()
             .FromSqlInterpolated($"""
                 SELECT * FROM outbox_messages
                 WHERE processed_at IS NULL AND attempts < {settings.MaxAttempts}

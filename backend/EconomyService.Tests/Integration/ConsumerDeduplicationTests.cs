@@ -1,7 +1,7 @@
 using AwesomeAssertions;
-using EconomyService.Inbox;
+using BuildingBlocks.Messaging;
+using BuildingBlocks.Messaging.Inbox;
 using EconomyService.Messaging;
-using EconomyService.Options;
 using EconomyService.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

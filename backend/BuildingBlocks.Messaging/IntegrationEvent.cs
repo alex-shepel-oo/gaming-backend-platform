@@ -1,4 +1,4 @@
-namespace EconomyService.Messaging;
+namespace BuildingBlocks.Messaging;
 
 public abstract record IntegrationEvent
 {

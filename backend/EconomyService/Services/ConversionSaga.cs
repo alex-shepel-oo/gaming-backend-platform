@@ -1,3 +1,4 @@
+using BuildingBlocks.Messaging.Outbox;
 using EconomyService.Domain;
 using EconomyService.Domain.Enums;
 using EconomyService.Messaging.Events;

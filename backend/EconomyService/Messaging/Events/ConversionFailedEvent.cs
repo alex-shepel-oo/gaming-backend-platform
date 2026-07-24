@@ -1,3 +1,5 @@
+using BuildingBlocks.Messaging;
+
 namespace EconomyService.Messaging.Events;
 
 public sealed record ConversionFailedEvent : IntegrationEvent
