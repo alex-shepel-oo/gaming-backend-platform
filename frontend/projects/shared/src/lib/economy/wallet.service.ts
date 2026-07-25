@@ -29,6 +29,12 @@ export class WalletService {
     this.balancesSignal.set(null);
   }
 
+  applyBalanceChange(currencyId: string, balance: number): void {
+    this.balancesSignal.update((balances) =>
+      balances?.map((b) => (b.currencyId === currencyId ? { ...b, amount: balance } : b)) ?? balances,
+    );
+  }
+
   getBalances(gameId?: string): Observable<Balance[]> {
     const params = gameId ? new HttpParams().set('gameId', gameId) : undefined;
 

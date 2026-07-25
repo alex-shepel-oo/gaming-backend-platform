@@ -21,3 +21,5 @@ export * from './lib/games/game-selection.service';
 export * from './lib/games/game.config';
 export * from './lib/games/games.service';
 export * from './lib/games/identity-game-endpoints';
+export * from './lib/notifications/balance-changed-message';
+export * from './lib/notifications/notification-hub.service';
