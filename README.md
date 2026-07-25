@@ -334,20 +334,24 @@ current client goes through the gateway for them.
 
 Currencies come in two scopes: **platform** currencies (`gameId` is `null`,
 shared across every game) and **game** currencies (`gameId` set, scoped to one
-title). The seeded development data has `PLATFORM_CREDITS` (platform) and
-`SHOOTER_GOLD` (game, `demo-shooter`), with a `100:1` conversion rate between
-them that nothing consumes yet.
+title). The seeded development data has `PLATFORM_CREDITS` (platform),
+`SHOOTER_GOLD` (game, `demo-shooter`), and `RACER_TOKENS` (game, `demo-racer`),
+with conversion rates of `100:1` and `40:1` respectively from platform credits.
+`CurrencyDto` also carries `decimals` (default `2`), so clients know how many
+fractional digits to render for a given currency without hardcoding it.
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | GET | `/currencies` | bearer | Platform currencies plus the caller's own game currency |
 | GET | `/balances/me` | bearer | Current user's balances (`?gameId=` cross-checks against the token's own game, it does not select a different one) |
-| POST | `/balances/{userId}/adjust` | bearer, admin | Manual correction with a required audit `reason`; `Amount` is a signed delta, not a magnitude |
-| POST | `/transactions/grant` | bearer, moderator+ | Credit a user's balance, with an audit `reason` |
+| POST | `/balances/{userId}/adjust` | bearer, `platform.balance.adjust` or `game.balance.adjust` (own game only) | Manual correction with a required audit `reason`; `Amount` is a signed delta, not a magnitude |
+| POST | `/transactions/grant` | bearer, `platform.balance.adjust` or `game.balance.adjust` (own game only) | Credit a user's balance, with an audit `reason` |
 | POST | `/transactions/spend` | bearer | Debit the caller's own balance |
 | GET | `/transactions/me` | bearer | Paginated ledger history (`?currencyId=&page=&pageSize=`) for the caller only |
 | POST | `/conversions` | bearer | Start a platform-to-game currency conversion; `202` with `Started`, not the final outcome |
 | GET | `/conversions/{id}` | bearer | Poll a conversion's status; owner-scoped, `404` on someone else's id |
+| GET | `/conversions/rate` | bearer | `?fromCurrencyId=&toCurrencyId=` - the raw rate for a pair, no side effects; `400` on an unsupported pair (same cause `POST /conversions` itself rejects with `400`) |
+| POST | `/conversions/{id}/cancel` | bearer | Owner-scoped like `GET /conversions/{id}`: `404` on someone else's or a missing id; `200` with the resulting status on success; `409` once the conversion is already terminal or compensating |
 | GET | `/health` | anonymous | Liveness probe |
 | GET | `/health/ready` | anonymous | Readiness probe (Postgres and RabbitMQ) |
 
@@ -389,6 +393,19 @@ addendum](docs/adr/0010-transactional-outbox-event-bus.md#addendum-the-conversio
 for the full reasoning, including why this isn't genuine cross-service
 choreography (that needs InventoryService, which doesn't exist until slice
 3).
+
+Every status transition is now a compare-and-swap - it only applies if the
+row's current status still matches what the writer expects, and the writer
+bails out otherwise. The runner was the only thing moving a conversion's
+status for a while, so nothing enforced this; `POST /conversions/{id}/cancel`
+added a second writer racing the same row, and without the guard a cancel
+could stamp `Failed` over a debit the runner had already posted, or the
+runner could clobber a cancel that had just compensated it - either way,
+money debited but never accounted for. Cancelling reacts to whichever status
+it actually finds: `Started` fails the conversion outright with nothing to
+reverse; `DebitDone` drives the same compensation path the runner itself uses
+on a failed credit, so there's only one place that logic lives; anything
+already `Completed`, `Failed`, or `Compensating` is rejected with `409`.
 
 ## Player-client (Angular)
 
