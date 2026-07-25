@@ -66,6 +66,23 @@ nginx fronting `/hubs` directly (the same direct-proxy pattern ADR-0012 already 
 it turns out to be gets recorded here as a short follow-up note once known, not assumed in either
 direction ahead of time.
 
+**Follow-up, recorded once known: Ocelot does not carry the WebSocket traffic, nginx does.** A route was
+added to `ocelot.json` and tried against a real docker-compose stack (gateway, NotificationService,
+RabbitMQ, a raw WebSocket test client doing the SignalR JSON protocol by hand). Negotiate proxied through
+Ocelot fine. The WebSocket upgrade itself did not: Ocelot returned the `101 Switching Protocols` response,
+but only after the connection had sat idle for roughly fifteen seconds, and by the time the client's
+socket reported itself open, Ocelot was already tearing the connection down — no SignalR frame ever
+crossed it, in two separate runs with identical timing. The same client, pointed at NotificationService's
+own port with no proxy in between, completed negotiate, handshake, and a real `balanceChanged` push in
+under 200ms. That comparison rules out the test harness, RabbitMQ, or the hub itself as the cause; the
+stall is specific to Ocelot's handling of the upgraded connection after the initial response. The
+speculative route was removed rather than left in the config unused. Instead, player-client's nginx
+(`nginx.conf`) got a second `location /hubs` block next to the existing `/api` one, proxying straight to
+`notification-service:5003` with the `Upgrade`/`Connection: upgrade` headers Ocelot's route never got to
+prove out. The same raw-client script against `:8080/hubs/notifications` — the real path a browser would
+use — completed negotiate, handshake, and push in under 200ms, matching the direct-connection baseline.
+NotificationService itself needed no changes for this; only the reverse-proxy layer in front of it did.
+
 ## Alternatives considered
 
 | Alternative | Why it was not chosen |

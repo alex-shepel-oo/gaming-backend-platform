@@ -152,6 +152,39 @@ services:
     networks:
       - platform-network
 
+  notification-service:
+    build:
+      context: ../backend
+      dockerfile: NotificationService/Dockerfile
+    env_file:
+      - .env
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: "http://+:5003"
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: "5672"
+      RabbitMq__Username: "${RABBITMQ_USER:?RABBITMQ_USER is required, set it in infra/.env}"
+      RabbitMq__Password: "${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required, set it in infra/.env}"
+    ports:
+      - "${NOTIFICATION_SERVICE_PORT:-5003}:5003"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      # BalanceChangedConsumer binds its queue to gbp.economy at startup and
+      # the whole host goes down if that exchange doesn't exist yet; only
+      # EconomyService's own topology initializer declares it. This ordering
+      # is a docker-compose-only stopgap, not something the eventual k8s
+      # manifests inherit automatically.
+      economy-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5003/health/ready || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - platform-network
+
   platform-worker:
     build:
       context: ../backend

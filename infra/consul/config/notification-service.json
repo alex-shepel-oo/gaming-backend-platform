@@ -1,0 +1,12 @@
+{
+  "service": {
+    "name": "notification-service",
+    "port": 5003,
+    "address": "notification-service",
+    "check": {
+      "http": "http://notification-service:5003/health/ready",
+      "interval": "10s",
+      "timeout": "2s"
+    }
+  }
+}
