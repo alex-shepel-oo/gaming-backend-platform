@@ -178,6 +178,8 @@ policies underneath regardless of what the gateway already checked.
 | POST | `/api/identity/auth/register` | anonymous | Register an account for a game; 202, email confirmation required |
 | POST | `/api/identity/auth/confirm-email` | anonymous | Confirm the code sent by email |
 | POST | `/api/identity/auth/resend-verification` | anonymous | Request a new confirmation code |
+| POST | `/api/identity/auth/request-password-reset` | anonymous | Request a password reset link by email; 202 regardless of whether the account exists |
+| POST | `/api/identity/auth/reset-password` | anonymous | Complete a password reset using the emailed token; 204, or 400 for any invalid, expired, or already-used token |
 | POST | `/api/identity/auth/login` | anonymous | Exchange credentials for a token pair (or an access token plus a refresh cookie, in web mode) |
 | POST | `/api/identity/auth/refresh` | anonymous | Rotate a refresh token for a new pair (body or cookie, depending on mode) |
 | POST | `/api/identity/auth/logout` | anonymous at the gateway, bearer required by the service | Revoke the current session |
@@ -265,6 +267,33 @@ curl -s -X POST http://localhost:5100/api/identity/auth/login \
 curl -s "http://localhost:5100/api/identity/roles/Admin/permissions?gameId=00000000-0000-7000-8000-000000000002" \
   -H "Authorization: Bearer <accessToken from step 1>"
 ```
+
+### Password reset, register dedup, and OAuth groundwork
+
+Password reset mirrors email confirmation ([ADR 0009](docs/adr/0009-anti-enumeration-registration-and-confirmation.md)):
+a high-entropy token, hashed with the same `SHA-256`/`IRefreshTokenGenerator`
+pipeline already used for refresh tokens rather than a second hasher, TTL,
+single-use, and a uniform `400` on any invalid, expired, or already-consumed
+token — the caller can't tell those three apart from the response.
+Completing a reset revokes every refresh-token family the user has, in every
+game, not only the one the request happened to come from
+(`RevocationReason.PasswordChange`) — a stolen password compromises the whole
+account, not one game session.
+
+`register` no longer answers a duplicate confirmed account with `409`: that
+branch fell into the exact same `202` every other confirmed-user path already
+returned once the check was removed, since the response was the only thing
+telling an attacker the account existed. A neutral heads-up email now goes
+out instead, but only when the account already held a role in that specific
+game — a confirmed player joining a second game for the first time takes the
+same code path and picks up a new role along the way, and gets no email,
+because that's a legitimate self-join, not a repeat attempt.
+
+`external_logins` (provider, provider user id) exists as schema only — no
+OAuth provider is wired up against it yet. It's there so a future provider
+integration is a service change, not a migration.
+
+Full reasoning in [ADR 0015](docs/adr/0015-auth-cluster-hardening.md).
 
 ## Permission-based RBAC
 
@@ -462,7 +491,8 @@ instead, the same direct-proxy approach already in place for `/api`
 
 An Angular 22 workspace under `frontend/` (`shared` library + `player-client`
 app) — the first browser client for the platform, covering Login, Games,
-Wallet, and Convert.
+Wallet, Convert, and password reset (a "Forgot password?" link off the login
+screen, through to the emailed-link screen).
 
 ### Running it
 
@@ -671,6 +701,9 @@ that service's own rules. It does so through narrow, cleanup-only
   is the recovery path. Routing it through a transactional outbox, the
   way EconomyService now does for its own events, is a later extension
   of the same pattern.
+- `external_logins` is schema only — no OAuth provider (Google, Discord, etc.)
+  is actually wired up yet, and there's no account-linking policy implemented
+  either. See ADR 0015.
 - Rate limits on login/register/confirm/resend are enforced per gateway
   replica, not per cluster — the deployment scales to ten replicas, so the
   effective budget is the configured limit times whichever replica count
