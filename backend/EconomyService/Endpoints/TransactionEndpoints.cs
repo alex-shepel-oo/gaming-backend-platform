@@ -16,24 +16,38 @@ public static class TransactionEndpoints
     {
         var group = app.MapGroup("/transactions");
 
-        group.MapPost("/grant", GrantAsync).RequireAuthorization(Policies.ModeratorOrAbove);
+        group.MapPost("/grant", GrantAsync).RequireAuthorization(policy => policy.RequireClaim(
+            EconomyClaims.Perms, Permissions.GameBalanceAdjust, Permissions.PlatformBalanceAdjust));
         group.MapPost("/spend", SpendAsync).RequireAuthorization();
         group.MapGet("/me", GetMyHistoryAsync).RequireAuthorization();
     }
 
-    private static async Task<Results<Created<TransactionDto>, Ok<TransactionDto>>> GrantAsync(
+    private static async Task<Results<Created<TransactionDto>, Ok<TransactionDto>, ForbidHttpResult>> GrantAsync(
         GrantRequest request,
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
+        ICurrentUser currentUser,
+        EconomyDbContext dbContext,
         ILedgerService ledgerService,
         CancellationToken cancellationToken)
     {
         LedgerResultMapping.RequireIdempotencyKey(idempotencyKey);
 
+        var targetGameId = await dbContext.Currencies
+            .Where(c => c.Id == request.CurrencyId)
+            .Select(c => c.GameId)
+            .SingleAsync(cancellationToken);
+
+        if (!BalanceScopeGuard.CanAdjust(currentUser, targetGameId))
+        {
+            return TypedResults.Forbid();
+        }
+
         var result = await ledgerService.GrantAsync(
             new LedgerMutationRequest(request.UserId, request.CurrencyId, request.Amount, idempotencyKey!, request.Reason),
             cancellationToken);
 
-        return LedgerResultMapping.ToTransactionResult(result);
+        var dto = LedgerResultMapping.ToDto(result);
+        return result.IsReplay ? TypedResults.Ok(dto) : TypedResults.Created((string?)null, dto);
     }
 
     private static async Task<Results<Created<TransactionDto>, Ok<TransactionDto>>> SpendAsync(

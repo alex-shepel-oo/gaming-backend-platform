@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
+using EconomyService.Auth;
 using EconomyService.Contracts.Requests;
 using EconomyService.Contracts.Responses;
 using EconomyService.Domain;
@@ -311,7 +312,7 @@ public sealed class ConversionEndpointsTests : IAsyncDisposable
 
     private async Task SeedPlatformBalanceAsync(Guid userId, Guid currencyId, decimal amount, string idempotencyKey)
     {
-        var adminToken = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), role: "Admin");
+        var adminToken = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), perms: [Permissions.PlatformBalanceAdjust]);
         using var client = _factory.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Post, "/transactions/grant")
         {

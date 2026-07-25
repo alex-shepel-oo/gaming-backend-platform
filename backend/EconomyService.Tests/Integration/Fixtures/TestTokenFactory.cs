@@ -15,7 +15,8 @@ public static class TestTokenFactory
 
     private static readonly JsonWebTokenHandler Handler = new();
 
-    public static string IssueAccessToken(Guid userId, Guid? gameId = null, string role = "Player")
+    public static string IssueAccessToken(
+        Guid userId, Guid? gameId = null, string role = "Player", IReadOnlyList<string>? perms = null)
     {
         var claims = new Dictionary<string, object>
         {
@@ -27,6 +28,11 @@ public static class TestTokenFactory
         if (gameId is not null)
         {
             claims[EconomyClaims.GameId] = gameId.Value.ToString();
+        }
+
+        if (perms is { Count: > 0 })
+        {
+            claims[EconomyClaims.Perms] = perms.ToArray();
         }
 
         var descriptor = new SecurityTokenDescriptor
