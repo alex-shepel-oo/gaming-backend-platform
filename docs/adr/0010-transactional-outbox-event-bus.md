@@ -124,3 +124,46 @@ async delivery.
 - No distributed transaction between the debit and credit steps; the compensating transaction is a
   business-level reversal, not a database rollback, and it runs after the failure is already visible.
 - The client learns the outcome by polling, not by push notification.
+
+
+## Addendum: cancellation and the concurrency guard it required
+
+### Context
+
+Slice 3 adds `POST /conversions/{id}/cancel`, so a caller can stop a non-terminal conversion instead of
+only ever polling one to completion. Every status transition above was written as an unconditional
+`UPDATE ... WHERE id = @id` — safe only because the background saga runner was the sole writer of
+`conversion_requests.status`. A cancel endpoint is a second writer against the same row, and without a
+guard that combination is a real money-loss path, not a theoretical one: the runner could debit the
+platform currency and flip the row to `DebitDone` while a concurrent cancel — reading a now-stale
+`Started` — overwrites the status straight to `Failed`, believing no debit had happened yet and skipping
+compensation. The debit stays gone; nothing ever gives it back.
+
+### Decision
+
+**Every transition in `ConversionSaga` is now a compare-and-swap on the row's expected prior status**
+(`UPDATE ... WHERE id = @id AND status = @expected`), not a bare `WHERE id = @id`. A transition that
+affects zero rows means another writer already moved the conversion on, and the callback throws rather
+than continuing — since the transition runs inside the same database transaction as the ledger entry it
+describes (the existing dual-write discipline this ADR already established), that throw rolls the ledger
+write back too. A losing writer never leaves a ledger entry with no status to match it.
+
+Cancellation reuses this same guard, not a parallel implementation: `Started → Failed` requires no
+compensation (nothing was ever debited); `DebitDone → Compensating` hands off to the exact compensating
+path the credit-failure branch already used, not a copy of it. If cancel loses the compare-and-swap
+either way — the runner got there first — it re-reads the now-current status and answers with that,
+rather than treating "someone else finished it first" as a client error.
+
+### Consequences
+
+**Gained:** a second writer can now safely touch a conversion mid-saga without a distributed lock or a
+serializable transaction — the existing per-transition commit boundary already gave every step a natural
+compare-and-swap point, it just wasn't used as one until a second writer existed to make that necessary.
+
+**Given up / accepted:**
+- This guard exists because a second writer was introduced, not preemptively — the gap it closes was
+  latent in the original saga from the moment it shipped, exposed only once cancellation gave it
+  something to race against.
+- A cancel that loses the race gets the actual outcome (the conversion completed, or was already
+  cancelled by a concurrent request), not a guaranteed "your cancellation took effect" — this is stated
+  as the correct behavior, not hedged as a limitation.
