@@ -25,6 +25,9 @@ resources:
   - economy/deployment.yaml
   - economy/service.yaml
   - economy/hpa.yaml
+  - notification/configmap.yaml
+  - notification/deployment.yaml
+  - notification/service.yaml
   - rabbitmq/statefulset.yaml
   - rabbitmq/service.yaml
   - worker/deployment.yaml
