@@ -158,6 +158,52 @@ public sealed partial class RegisterEndpointTests(IdentityApiFactory factory) : 
     }
 
     [Fact]
+    public async Task Register_UnconfirmedEmailSameGame_ReissuesCodeWithoutDuplicateNotice()
+    {
+        var game = await SeedGameAsync();
+        var email = $"{Guid.NewGuid():N}@example.com";
+        using var client = factory.CreateClient();
+
+        await client.PostAsJsonAsync(
+            "/api/identity/auth/register",
+            new RegisterRequest(game.Slug, email, "Player One", "correct-horse-battery"),
+            JsonOptions,
+            TestContext.Current.CancellationToken);
+
+        var user = await FindUserAsync(email);
+        var firstCode = await FindActiveCodeAsync(user!.Id);
+
+        var response = await client.PostAsJsonAsync(
+            "/api/identity/auth/register",
+            new RegisterRequest(game.Slug, email, "Player One", "correct-horse-battery"),
+            JsonOptions,
+            TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+        var body = await response.Content.ReadFromJsonAsync<RegistrationAcceptedResponse>(
+            JsonOptions, TestContext.Current.CancellationToken);
+        body!.VerificationRequired.Should().BeTrue();
+
+        var oldCode = await FindCodeAsync(firstCode!.Id);
+        oldCode!.ConsumedAt.Should().NotBeNull();
+
+        var activeCode = await FindActiveCodeAsync(user.Id);
+        activeCode.Should().NotBeNull();
+        activeCode!.Id.Should().NotBe(firstCode.Id);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var roles = await dbContext.UserGameRoles
+            .Where(r => r.UserId == user.Id && r.GameId == game.Id)
+            .ToListAsync(TestContext.Current.CancellationToken);
+        roles.Should().ContainSingle();
+
+        factory.EmailSender.Sent.Should().HaveCount(2);
+        factory.EmailSender.Sent.Should().OnlyContain(m => SixDigitCode().IsMatch(m.HtmlBody));
+    }
+
+    [Fact]
     public async Task Register_ConfirmedEmailAlreadyHasRoleInGame_Returns202()
     {
         var game = await SeedGameAsync();

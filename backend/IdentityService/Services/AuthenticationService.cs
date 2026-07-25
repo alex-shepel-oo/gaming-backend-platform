@@ -78,7 +78,7 @@ public sealed partial class AuthenticationService(
                 dbContext.UserGameRoles.Add(NewPlayerRole(user.Id, game.Id, now));
                 await dbContext.SaveChangesAsync(cancellationToken);
             }
-            else
+            else if (user.EmailConfirmed)
             {
                 await SendDuplicateRegistrationNoticeAsync(user.Id, user.Email, game.Name, cancellationToken);
             }
