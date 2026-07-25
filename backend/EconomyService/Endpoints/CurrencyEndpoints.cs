@@ -20,7 +20,7 @@ public static class CurrencyEndpoints
             .AsNoTracking()
             .Where(c => c.GameId == null || c.GameId == currentUser.GameId)
             .OrderBy(c => c.Code)
-            .Select(c => new CurrencyDto(c.Id, c.Code, c.DisplayName, c.Scope, c.GameId))
+            .Select(c => new CurrencyDto(c.Id, c.Code, c.DisplayName, c.Scope, c.GameId, c.Decimals))
             .ToArrayAsync(cancellationToken);
 
         return TypedResults.Ok(currencies);

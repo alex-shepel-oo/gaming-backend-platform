@@ -304,6 +304,7 @@ public sealed class TransactionEndpointsTests : IAsyncDisposable
             DisplayName = "Test Credits",
             Scope = CurrencyScope.Platform,
             GameId = null,
+            Decimals = 2,
             CreatedAt = DateTimeOffset.UtcNow,
         };
 

@@ -29,6 +29,7 @@ public sealed class DevelopmentSeeder(EconomyDbContext dbContext, TimeProvider t
             DisplayName = "Platform Credits",
             Scope = CurrencyScope.Platform,
             GameId = null,
+            Decimals = 2,
             CreatedAt = now,
         };
 
@@ -39,6 +40,7 @@ public sealed class DevelopmentSeeder(EconomyDbContext dbContext, TimeProvider t
             DisplayName = "Shooter Gold",
             Scope = CurrencyScope.Game,
             GameId = DemoShooterGameId,
+            Decimals = 2,
             CreatedAt = now,
         };
 
@@ -49,6 +51,7 @@ public sealed class DevelopmentSeeder(EconomyDbContext dbContext, TimeProvider t
             DisplayName = "Racer Tokens",
             Scope = CurrencyScope.Game,
             GameId = DemoRacerGameId,
+            Decimals = 2,
             CreatedAt = now,
         };
 

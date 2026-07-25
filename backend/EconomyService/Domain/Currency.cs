@@ -9,5 +9,6 @@ public sealed class Currency
     public required string DisplayName { get; set; }
     public required CurrencyScope Scope { get; init; }
     public Guid? GameId { get; init; }
+    public required short Decimals { get; init; }
     public required DateTimeOffset CreatedAt { get; init; }
 }

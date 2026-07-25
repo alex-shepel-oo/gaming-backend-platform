@@ -100,6 +100,7 @@ public sealed class TenantIsolationTests : IAsyncDisposable
             DisplayName = code,
             Scope = scope,
             GameId = gameId,
+            Decimals = 2,
             CreatedAt = DateTimeOffset.UtcNow,
         };
 

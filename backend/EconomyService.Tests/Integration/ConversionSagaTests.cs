@@ -518,6 +518,7 @@ public sealed class ConversionSagaTests : IAsyncDisposable
             DisplayName = "Test Platform Credits",
             Scope = CurrencyScope.Platform,
             GameId = null,
+            Decimals = 2,
             CreatedAt = DateTimeOffset.UtcNow,
         };
         dbContext.Currencies.Add(currency);
@@ -536,6 +537,7 @@ public sealed class ConversionSagaTests : IAsyncDisposable
             DisplayName = "Test Game Gold",
             Scope = CurrencyScope.Game,
             GameId = gameId,
+            Decimals = 2,
             CreatedAt = DateTimeOffset.UtcNow,
         };
         dbContext.Currencies.Add(currency);

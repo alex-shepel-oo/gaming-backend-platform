@@ -172,6 +172,7 @@ public sealed class BalanceEndpointsTests : IAsyncDisposable
             DisplayName = code,
             Scope = scope,
             GameId = gameId,
+            Decimals = 2,
             CreatedAt = DateTimeOffset.UtcNow,
         };
 

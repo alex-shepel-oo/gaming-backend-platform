@@ -336,6 +336,7 @@ public sealed class ConversionEndpointsTests : IAsyncDisposable
             DisplayName = "Test Platform Credits",
             Scope = CurrencyScope.Platform,
             GameId = null,
+            Decimals = 2,
             CreatedAt = DateTimeOffset.UtcNow,
         };
 
@@ -346,6 +347,7 @@ public sealed class ConversionEndpointsTests : IAsyncDisposable
             DisplayName = "Test Game Gold",
             Scope = CurrencyScope.Game,
             GameId = Guid.NewGuid(),
+            Decimals = 2,
             CreatedAt = DateTimeOffset.UtcNow,
         };
 
