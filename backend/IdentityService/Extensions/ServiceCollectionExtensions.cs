@@ -80,6 +80,11 @@ public static class ServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddOptions<PasswordResetOptions>()
+            .Bind(configuration.GetSection(PasswordResetOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
         services.AddSingleton<ITokenService, TokenService>();
         services.AddSingleton<IRefreshTokenGenerator, RefreshTokenGenerator>();
@@ -87,6 +92,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddSingleton<IVerificationCodeGenerator, VerificationCodeGenerator>();
         services.AddScoped<IEmailVerificationService, EmailVerificationService>();
+        services.AddScoped<IPasswordResetService, PasswordResetService>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<ISessionService, SessionService>();
         services.AddScoped<IPermissionResolver, PermissionResolver>();
@@ -145,6 +151,9 @@ public static class ServiceCollectionExtensions
             limiterOptions.AddPolicy(RateLimitPolicies.ConfirmEmail, IpPartition(o => (o.ConfirmEmailPermitLimit, o.ConfirmEmailWindowSeconds)));
             limiterOptions.AddPolicy(
                 RateLimitPolicies.ResendVerification, IpPartition(o => (o.ResendVerificationPermitLimit, o.ResendVerificationWindowSeconds)));
+            limiterOptions.AddPolicy(
+                RateLimitPolicies.RequestPasswordReset,
+                IpPartition(o => (o.RequestPasswordResetPermitLimit, o.RequestPasswordResetWindowSeconds)));
         });
 
         return services;

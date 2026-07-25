@@ -6,13 +6,20 @@ namespace IdentityService.Services.Email.Templates;
 public sealed class EmailTemplateRenderer : IEmailTemplateRenderer
 {
     private const string ResourceName = "IdentityService.Services.Email.Templates.EmailVerification.html";
+    private const string PasswordResetResourceName = "IdentityService.Services.Email.Templates.PasswordReset.html";
 
     private static readonly string EmailVerificationTemplate = LoadTemplate(ResourceName);
+    private static readonly string PasswordResetTemplate = LoadTemplate(PasswordResetResourceName);
 
     public string RenderEmailVerification(string code, string gameName, int expiresInMinutes) =>
         EmailVerificationTemplate
             .Replace("{{Code}}", code)
             .Replace("{{GameName}}", gameName)
+            .Replace("{{ExpiresInMinutes}}", expiresInMinutes.ToString(CultureInfo.InvariantCulture));
+
+    public string RenderPasswordReset(string resetLink, int expiresInMinutes) =>
+        PasswordResetTemplate
+            .Replace("{{ResetLink}}", resetLink)
             .Replace("{{ExpiresInMinutes}}", expiresInMinutes.ToString(CultureInfo.InvariantCulture));
 
     private static string LoadTemplate(string resourceName)

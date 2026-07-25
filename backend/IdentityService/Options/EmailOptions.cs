@@ -18,6 +18,10 @@ public sealed class EmailOptions
     public string FromDisplayName { get; set; } = string.Empty;
 
     [Required]
+    [Url]
+    public string FrontendBaseUrl { get; set; } = "http://localhost:8080";
+
+    [Required]
     [ValidateObjectMembers]
     public EmailSmtpOptions Smtp { get; set; } = new();
 }

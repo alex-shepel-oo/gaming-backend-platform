@@ -17,6 +17,7 @@ public static class AuthEndpoints
         group.MapPost("/register", RegisterAsync).RequireRateLimiting(RateLimitPolicies.Register);
         group.MapPost("/confirm-email", ConfirmEmailAsync).RequireRateLimiting(RateLimitPolicies.ConfirmEmail);
         group.MapPost("/resend-verification", ResendVerificationAsync).RequireRateLimiting(RateLimitPolicies.ResendVerification);
+        group.MapPost("/request-password-reset", RequestPasswordResetAsync).RequireRateLimiting(RateLimitPolicies.RequestPasswordReset);
         group.MapPost("/login", LoginAsync).RequireRateLimiting(RateLimitPolicies.Login);
         group.MapPost("/refresh", RefreshAsync);
         group.MapPost("/logout", LogoutAsync).RequireAuthorization();
@@ -52,6 +53,16 @@ public static class AuthEndpoints
         CancellationToken cancellationToken)
     {
         await emailVerificationService.ResendAsync(request.Email, request.GameSlug, cancellationToken);
+
+        return TypedResults.Accepted((string?)null);
+    }
+
+    private static async Task<Accepted> RequestPasswordResetAsync(
+        RequestPasswordResetRequest request,
+        IPasswordResetService passwordResetService,
+        CancellationToken cancellationToken)
+    {
+        await passwordResetService.RequestResetAsync(request.Email, cancellationToken);
 
         return TypedResults.Accepted((string?)null);
     }
