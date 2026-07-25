@@ -7,7 +7,9 @@ import {
   ConfirmEmailRequest,
   RegisterRequest,
   RegistrationAcceptedResponse,
+  RequestPasswordResetRequest,
   ResendVerificationRequest,
+  ResetPasswordRequest,
 } from './registration.models';
 import { TokenStore } from './token-store';
 
@@ -36,6 +38,14 @@ export class AuthService {
 
   resendVerification(request: ResendVerificationRequest): Observable<void> {
     return this.http.post<void>(IdentityAuthEndpoints.resendVerification, request);
+  }
+
+  requestPasswordReset(request: RequestPasswordResetRequest): Observable<void> {
+    return this.http.post<void>(IdentityAuthEndpoints.requestPasswordReset, request);
+  }
+
+  resetPassword(request: ResetPasswordRequest): Observable<void> {
+    return this.http.post<void>(IdentityAuthEndpoints.resetPassword, request);
   }
 
   login(credentials: LoginCredentials): Observable<void> {

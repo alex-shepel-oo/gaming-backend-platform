@@ -4,6 +4,8 @@ export const IdentityAuthEndpoints = {
   register: `${IDENTITY_AUTH_BASE_PATH}/register`,
   confirmEmail: `${IDENTITY_AUTH_BASE_PATH}/confirm-email`,
   resendVerification: `${IDENTITY_AUTH_BASE_PATH}/resend-verification`,
+  requestPasswordReset: `${IDENTITY_AUTH_BASE_PATH}/request-password-reset`,
+  resetPassword: `${IDENTITY_AUTH_BASE_PATH}/reset-password`,
   login: `${IDENTITY_AUTH_BASE_PATH}/login`,
   refresh: `${IDENTITY_AUTH_BASE_PATH}/refresh`,
   logout: `${IDENTITY_AUTH_BASE_PATH}/logout`,

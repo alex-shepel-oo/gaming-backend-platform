@@ -36,7 +36,13 @@
   </form>
 
   <div class="confirm-email-actions">
-    <button type="button" mat-button (click)="resend()" [disabled]="resending()">Resend code</button>
+    <button type="button" mat-button (click)="resend()" [disabled]="resending()">
+      @if (resending() && secondsRemaining() > 0) {
+        Resend in {{ secondsRemaining() }}s
+      } @else {
+        Resend code
+      }
+    </button>
     @if (resent()) {
       <span class="confirm-email-resent">A new code was sent if one was needed.</span>
     }

@@ -8,6 +8,8 @@ describe('ConfirmEmail', () => {
   let httpMock: HttpTestingController;
 
   beforeEach(() => {
+    vi.useFakeTimers();
+
     TestBed.configureTestingModule({
       imports: [ConfirmEmail],
       providers: [provideHttpClient(), provideHttpClientTesting()],
@@ -18,6 +20,7 @@ describe('ConfirmEmail', () => {
 
   afterEach(() => {
     httpMock.verify();
+    vi.useRealTimers();
   });
 
   function createAndSubmit(code: string): ComponentFixture<ConfirmEmail> {
@@ -79,5 +82,34 @@ describe('ConfirmEmail', () => {
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('A new code was sent');
+  });
+
+  it('counts down the resend cooldown and re-enables the button at zero', () => {
+    const fixture = TestBed.createComponent(ConfirmEmail);
+    fixture.componentRef.setInput('email', 'newplayer@example.com');
+    fixture.detectChanges();
+
+    const findResendButton = () =>
+      Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button')).find((button) =>
+        button.textContent?.includes('Resend'),
+      )!;
+
+    findResendButton().dispatchEvent(new Event('click'));
+    httpMock
+      .expectOne(IdentityAuthEndpoints.resendVerification)
+      .flush(null, { status: 202, statusText: 'Accepted' });
+    fixture.detectChanges();
+
+    expect(findResendButton().disabled).toBe(true);
+    expect(findResendButton().textContent).toContain('Resend in 30s');
+
+    vi.advanceTimersByTime(5_000);
+    fixture.detectChanges();
+    expect(findResendButton().textContent).toContain('Resend in 25s');
+
+    vi.advanceTimersByTime(25_000);
+    fixture.detectChanges();
+    expect(findResendButton().disabled).toBe(false);
+    expect(findResendButton().textContent).toContain('Resend code');
   });
 });
