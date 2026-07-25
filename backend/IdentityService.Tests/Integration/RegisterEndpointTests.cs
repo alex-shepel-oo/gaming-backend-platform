@@ -158,11 +158,11 @@ public sealed partial class RegisterEndpointTests(IdentityApiFactory factory) : 
     }
 
     [Fact]
-    public async Task Register_ConfirmedEmailAlreadyHasRoleInGame_Returns409()
+    public async Task Register_ConfirmedEmailAlreadyHasRoleInGame_Returns202()
     {
         var game = await SeedGameAsync();
         var email = $"{Guid.NewGuid():N}@example.com";
-        await SeedConfirmedUserAsync(email, game.Id);
+        var userId = await SeedConfirmedUserAsync(email, game.Id);
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
@@ -171,7 +171,17 @@ public sealed partial class RegisterEndpointTests(IdentityApiFactory factory) : 
             JsonOptions,
             TestContext.Current.CancellationToken);
 
-        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var roles = await dbContext.UserGameRoles
+            .Where(r => r.UserId == userId && r.GameId == game.Id)
+            .ToListAsync(TestContext.Current.CancellationToken);
+        roles.Should().ContainSingle();
+
+        factory.EmailSender.Sent.Should().HaveCount(1);
+        factory.EmailSender.Sent.Single().To.Should().Be(email);
     }
 
     [Fact]

@@ -2,19 +2,28 @@ using IdentityService.Domain;
 using IdentityService.Domain.Enums;
 using IdentityService.Exceptions;
 using IdentityService.Persistence;
+using IdentityService.Services.Email;
+using IdentityService.Services.Email.Templates;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace IdentityService.Services;
 
-public sealed class AuthenticationService(
+public sealed partial class AuthenticationService(
     IdentityDbContext dbContext,
     IPasswordHasher passwordHasher,
     IEmailVerificationService emailVerificationService,
     IRefreshTokenService refreshTokenService,
     ITokenService tokenService,
     IPermissionResolver permissionResolver,
-    TimeProvider timeProvider) : IAuthenticationService
+    IEmailSender emailSender,
+    IEmailTemplateRenderer templateRenderer,
+    TimeProvider timeProvider,
+    ILogger<AuthenticationService> logger) : IAuthenticationService
 {
+    private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(10);
+
+
     public async Task<RegistrationResult> RegisterAsync(
         string gameSlug,
         string email,
@@ -64,15 +73,14 @@ public sealed class AuthenticationService(
             var hasRoleInGame = await dbContext.UserGameRoles
                 .AnyAsync(r => r.UserId == user.Id && r.GameId == game.Id, cancellationToken);
 
-            if (user.EmailConfirmed && hasRoleInGame)
-            {
-                throw new EmailAlreadyExistsException();
-            }
-
             if (!hasRoleInGame)
             {
                 dbContext.UserGameRoles.Add(NewPlayerRole(user.Id, game.Id, now));
                 await dbContext.SaveChangesAsync(cancellationToken);
+            }
+            else
+            {
+                await SendDuplicateRegistrationNoticeAsync(user.Id, user.Email, game.Name, cancellationToken);
             }
 
             if (user.EmailConfirmed)
@@ -157,4 +165,30 @@ public sealed class AuthenticationService(
         Role = PlatformRole.Player,
         GrantedAt = now,
     };
+
+    private async Task SendDuplicateRegistrationNoticeAsync(
+        Guid userId, string email, string gameName, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timeoutCts = new CancellationTokenSource(SendTimeout);
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
+            var htmlBody = templateRenderer.RenderDuplicateRegistrationNotice(gameName);
+            var textBody =
+                $"Someone attempted to register an account for {gameName} using this email address. " +
+                "If this was not you, you can safely ignore this message -- no changes were made to your account.";
+
+            await emailSender.SendAsync(
+                new EmailMessage(email, "Registration attempt on your email address", htmlBody, textBody),
+                linkedCts.Token);
+        }
+        catch (Exception exception)
+        {
+            LogDuplicateRegistrationNoticeSendFailed(exception, userId);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to send duplicate registration notice email for user {UserId}")]
+    private partial void LogDuplicateRegistrationNoticeSendFailed(Exception exception, Guid userId);
 }
