@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
+using EconomyService.Auth;
 using EconomyService.Contracts.Requests;
 using EconomyService.Contracts.Responses;
 using EconomyService.Domain;
@@ -46,7 +47,7 @@ public sealed class TransactionEndpointsTests : IAsyncDisposable
     {
         var currency = await SeedCurrencyAsync();
         var userId = Guid.NewGuid();
-        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), role: "Admin");
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), perms: [Permissions.PlatformBalanceAdjust]);
 
         var response = await PostAsync(
             "/transactions/grant",
@@ -83,11 +84,76 @@ public sealed class TransactionEndpointsTests : IAsyncDisposable
     }
 
     [Test]
+    public async Task Grant_GameAdminOwnGameCurrency_Returns201()
+    {
+        var gameId = Guid.CreateVersion7();
+        var currency = await SeedCurrencyAsync(CurrencyScope.Game, gameId);
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), gameId, perms: [Permissions.GameBalanceAdjust]);
+
+        var response = await PostAsync(
+            "/transactions/grant",
+            new GrantRequest(Guid.NewGuid(), currency.Id, 100m, "game admin grant"),
+            token,
+            "grant-key-gameadmin-own");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+    }
+
+    [Test]
+    public async Task Grant_GameAdminOtherGameCurrency_Returns403()
+    {
+        var ownGameId = Guid.CreateVersion7();
+        var otherGameId = Guid.CreateVersion7();
+        var currency = await SeedCurrencyAsync(CurrencyScope.Game, otherGameId);
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), ownGameId, perms: [Permissions.GameBalanceAdjust]);
+
+        var response = await PostAsync(
+            "/transactions/grant",
+            new GrantRequest(Guid.NewGuid(), currency.Id, 100m, "wrong game"),
+            token,
+            "grant-key-gameadmin-other-game");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Test]
+    public async Task Grant_GameAdminPlatformCurrency_Returns403()
+    {
+        var gameId = Guid.CreateVersion7();
+        var currency = await SeedCurrencyAsync();
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), gameId, perms: [Permissions.GameBalanceAdjust]);
+
+        var response = await PostAsync(
+            "/transactions/grant",
+            new GrantRequest(Guid.NewGuid(), currency.Id, 100m, "platform currency"),
+            token,
+            "grant-key-gameadmin-platform-currency");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Test]
+    public async Task Grant_PlatformAdminAnyCurrency_Returns201()
+    {
+        var gameId = Guid.CreateVersion7();
+        var currency = await SeedCurrencyAsync(CurrencyScope.Game, gameId);
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), perms: [Permissions.PlatformBalanceAdjust]);
+
+        var response = await PostAsync(
+            "/transactions/grant",
+            new GrantRequest(Guid.NewGuid(), currency.Id, 100m, "platform admin grant"),
+            token,
+            "grant-key-platformadmin");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+    }
+
+    [Test]
     public async Task Spend_WithinBalance_Returns201AndDebitsBalance()
     {
         var currency = await SeedCurrencyAsync();
         var userId = Guid.NewGuid();
-        var adminToken = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), role: "Admin");
+        var adminToken = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), perms: [Permissions.PlatformBalanceAdjust]);
         await PostAsync("/transactions/grant", new GrantRequest(userId, currency.Id, 100m, "seed"), adminToken, "seed-grant-1");
 
         var playerToken = TestTokenFactory.IssueAccessToken(userId, role: "Player");
@@ -104,7 +170,7 @@ public sealed class TransactionEndpointsTests : IAsyncDisposable
     {
         var currency = await SeedCurrencyAsync();
         var userId = Guid.NewGuid();
-        var adminToken = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), role: "Admin");
+        var adminToken = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), perms: [Permissions.PlatformBalanceAdjust]);
         await PostAsync("/transactions/grant", new GrantRequest(userId, currency.Id, 50m, "seed"), adminToken, "seed-grant-2");
 
         var playerToken = TestTokenFactory.IssueAccessToken(userId, role: "Player");
@@ -126,7 +192,7 @@ public sealed class TransactionEndpointsTests : IAsyncDisposable
     {
         var currency = await SeedCurrencyAsync();
         var userId = Guid.NewGuid();
-        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), role: "Moderator");
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), perms: [Permissions.PlatformBalanceAdjust]);
         var request = new GrantRequest(userId, currency.Id, 25m, "sign-up grant");
 
         var firstResponse = await PostAsync("/transactions/grant", request, token, "replay-key-1");
@@ -151,7 +217,7 @@ public sealed class TransactionEndpointsTests : IAsyncDisposable
     public async Task Grant_NoIdempotencyKeyHeader_Returns400()
     {
         var currency = await SeedCurrencyAsync();
-        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), role: "Admin");
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), perms: [Permissions.PlatformBalanceAdjust]);
 
         var response = await PostAsync(
             "/transactions/grant", new GrantRequest(Guid.NewGuid(), currency.Id, 10m, "no key"), token, idempotencyKey: null);
@@ -207,7 +273,7 @@ public sealed class TransactionEndpointsTests : IAsyncDisposable
         var currency = await SeedCurrencyAsync();
         var userId = Guid.NewGuid();
         var otherUserId = Guid.NewGuid();
-        var adminToken = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), role: "Admin");
+        var adminToken = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), perms: [Permissions.PlatformBalanceAdjust]);
 
         for (var i = 0; i < 3; i++)
         {
@@ -241,7 +307,7 @@ public sealed class TransactionEndpointsTests : IAsyncDisposable
         var currencyA = await SeedCurrencyAsync();
         var currencyB = await SeedCurrencyAsync();
         var userId = Guid.NewGuid();
-        var adminToken = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), role: "Admin");
+        var adminToken = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), perms: [Permissions.PlatformBalanceAdjust]);
 
         await PostAsync("/transactions/grant", new GrantRequest(userId, currencyA.Id, 10m, "currency a"), adminToken, "filter-key-a");
         await PostAsync("/transactions/grant", new GrantRequest(userId, currencyB.Id, 10m, "currency b"), adminToken, "filter-key-b");
@@ -292,18 +358,19 @@ public sealed class TransactionEndpointsTests : IAsyncDisposable
         return await client.SendAsync(request, TestContext.CurrentContext.CancellationToken);
     }
 
-    private async Task<Currency> SeedCurrencyAsync()
+    private async Task<Currency> SeedCurrencyAsync(CurrencyScope scope = CurrencyScope.Platform, Guid? gameId = null)
     {
-        await using var scope = _factory.Services.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<EconomyDbContext>();
+        await using var dbScope = _factory.Services.CreateAsyncScope();
+        var dbContext = dbScope.ServiceProvider.GetRequiredService<EconomyDbContext>();
 
         var currency = new Currency
         {
             Id = Guid.CreateVersion7(),
             Code = $"TEST_{Guid.NewGuid():N}",
             DisplayName = "Test Credits",
-            Scope = CurrencyScope.Platform,
-            GameId = null,
+            Scope = scope,
+            GameId = gameId,
+            Decimals = 2,
             CreatedAt = DateTimeOffset.UtcNow,
         };
 

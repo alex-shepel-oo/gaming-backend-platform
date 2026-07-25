@@ -19,6 +19,8 @@ public static class ConversionEndpoints
 
         group.MapPost("", CreateAsync).RequireAuthorization();
         group.MapGet("/{id:guid}", GetAsync).RequireAuthorization();
+        group.MapGet("/rate", GetRateAsync).RequireAuthorization();
+        group.MapPost("/{id:guid}/cancel", CancelAsync).RequireAuthorization();
     }
 
     private static async Task<Accepted<ConversionDto>> CreateAsync(
@@ -67,6 +69,44 @@ public static class ConversionEndpoints
         }
 
         return conversionId;
+    }
+
+    private static async Task<Ok<ConversionRateDto>> GetRateAsync(
+        Guid fromCurrencyId,
+        Guid toCurrencyId,
+        IConversionRequestService conversionRequestService,
+        CancellationToken cancellationToken)
+    {
+        var rate = await conversionRequestService.GetRateAsync(fromCurrencyId, toCurrencyId, cancellationToken);
+        return TypedResults.Ok(new ConversionRateDto(rate.FromCurrencyId, rate.ToCurrencyId, rate.Rate));
+    }
+
+    private static async Task<Results<Ok<ConversionDto>, NotFound>> CancelAsync(
+        Guid id,
+        ICurrentUser currentUser,
+        IConversionSaga conversionSaga,
+        EconomyDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        // Same owner-scoped 404 as GetAsync - a conversion belonging to
+        // someone else must not be distinguishable from one that doesn't
+        // exist at all.
+        var owned = await dbContext.ConversionRequests
+            .AsNoTracking()
+            .SingleOrDefaultAsync(r => r.Id == id && r.UserId == currentUser.UserId, cancellationToken);
+
+        if (owned is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        await conversionSaga.TryCancelAsync(id, cancellationToken);
+
+        var updated = await dbContext.ConversionRequests
+            .AsNoTracking()
+            .SingleAsync(r => r.Id == id, cancellationToken);
+
+        return TypedResults.Ok(ToDto(updated));
     }
 
     private static ConversionDto ToDto(ConversionRequest request) => new(

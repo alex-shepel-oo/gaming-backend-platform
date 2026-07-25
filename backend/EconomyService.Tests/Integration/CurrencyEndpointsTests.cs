@@ -62,6 +62,26 @@ public sealed class CurrencyEndpointsTests : IAsyncDisposable
         var ids = body!.Select(c => c.Id).ToArray();
         ids.Should().Contain([platform.Id, gameACurrency.Id]);
         ids.Should().NotContain(gameBCurrency.Id);
+        body!.Should().OnlyContain(c => c.Decimals == 2);
+    }
+
+    [Test]
+    public async Task GetCurrencies_CurrencyWithNonDefaultDecimals_ReturnsConfiguredValue()
+    {
+        var currency = await SeedCurrencyAsync("HIGH_PRECISION", CurrencyScope.Platform, null, decimals: 4);
+
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), Guid.NewGuid());
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/currencies");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.SendAsync(request, TestContext.CurrentContext.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<CurrencyDto[]>(
+            JsonOptions, TestContext.CurrentContext.CancellationToken);
+
+        body!.Single(c => c.Id == currency.Id).Decimals.Should().Be(4);
     }
 
     [Test]
@@ -74,7 +94,7 @@ public sealed class CurrencyEndpointsTests : IAsyncDisposable
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    private async Task<Currency> SeedCurrencyAsync(string code, CurrencyScope scope, Guid? gameId)
+    private async Task<Currency> SeedCurrencyAsync(string code, CurrencyScope scope, Guid? gameId, short decimals = 2)
     {
         await using var scope1 = _factory.Services.CreateAsyncScope();
         var dbContext = scope1.ServiceProvider.GetRequiredService<EconomyDbContext>();
@@ -86,6 +106,7 @@ public sealed class CurrencyEndpointsTests : IAsyncDisposable
             DisplayName = code,
             Scope = scope,
             GameId = gameId,
+            Decimals = decimals,
             CreatedAt = DateTimeOffset.UtcNow,
         };
 

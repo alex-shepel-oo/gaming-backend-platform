@@ -38,10 +38,11 @@ not the options deprecated as of Ocelot 24.1 (`DurationOfBreak`,
 `ExceptionsAllowedBeforeBreaking`, `TimeoutValue`), which most existing examples online still
 show.
 
-Authorization policies (Player / Moderator / Admin, from JWT claims) are enforced both at the
-gateway and inside each downstream service. The gateway's check is a coarse, early rejection; the
-service's check is the authority. This is defence in depth, not duplicated logic left in by
-oversight.
+Authorization policies (role, and — since slice 3's permission-based RBAC, see
+[ADR-0013](0013-permission-based-rbac-and-audience-scoped-tokens.md) — `scope`, from JWT claims) are
+enforced both at the gateway and inside each downstream service. The gateway's check is a coarse,
+early rejection; the service's check is the authority, since only the service knows which specific
+resource a request targets. This is defence in depth, not duplicated logic left in by oversight.
 
 **API documentation is aggregated by proxying, not by a Swagger-aggregation package.** The usual
 tool for this with Ocelot is `MMLib.SwaggerForOcelot`, and version 10.0.2 does target `net10.0`

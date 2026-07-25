@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
+using EconomyService.Auth;
 using EconomyService.Contracts.Requests;
 using EconomyService.Contracts.Responses;
 using EconomyService.Domain;
@@ -105,7 +106,7 @@ public sealed class BalanceEndpointsTests : IAsyncDisposable
     public async Task Adjust_AdminNoReason_Returns400()
     {
         var currency = await SeedCurrencyAsync("PLATFORM_CREDITS", CurrencyScope.Platform, null);
-        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), role: "Admin");
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), perms: [Permissions.PlatformBalanceAdjust]);
 
         using var client = _factory.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Post, $"/balances/{Guid.NewGuid()}/adjust")
@@ -125,7 +126,7 @@ public sealed class BalanceEndpointsTests : IAsyncDisposable
     {
         var currency = await SeedCurrencyAsync("PLATFORM_CREDITS", CurrencyScope.Platform, null);
         var userId = Guid.NewGuid();
-        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), role: "Admin");
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), perms: [Permissions.PlatformBalanceAdjust]);
 
         var response = await AdjustAsync(
             userId, new AdjustRequest(currency.Id, 15m, "manual correction"), token, "adjust-key-3");
@@ -141,6 +142,59 @@ public sealed class BalanceEndpointsTests : IAsyncDisposable
             .Where(e => e.UserId == userId && e.CurrencyId == currency.Id)
             .ToListAsync(TestContext.CurrentContext.CancellationToken);
         entries.Should().HaveCount(1);
+    }
+
+    [Test]
+    public async Task Adjust_GameAdminOwnGameCurrency_Returns201()
+    {
+        var gameId = Guid.CreateVersion7();
+        var currency = await SeedCurrencyAsync("GAME_GOLD", CurrencyScope.Game, gameId);
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), gameId, perms: [Permissions.GameBalanceAdjust]);
+
+        var response = await AdjustAsync(
+            Guid.NewGuid(), new AdjustRequest(currency.Id, 15m, "game admin correction"), token, "adjust-key-gameadmin-own");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+    }
+
+    [Test]
+    public async Task Adjust_GameAdminOtherGameCurrency_Returns403()
+    {
+        var ownGameId = Guid.CreateVersion7();
+        var otherGameId = Guid.CreateVersion7();
+        var currency = await SeedCurrencyAsync("OTHER_GAME_GOLD", CurrencyScope.Game, otherGameId);
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), ownGameId, perms: [Permissions.GameBalanceAdjust]);
+
+        var response = await AdjustAsync(
+            Guid.NewGuid(), new AdjustRequest(currency.Id, 15m, "wrong game"), token, "adjust-key-gameadmin-other-game");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Test]
+    public async Task Adjust_GameAdminPlatformCurrency_Returns403()
+    {
+        var gameId = Guid.CreateVersion7();
+        var currency = await SeedCurrencyAsync("PLATFORM_CREDITS", CurrencyScope.Platform, null);
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), gameId, perms: [Permissions.GameBalanceAdjust]);
+
+        var response = await AdjustAsync(
+            Guid.NewGuid(), new AdjustRequest(currency.Id, 15m, "platform currency"), token, "adjust-key-gameadmin-platform-currency");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Test]
+    public async Task Adjust_PlatformAdminOtherGameCurrency_Returns201()
+    {
+        var gameId = Guid.CreateVersion7();
+        var currency = await SeedCurrencyAsync("GAME_GOLD", CurrencyScope.Game, gameId);
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), perms: [Permissions.PlatformBalanceAdjust]);
+
+        var response = await AdjustAsync(
+            Guid.NewGuid(), new AdjustRequest(currency.Id, 15m, "platform admin correction"), token, "adjust-key-platformadmin-other-game");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
     }
 
     private async Task<HttpResponseMessage> AdjustAsync(Guid userId, AdjustRequest requestBody, string token, string? idempotencyKey)
@@ -172,6 +226,7 @@ public sealed class BalanceEndpointsTests : IAsyncDisposable
             DisplayName = code,
             Scope = scope,
             GameId = gameId,
+            Decimals = 2,
             CreatedAt = DateTimeOffset.UtcNow,
         };
 
