@@ -20,7 +20,7 @@ See the template: [0000-template.md](0000-template.md).
 | [0011](0011-web-auth-cookie-flow.md) | Web Auth: Cookie-Based Refresh Flow | Accepted | 2 |
 | [0012](0012-frontend-security-and-guards.md) | Frontend Security and Route Guards | Accepted | 2 |
 | [0013](0013-permission-based-rbac-and-audience-scoped-tokens.md) | Permission-Based RBAC, Audience-Scoped Tokens, and Ecosystem-First Scope | Accepted | 3 |
-| 0014 | Real-Time Notifications: NotificationService + SignalR | Planned | 3 |
+| [0014](0014-notification-service-and-signalr.md) | NotificationService and Real-Time Delivery over SignalR | Accepted | 3 |
 | 0015 | Auth-Cluster Hardening: Password Reset, Anti-Enumeration, OAuth Groundwork | Planned | 3 |
 | 0016 | Admin Surface Isolation | Planned | 3 |
 | 0017 | RS256 + JWKS | Planned | 3 |

@@ -2,7 +2,15 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { CurrencyScope, EconomyEndpoints, GameSelectionService, IdentityAuthEndpoints, TokenStore, WalletService } from 'shared';
+import {
+  CurrencyScope,
+  EconomyEndpoints,
+  GameSelectionService,
+  IdentityAuthEndpoints,
+  NotificationHubService,
+  TokenStore,
+  WalletService,
+} from 'shared';
 import { Shell } from './shell';
 
 function base64UrlEncode(value: string): string {
@@ -28,8 +36,11 @@ describe('Shell', () => {
   let gameSelection: GameSelectionService;
   let tokenStore: TokenStore;
   let walletService: WalletService;
+  let notificationHub: { connect: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
+    notificationHub = { connect: vi.fn(), disconnect: vi.fn() };
+
     // ThemeService (injected by Shell) reads window.matchMedia on construction
     // to pick an initial mode -- jsdom doesn't implement it.
     vi.stubGlobal(
@@ -44,7 +55,12 @@ describe('Shell', () => {
 
     TestBed.configureTestingModule({
       imports: [Shell],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: NotificationHubService, useValue: notificationHub },
+      ],
     });
 
     httpMock = TestBed.inject(HttpTestingController);
@@ -143,6 +159,7 @@ describe('Shell', () => {
 
     expect(gameSelection.selected()).toBeNull();
     expect(walletService.balances()).toBeNull();
+    expect(notificationHub.disconnect).toHaveBeenCalled();
     expect(navigateSpy).toHaveBeenCalledWith('/login');
   });
 });

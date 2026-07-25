@@ -46,4 +46,21 @@ describe('WalletService balances snapshot', () => {
 
     expect(service.balances()).toBeNull();
   });
+
+  it('applyBalanceChange updates the matching currency and leaves others untouched', () => {
+    const twoBalances = [
+      ...balances,
+      { currencyId: 'game-1', currencyCode: 'GEMS', scope: CurrencyScope.Game, gameId: 'game-a', amount: 10 },
+    ];
+
+    service.refreshBalances().subscribe();
+    httpMock.expectOne((req) => req.url === EconomyEndpoints.balances).flush(twoBalances);
+
+    service.applyBalanceChange('platform-1', 750);
+
+    expect(service.balances()).toEqual([
+      { ...twoBalances[0], amount: 750 },
+      twoBalances[1],
+    ]);
+  });
 });
