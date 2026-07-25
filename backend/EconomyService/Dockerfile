@@ -9,9 +9,11 @@ WORKDIR /src
 
 COPY Directory.Build.props Directory.Packages.props ./
 COPY EconomyService/EconomyService.csproj EconomyService/
+COPY BuildingBlocks.Messaging/BuildingBlocks.Messaging.csproj BuildingBlocks.Messaging/
 RUN dotnet restore EconomyService/EconomyService.csproj
 
 COPY EconomyService/ EconomyService/
+COPY BuildingBlocks.Messaging/ BuildingBlocks.Messaging/
 RUN dotnet publish EconomyService/EconomyService.csproj -c Release -o /app --no-restore
 
 # One-shot migration runner, kept separate from the app image for the same
