@@ -1,4 +1,6 @@
 using IdentityService.Domain;
+using IdentityService.Domain.Enums;
+using IdentityService.Exceptions;
 using IdentityService.Options;
 using IdentityService.Persistence;
 using IdentityService.Services.Email;
@@ -14,6 +16,8 @@ public sealed partial class PasswordResetService(
     IRefreshTokenGenerator tokenGenerator,
     IEmailSender emailSender,
     IEmailTemplateRenderer templateRenderer,
+    IPasswordHasher passwordHasher,
+    ISessionService sessionService,
     IOptions<PasswordResetOptions> options,
     IOptions<EmailOptions> emailOptions,
     TimeProvider timeProvider,
@@ -93,6 +97,40 @@ public sealed partial class PasswordResetService(
         {
             LogPasswordResetEmailSendFailed(exception, user.Id);
         }
+    }
+
+    public async Task CompleteResetAsync(string rawToken, string newPassword, CancellationToken cancellationToken = default)
+    {
+        var hash = tokenGenerator.Hash(rawToken);
+
+        // No ConsumedAt filter here on purpose -- we need to tell "not found" apart from
+        // "already used" internally (for logging/debugging), even though every one of those
+        // outcomes below throws the exact same exception to the caller.
+        var token = await dbContext.PasswordResetTokens
+            .Include(t => t.User)
+            .SingleOrDefaultAsync(t => t.TokenHash == hash, cancellationToken);
+
+        var now = timeProvider.GetUtcNow();
+
+        if (token is null || token.ConsumedAt is not null || token.ExpiresAt <= now)
+        {
+            throw new InvalidPasswordResetTokenException();
+        }
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        token.ConsumedAt = now;
+        token.User!.PasswordHash = passwordHasher.Hash(newPassword);
+        token.User.UpdatedAt = now;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        // Password change compromises the whole account, not just the game the reset was
+        // requested from -- revoke every refresh family across every game, not gameId-scoped.
+        await sessionService.RevokeAllSessionsAsync(
+            token.UserId, gameId: null, RevocationReason.PasswordChange, cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Failed to send password reset email for user {UserId}")]

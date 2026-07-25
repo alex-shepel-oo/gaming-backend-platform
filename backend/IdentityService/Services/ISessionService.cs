@@ -1,3 +1,5 @@
+using IdentityService.Domain.Enums;
+
 namespace IdentityService.Services;
 
 public interface ISessionService
@@ -10,5 +12,6 @@ public interface ISessionService
         string rawRefreshToken,
         CancellationToken cancellationToken = default);
 
-    Task RevokeAllSessionsAsync(Guid userId, Guid? gameId, CancellationToken cancellationToken = default);
+    Task RevokeAllSessionsAsync(
+        Guid userId, Guid? gameId, RevocationReason reason, CancellationToken cancellationToken = default);
 }

@@ -55,7 +55,8 @@ public sealed class SessionService(
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task RevokeAllSessionsAsync(Guid userId, Guid? gameId, CancellationToken cancellationToken = default)
+    public async Task RevokeAllSessionsAsync(
+        Guid userId, Guid? gameId, RevocationReason reason, CancellationToken cancellationToken = default)
     {
         var userExists = await dbContext.Users.AnyAsync(u => u.Id == userId, cancellationToken);
 
@@ -77,7 +78,7 @@ public sealed class SessionService(
         await families.ExecuteUpdateAsync(
             setters => setters
                 .SetProperty(f => f.RevokedAt, now)
-                .SetProperty(f => f.RevokedReason, RevocationReason.AdminRevoke),
+                .SetProperty(f => f.RevokedReason, reason),
             cancellationToken);
     }
 }

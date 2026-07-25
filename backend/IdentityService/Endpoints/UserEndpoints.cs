@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using IdentityService.Auth;
 using IdentityService.Contracts.Responses;
+using IdentityService.Domain.Enums;
 using IdentityService.Exceptions;
 using IdentityService.Persistence;
 using IdentityService.Services;
@@ -83,7 +84,7 @@ public static class UserEndpoints
         ISessionService sessionService,
         CancellationToken cancellationToken)
     {
-        await sessionService.RevokeAllSessionsAsync(userId, gameId, cancellationToken);
+        await sessionService.RevokeAllSessionsAsync(userId, gameId, RevocationReason.AdminRevoke, cancellationToken);
 
         return TypedResults.NoContent();
     }

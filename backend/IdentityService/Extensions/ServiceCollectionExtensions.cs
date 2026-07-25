@@ -154,6 +154,9 @@ public static class ServiceCollectionExtensions
             limiterOptions.AddPolicy(
                 RateLimitPolicies.RequestPasswordReset,
                 IpPartition(o => (o.RequestPasswordResetPermitLimit, o.RequestPasswordResetWindowSeconds)));
+            limiterOptions.AddPolicy(
+                RateLimitPolicies.ResetPassword,
+                IpPartition(o => (o.ResetPasswordPermitLimit, o.ResetPasswordWindowSeconds)));
         });
 
         return services;

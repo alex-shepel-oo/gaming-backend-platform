@@ -41,6 +41,7 @@ public sealed class IdentityApiFactory(PostgresFixture postgres) : WebApplicatio
                 ["RateLimiting:ConfirmEmailPermitLimit"] = "100000",
                 ["RateLimiting:ResendVerificationPermitLimit"] = "100000",
                 ["RateLimiting:RequestPasswordResetPermitLimit"] = "100000",
+                ["RateLimiting:ResetPasswordPermitLimit"] = "100000",
             }));
 
         builder.ConfigureServices(services =>
