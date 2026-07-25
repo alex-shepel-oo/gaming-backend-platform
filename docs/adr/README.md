@@ -21,7 +21,7 @@ See the template: [0000-template.md](0000-template.md).
 | [0012](0012-frontend-security-and-guards.md) | Frontend Security and Route Guards | Accepted | 2 |
 | [0013](0013-permission-based-rbac-and-audience-scoped-tokens.md) | Permission-Based RBAC, Audience-Scoped Tokens, and Ecosystem-First Scope | Accepted | 3 |
 | [0014](0014-notification-service-and-signalr.md) | NotificationService and Real-Time Delivery over SignalR | Accepted | 3 |
-| 0015 | Auth-Cluster Hardening: Password Reset, Anti-Enumeration, OAuth Groundwork | Planned | 3 |
+| [0015](0015-auth-cluster-hardening.md) | Auth-Cluster Hardening: Password Reset, Register Deduplication, OAuth Groundwork | Accepted | 3 |
 | 0016 | Admin Surface Isolation | Planned | 3 |
 | 0017 | RS256 + JWKS | Planned | 3 |
 | [0018](0018-shared-messaging-building-block.md) | Shared Messaging Building Block (`BuildingBlocks.Messaging`) | Accepted | 3 |
