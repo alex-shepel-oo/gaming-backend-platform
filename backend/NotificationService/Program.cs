@@ -1,6 +1,7 @@
 using System.Globalization;
 using NotificationService.Endpoints;
 using NotificationService.Extensions;
+using NotificationService.Hubs;
 using NotificationService.Infrastructure;
 using Scalar.AspNetCore;
 using Serilog;
@@ -19,6 +20,7 @@ builder.Services.AddNotificationMessaging(builder.Configuration);
 builder.Services.AddNotificationHealthChecks();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddNotificationAuthentication(builder.Configuration);
+builder.Services.AddNotificationSignalR();
 
 var app = builder.Build();
 
@@ -35,6 +37,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapHealthEndpoints();
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 app.Run();
 

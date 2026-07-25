@@ -34,6 +34,10 @@
     <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.19.2" />
     <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.19.2" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
+    <!-- Client-only: the SignalR server (AddSignalR/MapHub) ships inside the
+         Microsoft.AspNetCore.App shared framework and needs no NuGet reference;
+         this package is the test-side HubConnection client. -->
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.10" />
     <PackageVersion Include="MailKit" Version="4.17.0" />
     <!-- 7.x is a breaking async redesign (IChannel with CreateConnectionAsync/
          CreateChannelAsync/BasicPublishAsync) versus the 6.x synchronous IModel

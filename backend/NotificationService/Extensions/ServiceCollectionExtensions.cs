@@ -1,8 +1,10 @@
 using System.Text;
 using BuildingBlocks.Messaging;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using NotificationService.Auth;
 using NotificationService.Infrastructure;
 using NotificationService.Options;
 
@@ -78,9 +80,38 @@ public static class ServiceCollectionExtensions
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.Key)),
                     ClockSkew = TimeSpan.FromSeconds(options.ClockSkewSeconds),
                 };
+
+                // Browsers cannot attach an Authorization header to the WebSocket
+                // handshake, so the SignalR client sends the token as a query
+                // string instead. Scoped to the hub path only -- accepting a
+                // query-string token anywhere else would widen where a token can
+                // leak (proxy logs, browser history) beyond the one place that
+                // needs it.
+                bearerOptions.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        var accessToken = context.Request.Query["access_token"];
+                        if (!string.IsNullOrEmpty(accessToken) &&
+                            context.HttpContext.Request.Path.StartsWithSegments("/hubs/notifications"))
+                        {
+                            context.Token = accessToken;
+                        }
+
+                        return Task.CompletedTask;
+                    },
+                };
             });
 
         services.AddAuthorization();
+
+        return services;
+    }
+
+    public static IServiceCollection AddNotificationSignalR(this IServiceCollection services)
+    {
+        services.AddSignalR();
+        services.AddSingleton<IUserIdProvider, SubClaimUserIdProvider>();
 
         return services;
     }
