@@ -1,11 +1,14 @@
 using System.Globalization;
 using System.Net;
 using AwesomeAssertions;
+using BuildingBlocks.Messaging;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using RabbitMQ.Client;
 using Testcontainers.RabbitMq;
 using Xunit;
+using MsOptions = Microsoft.Extensions.Options.Options;
 
 namespace NotificationService.Tests.Integration;
 
@@ -25,6 +28,23 @@ public sealed class HealthReadyRabbitMqDownTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         await _rabbitMq.StartAsync();
+
+        // BalanceChangedConsumer binds its queue to this exchange on host
+        // startup; nothing else in this test declares it first, so the bind
+        // would fail (and take the host down with it) without this.
+        var options = MsOptions.Create(new RabbitMqOptions
+        {
+            Host = _rabbitMq.Hostname,
+            Port = _rabbitMq.GetMappedPublicPort(5672),
+            Username = "guest",
+            Password = "guest",
+        });
+
+        await using (var connection = new RabbitMqConnection(options))
+        await using (var channel = await connection.CreateChannelAsync())
+        {
+            await channel.ExchangeDeclareAsync(options.Value.ExchangeName, ExchangeType.Topic, durable: true, autoDelete: false);
+        }
 
         // The broker must be up when the factory builds the host: IRabbitMqConnection
         // is resolved lazily on first use, but the readiness check triggers that on

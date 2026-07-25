@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using NotificationService.Auth;
 using NotificationService.Infrastructure;
+using NotificationService.Messaging;
 using NotificationService.Options;
 
 namespace NotificationService.Extensions;
@@ -29,9 +30,9 @@ public static class ServiceCollectionExtensions
     // AddRabbitMqEventBus: that method also wires IEventBus and
     // RabbitMqTopologyInitializer, both producer-side concerns (declaring the
     // exchange, publishing). NotificationService never publishes -- it only
-    // reads from RabbitMQ, currently just to probe the connection for
-    // /health/ready. The consumer added in a later session binds its own
-    // queue directly against this same connection instead.
+    // reads from RabbitMQ, both to probe the connection for /health/ready and,
+    // via BalanceChangedConsumer, to bind its own queue directly against this
+    // same connection.
     public static IServiceCollection AddNotificationMessaging(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<RabbitMqOptions>()
@@ -40,6 +41,7 @@ public static class ServiceCollectionExtensions
             .ValidateOnStart();
 
         services.AddSingleton<IRabbitMqConnection, RabbitMqConnection>();
+        services.AddHostedService<BalanceChangedConsumer>();
 
         return services;
     }
