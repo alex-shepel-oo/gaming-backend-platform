@@ -6,6 +6,7 @@ export * from './lib/shared';
 export * from './lib/auth/auth.guard';
 export * from './lib/auth/auth.interceptor';
 export * from './lib/auth/auth.service';
+export * from './lib/auth/client-type';
 export * from './lib/auth/game-scope.guard';
 export * from './lib/auth/guest.guard';
 export * from './lib/auth/role.guard';

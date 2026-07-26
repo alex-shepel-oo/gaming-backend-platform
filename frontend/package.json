@@ -4,9 +4,9 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build shared && ng build player-client",
+    "build": "ng build shared && ng build player-client && ng build admin-client",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test player-client --watch=false && ng test shared --watch=false"
+    "test": "ng test player-client --watch=false && ng test admin-client --watch=false && ng test shared --watch=false"
   },
   "private": true,
   "packageManager": "npm@11.16.0",

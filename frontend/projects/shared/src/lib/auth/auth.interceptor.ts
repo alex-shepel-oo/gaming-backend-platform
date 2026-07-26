@@ -1,7 +1,8 @@
 import { HttpClient, HttpErrorResponse, HttpInterceptorFn, HttpRequest } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { catchError, switchMap, throwError } from 'rxjs';
-import { IdentityAuthEndpoints, WEB_CLIENT_TYPE_HEADERS } from './identity-auth-endpoints';
+import { CLIENT_TYPE } from './client-type';
+import { IdentityAuthEndpoints } from './identity-auth-endpoints';
 import { TokenStore } from './token-store';
 
 interface RefreshResponse {
@@ -19,6 +20,7 @@ function withAuth(req: HttpRequest<unknown>, accessToken: string | null): HttpRe
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const tokenStore = inject(TokenStore);
   const http = inject(HttpClient);
+  const clientType = inject(CLIENT_TYPE);
 
   const authorizedReq = withAuth(req, tokenStore.read());
 
@@ -32,7 +34,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
         return throwError(() => error);
       }
 
-      return http.post<RefreshResponse>(IdentityAuthEndpoints.refresh, null, { headers: WEB_CLIENT_TYPE_HEADERS }).pipe(
+      return http.post<RefreshResponse>(IdentityAuthEndpoints.refresh, null, { headers: { 'X-Client-Type': clientType } }).pipe(
         switchMap((response) => {
           tokenStore.set(response.accessToken);
 

@@ -1,0 +1,22 @@
+.shell-toolbar {
+  display: flex;
+  gap: var(--app-space-md);
+}
+
+.shell-brand {
+  font-weight: 500;
+}
+
+.shell-spacer {
+  flex: 1 1 auto;
+}
+
+.shell-identity {
+  font: var(--mat-sys-body-medium);
+}
+
+.shell-content {
+  max-width: var(--app-shell-max-width);
+  margin: 0 auto;
+  padding: var(--app-space-lg);
+}

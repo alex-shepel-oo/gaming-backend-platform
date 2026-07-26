@@ -16,4 +16,8 @@ export class GamesService {
   listPublicGames(): Observable<PublicGame[]> {
     return this.http.get<PublicGame[]>(IdentityGameEndpoints.publicGames);
   }
+
+  listMyGames(): Observable<PublicGame[]> {
+    return this.http.get<PublicGame[]>(IdentityGameEndpoints.myGames);
+  }
 }
