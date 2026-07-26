@@ -357,6 +357,26 @@
         "MinimumThroughput": 5,
         "BreakDuration": 30000
       }
+    },
+    {
+      "DownstreamPathTemplate": "/api/identity/users/me/games",
+      "DownstreamScheme": "http",
+      "UpstreamPathTemplate": "/api/admin/identity/users/me/games",
+      "UpstreamHttpMethod": [ "GET" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKeys": [ "Bearer" ],
+        "AllowedScopes": []
+      },
+      "RouteClaimsRequirement": {
+        "aud": "gbp-admin"
+      },
+      "QoSOptions": {
+        "Timeout": 5000,
+        "FailureRatio": 0.5,
+        "SamplingDuration": 10000,
+        "MinimumThroughput": 5,
+        "BreakDuration": 30000
+      }
     }
   ],
   "GlobalConfiguration": {}

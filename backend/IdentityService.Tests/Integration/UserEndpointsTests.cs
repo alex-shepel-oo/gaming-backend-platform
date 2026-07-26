@@ -70,6 +70,62 @@ public sealed class UserEndpointsTests(IdentityApiFactory factory) : IClassFixtu
     }
 
     [Fact]
+    public async Task MyGames_UserWithOneGameRole_ReturnsThatGame()
+    {
+        var game = await SeedGameAsync("Racer X");
+        var user = await SeedUserAsync(game.Id, PlatformRole.Admin);
+        var (client, accessToken) = await LoginAsync(user.Id, game.Id);
+
+        var response = await GetAuthorizedAsync(client, "/api/identity/users/me/games", accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<PublicGameDto[]>(JsonOptions, TestContext.Current.CancellationToken);
+        body.Should().ContainSingle(g => g.Id == game.Id);
+    }
+
+    [Fact]
+    public async Task MyGames_UserWithTwoGameRoles_ReturnsBothOrderedByName()
+    {
+        var gameB = await SeedGameAsync("Bravo Quest");
+        var gameA = await SeedGameAsync("Alpha Quest");
+        var user = await SeedUserAsync(gameB.Id, PlatformRole.Moderator);
+        await AddGameRoleAsync(user.Id, gameA.Id, PlatformRole.Admin);
+        var (client, accessToken) = await LoginAsync(user.Id, gameId: null);
+
+        var response = await GetAuthorizedAsync(client, "/api/identity/users/me/games", accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<PublicGameDto[]>(JsonOptions, TestContext.Current.CancellationToken);
+        body!.Select(g => g.Id).Should().ContainInOrder(gameA.Id, gameB.Id);
+    }
+
+    [Fact]
+    public async Task MyGames_UserWithOnlyPlatformWideRole_ReturnsEmptyList()
+    {
+        var platformAdmin = await SeedUserAsync(gameId: null, PlatformRole.Admin);
+        var (client, accessToken) = await LoginAsync(platformAdmin.Id, gameId: null);
+
+        var response = await GetAuthorizedAsync(client, "/api/identity/users/me/games", accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<PublicGameDto[]>(JsonOptions, TestContext.Current.CancellationToken);
+        body.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task MyGames_UserWithNoRolesAtAll_ReturnsEmptyList()
+    {
+        var user = await SeedUserWithoutRolesAsync();
+        var (client, accessToken) = await LoginAsync(user.Id, gameId: null);
+
+        var response = await GetAuthorizedAsync(client, "/api/identity/users/me/games", accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<PublicGameDto[]>(JsonOptions, TestContext.Current.CancellationToken);
+        body.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task GetUserById_UnknownUser_Returns404()
     {
         var game = await SeedGameAsync();
@@ -177,7 +233,7 @@ public sealed class UserEndpointsTests(IdentityApiFactory factory) : IClassFixtu
         return (client, tokens!.AccessToken);
     }
 
-    private async Task<Game> SeedGameAsync()
+    private async Task<Game> SeedGameAsync(string name = "Test Game")
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
@@ -187,7 +243,7 @@ public sealed class UserEndpointsTests(IdentityApiFactory factory) : IClassFixtu
         {
             Id = Guid.CreateVersion7(),
             Slug = $"game-{Guid.NewGuid():N}",
-            Name = "Test Game",
+            Name = name,
             IsActive = true,
             CreatedAt = now,
         };
@@ -196,6 +252,50 @@ public sealed class UserEndpointsTests(IdentityApiFactory factory) : IClassFixtu
         await dbContext.SaveChangesAsync();
 
         return game;
+    }
+
+    private async Task AddGameRoleAsync(Guid userId, Guid gameId, PlatformRole role)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var now = factory.TimeProvider.GetUtcNow();
+
+        dbContext.UserGameRoles.Add(new UserGameRole
+        {
+            Id = Guid.CreateVersion7(),
+            UserId = userId,
+            GameId = gameId,
+            Role = role,
+            GrantedAt = now,
+        });
+
+        await dbContext.SaveChangesAsync();
+    }
+
+    private async Task<User> SeedUserWithoutRolesAsync()
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+        var now = factory.TimeProvider.GetUtcNow();
+
+        var user = new User
+        {
+            Id = Guid.CreateVersion7(),
+            Email = $"{Guid.NewGuid():N}@example.com",
+            DisplayName = "Roleless User",
+            PasswordHash = passwordHasher.Hash(Password),
+            IsActive = true,
+            EmailConfirmed = true,
+            EmailConfirmedAt = now,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+
+        return user;
     }
 
     private async Task<User> SeedUserAsync(Guid? gameId, PlatformRole role, string displayName = "Test User")

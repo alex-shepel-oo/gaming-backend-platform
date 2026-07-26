@@ -162,6 +162,31 @@ public sealed class IdentityRoutingTests : IDisposable
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
+    [Fact]
+    public async Task Get_MyGames_WithAdminAudienceToken_IsNotBlockedAtGateway()
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/identity/users/me/games");
+        request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: null, audience: "gbp-admin"));
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
+        response.StatusCode.Should().NotBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Get_MyGames_WithPlayerAudienceToken_IsRejectedAtGateway()
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/identity/users/me/games");
+        request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: null, audience: "gbp-player"));
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
     private static string IssueAccessToken(string? scope, string audience = Audience)
     {
         var claims = new Dictionary<string, object>

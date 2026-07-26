@@ -17,6 +17,7 @@ public static class UserEndpoints
         var group = app.MapGroup("/api/identity/users");
 
         group.MapGet("/me", GetMeAsync).RequireAuthorization();
+        group.MapGet("/me/games", GetMyGamesAsync).RequireAuthorization();
         group.MapGet("/{userId:guid}", GetUserAsync).RequireAuthorization(Policies.ModeratorOrAbove);
         group.MapGet("", ListUsersAsync).RequireAuthorization(Policies.ModeratorOrAbove);
 
@@ -31,6 +32,20 @@ public static class UserEndpoints
 
         return TypedResults.Ok(new UserDto(
             user.Id, user.Email, user.DisplayName, currentUser.GameId, currentUser.Role, user.CreatedAt));
+    }
+
+    private static async Task<Ok<PublicGameDto[]>> GetMyGamesAsync(
+        ICurrentUser currentUser, IdentityDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var games = await dbContext.UserGameRoles
+            .Where(r => r.UserId == currentUser.UserId && r.GameId != null)
+            .Select(r => r.Game!)
+            .Distinct()
+            .OrderBy(g => g.Name)
+            .Select(g => new PublicGameDto(g.Id, g.Slug, g.Name))
+            .ToArrayAsync(cancellationToken);
+
+        return TypedResults.Ok(games);
     }
 
     private static async Task<Ok<UserDto>> GetUserAsync(
