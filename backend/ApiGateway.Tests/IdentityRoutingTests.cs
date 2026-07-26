@@ -36,7 +36,23 @@ public sealed class IdentityRoutingTests : IDisposable
     public void Dispose() => _factory.Dispose();
 
     [Fact]
-    public async Task Get_UserRoles_IsMatchedByExistingUsersEverythingRoute()
+    public async Task Get_UserRoles_UnderAdminPrefix_IsMatchedByNewAdminRoute()
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/admin/identity/users/{Guid.NewGuid()}/roles");
+        request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: null, audience: "gbp-admin"));
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        // No live IdentityService in this test process, so this still fails
+        // downstream - what this asserts is that the new
+        // /api/admin/identity/users/{userId}/roles route (GET, PATCH) exists
+        // and an aud=gbp-admin token clears the gateway's own claims check.
+        response.StatusCode.Should().NotBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Get_UserRoles_UnderOldPlayerFacingPrefix_IsGoneEntirely()
     {
         using var client = _factory.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/identity/users/{Guid.NewGuid()}/roles");
@@ -44,21 +60,57 @@ public sealed class IdentityRoutingTests : IDisposable
 
         var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
-        // No live IdentityService in this test process, so this still fails
-        // downstream - what this asserts is that Ocelot's existing
-        // /api/identity/users/{everything} route (GET, POST) already matches
-        // a multi-segment path like /users/{id}/roles. A 404 here means the
-        // {everything} catch-all does NOT reach this deep and a dedicated
-        // route would be needed for GET; anything else confirms it matches.
+        // The old /api/identity/users/{everything} wildcard used to match
+        // this path. It has been narrowed down to users/me only, so this
+        // path no longer resolves to any route at all.
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Get_UsersMe_UnderPlayerFacingPrefix_StillResolves()
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/identity/users/me");
+        request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: null));
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
         response.StatusCode.Should().NotBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Get_UsersList_UnderPlayerFacingPrefix_IsGone()
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/identity/users");
+        request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: null));
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Theory]
+    [InlineData("/api/identity/games")]
+    [InlineData("/api/identity/permissions")]
+    [InlineData("/api/identity/roles/Admin/permissions")]
+    public async Task PlayerFacingAdminOnlyRoutes_AreGoneFromPlayerPrefix(string path)
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: null));
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
     public async Task Post_Games_WithGameScopeToken_IsRejectedAtGatewayBeforeReachingService()
     {
         using var client = _factory.CreateClient();
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/identity/games");
-        request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: "Game"));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/identity/games");
+        request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: "Game", audience: "gbp-admin"));
 
         var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
@@ -70,8 +122,8 @@ public sealed class IdentityRoutingTests : IDisposable
     {
         using var client = _factory.CreateClient();
         var gameId = Guid.NewGuid();
-        using var request = new HttpRequestMessage(HttpMethod.Put, $"/api/identity/roles/Admin/permissions?gameId={gameId}");
-        request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: "Game"));
+        using var request = new HttpRequestMessage(HttpMethod.Put, $"/api/admin/identity/roles/Admin/permissions?gameId={gameId}");
+        request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: "Game", audience: "gbp-admin"));
 
         var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
@@ -85,7 +137,32 @@ public sealed class IdentityRoutingTests : IDisposable
         response.StatusCode.Should().NotBe(HttpStatusCode.Forbidden);
     }
 
-    private static string IssueAccessToken(string? scope)
+    [Fact]
+    public async Task Get_AdminGames_WithAdminAudienceToken_IsNotBlockedAtGateway()
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/identity/games");
+        request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: "Platform", audience: "gbp-admin"));
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
+        response.StatusCode.Should().NotBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Get_AdminGames_WithPlayerAudienceToken_IsRejectedAtGateway()
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/identity/games");
+        request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: "Platform", audience: "gbp-player"));
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    private static string IssueAccessToken(string? scope, string audience = Audience)
     {
         var claims = new Dictionary<string, object>
         {
@@ -101,7 +178,7 @@ public sealed class IdentityRoutingTests : IDisposable
         var descriptor = new SecurityTokenDescriptor
         {
             Issuer = Issuer,
-            Audience = Audience,
+            Audience = audience,
             IssuedAt = DateTime.UtcNow,
             NotBefore = DateTime.UtcNow,
             Expires = DateTime.UtcNow.AddMinutes(15),

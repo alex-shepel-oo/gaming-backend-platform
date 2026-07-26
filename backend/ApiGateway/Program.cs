@@ -48,9 +48,19 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
     });
 
 const string PlayerClientCorsPolicy = "PlayerClientCors";
+const string AdminClientCorsPolicy = "AdminClientCors";
 
 builder.Services.AddOptions<PlayerClientCorsOptions>()
     .Bind(builder.Configuration.GetSection(PlayerClientCorsOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+// AdminCors:AllowedOrigins in appsettings.json is a dev-shaped placeholder
+// (admin-client's future Nginx/ng-serve ports, one above player-client's own
+// 8080/4200) -- Session 7's infra commit swaps these for the real deployed
+// admin-client origin.
+builder.Services.AddOptions<AdminClientCorsOptions>()
+    .Bind(builder.Configuration.GetSection(AdminClientCorsOptions.SectionName))
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
@@ -62,13 +72,28 @@ builder.Services.AddOptions<CorsOptions>()
             .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE")
             .WithHeaders("Content-Type", "Authorization", "X-Client-Type")
             .AllowCredentials()));
+builder.Services.AddOptions<CorsOptions>()
+    .Configure<IOptions<AdminClientCorsOptions>>((corsOptions, adminClientCorsOptions) =>
+        corsOptions.AddPolicy(AdminClientCorsPolicy, policy => policy
+            .WithOrigins(adminClientCorsOptions.Value.AllowedOrigins)
+            .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE")
+            .WithHeaders("Content-Type", "Authorization", "X-Client-Type")
+            .AllowCredentials()));
 
 builder.Services.AddHealthChecks();
 builder.Services.AddOcelot(builder.Configuration).AddConsul<ServiceAddressConsulServiceBuilder>().AddPolly();
 
 var app = builder.Build();
 
-app.UseCors(PlayerClientCorsPolicy);
+// Ocelot has no per-route CORS of its own, so the admin/player split is done
+// with two explicit UseWhen branches instead of one blanket UseCors call.
+// The predicates are each other's negation on purpose - UseWhen branches
+// are not mutually exclusive by default, so both cases need to be spelled
+// out to avoid a path matching neither (or, worse, both) policies.
+app.UseWhen(ctx => ctx.Request.Path.StartsWithSegments("/api/admin"),
+    branch => branch.UseCors(AdminClientCorsPolicy));
+app.UseWhen(ctx => !ctx.Request.Path.StartsWithSegments("/api/admin"),
+    branch => branch.UseCors(PlayerClientCorsPolicy));
 
 app.UseHealthChecks("/health");
 
