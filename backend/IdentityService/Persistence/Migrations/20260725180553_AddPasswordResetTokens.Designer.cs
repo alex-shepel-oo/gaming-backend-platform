@@ -3,6 +3,7 @@ using System;
 using IdentityService.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace IdentityService.Persistence.Migrations
 {
     [DbContext(typeof(IdentityDbContext))]
-    partial class IdentityDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260725180553_AddPasswordResetTokens")]
+    partial class AddPasswordResetTokens
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -83,43 +86,6 @@ namespace IdentityService.Persistence.Migrations
                         .HasDatabaseName("ix_email_verification_codes_user_id_created_at");
 
                     b.ToTable("email_verification_codes", (string)null);
-                });
-
-            modelBuilder.Entity("IdentityService.Domain.ExternalLogin", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset>("LinkedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("linked_at");
-
-                    b.Property<string>("Provider")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("provider");
-
-                    b.Property<string>("ProviderUserId")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("provider_user_id");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_external_logins");
-
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("ix_external_logins_user_id");
-
-                    b.HasIndex("Provider", "ProviderUserId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_external_logins_provider_provider_user_id");
-
-                    b.ToTable("external_logins", (string)null);
                 });
 
             modelBuilder.Entity("IdentityService.Domain.Game", b =>
@@ -518,18 +484,6 @@ namespace IdentityService.Persistence.Migrations
                         .HasConstraintName("fk_email_verification_codes_users_user_id");
 
                     b.Navigation("Game");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("IdentityService.Domain.ExternalLogin", b =>
-                {
-                    b.HasOne("IdentityService.Domain.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_external_logins_users_user_id");
 
                     b.Navigation("User");
                 });

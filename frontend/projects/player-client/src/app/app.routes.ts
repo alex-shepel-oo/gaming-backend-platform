@@ -4,12 +4,14 @@ import { AuthShell } from './auth-shell/auth-shell';
 import { Convert } from './convert/convert';
 import { Games } from './games/games';
 import { Profile } from './profile/profile';
+import { ResetPassword } from './reset-password/reset-password';
 import { Shell } from './shell/shell';
 import { Wallet } from './wallet/wallet';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'login' },
   { path: 'login', component: AuthShell, canActivate: [guestGuard] },
+  { path: 'reset-password', component: ResetPassword },
   {
     path: '',
     component: Shell,

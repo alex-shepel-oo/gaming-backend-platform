@@ -29,4 +29,16 @@ public sealed class RateLimitingOptions
 
     [Range(1, int.MaxValue)]
     public int ResendVerificationWindowSeconds { get; set; } = 3600;
+
+    [Range(1, int.MaxValue)]
+    public int RequestPasswordResetPermitLimit { get; set; } = 5;
+
+    [Range(1, int.MaxValue)]
+    public int RequestPasswordResetWindowSeconds { get; set; } = 3600;
+
+    [Range(1, int.MaxValue)]
+    public int ResetPasswordPermitLimit { get; set; } = 10;
+
+    [Range(1, int.MaxValue)]
+    public int ResetPasswordWindowSeconds { get; set; } = 300;
 }

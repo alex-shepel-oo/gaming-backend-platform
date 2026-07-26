@@ -5,7 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { AuthService, DEFAULT_GAME_SLUG, EMAIL_NOT_CONFIRMED_PROBLEM_TYPE } from 'shared';
 
 type LoginError = 'invalid-credentials' | 'email-not-confirmed';
@@ -24,7 +24,14 @@ function classifyLoginError(error: unknown): LoginError {
 
 @Component({
   selector: 'app-login',
-  imports: [ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatButtonModule, MatProgressSpinnerModule],
+  imports: [
+    ReactiveFormsModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatButtonModule,
+    MatProgressSpinnerModule,
+    RouterLink,
+  ],
   templateUrl: './login.html',
   styleUrl: './login.scss',
 })

@@ -1,6 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { IdentityAuthEndpoints } from 'shared';
 import { AuthShell } from './auth-shell';
 
@@ -11,7 +12,7 @@ describe('AuthShell', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       imports: [AuthShell],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     });
 
     httpMock = TestBed.inject(HttpTestingController);

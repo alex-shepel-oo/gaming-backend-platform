@@ -25,6 +25,8 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Services\Email\Templates\EmailVerification.html" />
+    <EmbeddedResource Include="Services\Email\Templates\PasswordReset.html" />
+    <EmbeddedResource Include="Services\Email\Templates\DuplicateRegistrationNotice.html" />
   </ItemGroup>
 
 </Project>
