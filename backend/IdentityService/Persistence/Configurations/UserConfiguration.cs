@@ -15,6 +15,7 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.Email).HasColumnName("email").IsRequired();
         builder.Property(u => u.DisplayName).HasColumnName("display_name").IsRequired();
         builder.Property(u => u.PasswordHash).HasColumnName("password_hash").IsRequired();
+        builder.Property(u => u.AvatarUrl).HasColumnName("avatar_url");
         builder.Property(u => u.IsActive).HasColumnName("is_active").HasDefaultValue(true);
         builder.Property(u => u.EmailConfirmed).HasColumnName("email_confirmed").HasDefaultValue(false);
         builder.Property(u => u.EmailConfirmedAt).HasColumnName("email_confirmed_at");

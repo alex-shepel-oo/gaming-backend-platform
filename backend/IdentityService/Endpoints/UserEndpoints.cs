@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using IdentityService.Auth;
+using IdentityService.Contracts.Requests;
 using IdentityService.Contracts.Responses;
 using IdentityService.Domain.Enums;
 using IdentityService.Exceptions;
@@ -17,6 +18,7 @@ public static class UserEndpoints
         var group = app.MapGroup("/api/identity/users");
 
         group.MapGet("/me", GetMeAsync).RequireAuthorization();
+        group.MapPatch("/me", UpdateMeAsync).RequireAuthorization();
         group.MapGet("/me/games", GetMyGamesAsync).RequireAuthorization();
         group.MapGet("/{userId:guid}", GetUserAsync).RequireAuthorization(Policies.ModeratorOrAbove);
         group.MapGet("", ListUsersAsync).RequireAuthorization(Policies.ModeratorOrAbove);
@@ -31,7 +33,48 @@ public static class UserEndpoints
         var user = await dbContext.Users.SingleAsync(u => u.Id == currentUser.UserId, cancellationToken);
 
         return TypedResults.Ok(new UserDto(
-            user.Id, user.Email, user.DisplayName, currentUser.GameId, currentUser.Role, user.CreatedAt));
+            user.Id, user.Email, user.DisplayName, currentUser.GameId, currentUser.Role, user.CreatedAt,
+            user.AvatarUrl));
+    }
+
+    private static async Task<Ok<UserDto>> UpdateMeAsync(
+        UpdateProfileRequest request,
+        ICurrentUser currentUser,
+        IdentityDbContext dbContext,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        var user = await dbContext.Users.SingleAsync(u => u.Id == currentUser.UserId, cancellationToken);
+
+        if (request.DisplayName is not null)
+        {
+            user.DisplayName = request.DisplayName;
+        }
+
+        if (request.AvatarUrl is not null)
+        {
+            if (request.AvatarUrl == string.Empty)
+            {
+                user.AvatarUrl = null;
+            }
+            else if (Uri.TryCreate(request.AvatarUrl, UriKind.Absolute, out var uri)
+                && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+            {
+                user.AvatarUrl = request.AvatarUrl;
+            }
+            else
+            {
+                throw new InvalidAvatarUrlException();
+            }
+        }
+
+        user.UpdatedAt = timeProvider.GetUtcNow();
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return TypedResults.Ok(new UserDto(
+            user.Id, user.Email, user.DisplayName, currentUser.GameId, currentUser.Role, user.CreatedAt,
+            user.AvatarUrl));
     }
 
     private static async Task<Ok<PublicGameDto[]>> GetMyGamesAsync(
@@ -61,7 +104,8 @@ public static class UserEndpoints
         }
 
         return TypedResults.Ok(new UserDto(
-            role.User!.Id, role.User.Email, role.User.DisplayName, role.GameId, role.Role, role.User.CreatedAt));
+            role.User!.Id, role.User.Email, role.User.DisplayName, role.GameId, role.Role, role.User.CreatedAt,
+            role.User.AvatarUrl));
     }
 
     private static async Task<Ok<PagedResult<UserSummaryDto>>> ListUsersAsync(
