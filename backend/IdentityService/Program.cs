@@ -1,4 +1,5 @@
 using System.Globalization;
+using BuildingBlocks.Messaging.Extensions;
 using IdentityService.Endpoints;
 using IdentityService.Extensions;
 using IdentityService.Infrastructure;
@@ -23,6 +24,9 @@ builder.Services.AddIdentityServices(builder.Configuration);
 builder.Services.AddIdentityAuthentication();
 builder.Services.AddIdentityRateLimiting(builder.Configuration);
 builder.Services.AddIdentityEmail(builder.Configuration);
+builder.Services.AddRabbitMqEventBus(builder.Configuration);
+builder.Services.AddOutbox<IdentityDbContext>();
+builder.Services.AddOutboxDispatcher<IdentityDbContext>(builder.Configuration);
 builder.Services.AddScoped<DevelopmentSeeder>();
 
 var app = builder.Build();

@@ -75,6 +75,11 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://+:5000"
       ConnectionStrings__IdentityDb: "Host=identity_db;Port=5432;Database=${POSTGRES_DB:?POSTGRES_DB is required, set it in infra/.env};Username=${POSTGRES_USER:?POSTGRES_USER is required, set it in infra/.env};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required, set it in infra/.env}"
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: "5672"
+      RabbitMq__Username: "${RABBITMQ_USER:?RABBITMQ_USER is required, set it in infra/.env}"
+      RabbitMq__Password: "${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required, set it in infra/.env}"
+      RabbitMq__ExchangeName: gbp.identity
     ports:
       - "${IDENTITY_SERVICE_PORT:-5000}:5000"
     depends_on:
@@ -82,6 +87,8 @@ services:
         condition: service_healthy
       identity-migrator:
         condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:5000/health/ready || exit 1"]
       interval: 5s

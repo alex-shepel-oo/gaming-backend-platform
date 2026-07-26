@@ -14,3 +14,6 @@ data:
   Email__Smtp__Host: "mailpit"
   Email__Smtp__Port: "1025"
   Email__Smtp__UseStartTls: "false"
+  RabbitMq__Host: "rabbitmq"
+  RabbitMq__Port: "5672"
+  RabbitMq__ExchangeName: "gbp.identity"

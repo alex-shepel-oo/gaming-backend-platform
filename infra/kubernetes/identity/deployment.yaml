@@ -26,6 +26,21 @@ spec:
                 name: identity-config
             - secretRef:
                 name: identity-secrets
+          env:
+            # Reuses the broker's own credentials Secret rather than copying
+            # the values into identity-secrets -- one Secret, every consumer
+            # of the broker (this Deployment, economy-service, platform-worker
+            # later) reads it.
+            - name: RabbitMq__Username
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secrets
+                  key: RABBITMQ_DEFAULT_USER
+            - name: RabbitMq__Password
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secrets
+                  key: RABBITMQ_DEFAULT_PASS
           livenessProbe:
             httpGet:
               path: /health

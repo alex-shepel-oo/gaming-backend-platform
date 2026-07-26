@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
+using BuildingBlocks.Messaging;
 using IdentityService.Auth;
 using IdentityService.Infrastructure;
 using IdentityService.Options;
@@ -40,6 +41,10 @@ public static class ServiceCollectionExtensions
             .AddNpgSql(
                 sp => sp.GetRequiredService<IConfiguration>().GetConnectionString("IdentityDb")!,
                 name: "postgresql",
+                tags: ["ready"])
+            .AddRabbitMQ(
+                sp => sp.GetRequiredService<IRabbitMqConnection>().GetConnectionAsync(),
+                name: "rabbitmq",
                 tags: ["ready"]);
 
         return services;
