@@ -1,10 +1,11 @@
 using EconomyService.Domain;
 using EconomyService.Domain.Enums;
+using EconomyService.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace EconomyService.Persistence;
 
-public sealed class DevelopmentSeeder(EconomyDbContext dbContext, TimeProvider timeProvider)
+public sealed class DevelopmentSeeder(EconomyDbContext dbContext, TimeProvider timeProvider, IWelcomeGrantService welcomeGrantService)
 {
     // Must match the demo-shooter Game.Id identity's seeder creates. No
     // cross-database foreign key (ADR-0001) - just an agreed constant.
@@ -12,6 +13,15 @@ public sealed class DevelopmentSeeder(EconomyDbContext dbContext, TimeProvider t
 
     // Same convention, matching identity's demo-racer Game.Id.
     private static readonly Guid DemoRacerGameId = Guid.Parse("00000000-0000-7000-8000-000000000002");
+
+    // Must match the fixed UserIds identity's seeder assigns its five demo
+    // users - same "agreed constant, no cross-database FK" convention as the
+    // game ids above, duplicated here for the same reason those are.
+    private static readonly Guid SeedAdminUserId = Guid.Parse("00000000-0000-7000-9000-000000000001");
+    private static readonly Guid PlayerOneUserId = Guid.Parse("00000000-0000-7000-9000-000000000002");
+    private static readonly Guid PlayerTwoUserId = Guid.Parse("00000000-0000-7000-9000-000000000003");
+    private static readonly Guid RacerAdminUserId = Guid.Parse("00000000-0000-7000-9000-000000000004");
+    private static readonly Guid PlayerThreeUserId = Guid.Parse("00000000-0000-7000-9000-000000000005");
 
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
@@ -76,5 +86,16 @@ public sealed class DevelopmentSeeder(EconomyDbContext dbContext, TimeProvider t
             });
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        // Seeded users never go through register/confirm-email, so the live
+        // UserEmailConfirmed -> WelcomeGrantService path never fires for
+        // them. Reusing GrantAsync directly here (after the currencies above
+        // are committed - it looks PLATFORM_CREDITS up with a query) keeps
+        // them consistent with the same "confirmed means granted" invariant
+        // production gives every real account.
+        foreach (var userId in new[] { SeedAdminUserId, PlayerOneUserId, PlayerTwoUserId, RacerAdminUserId, PlayerThreeUserId })
+        {
+            await welcomeGrantService.GrantAsync(userId, cancellationToken);
+        }
     }
 }
