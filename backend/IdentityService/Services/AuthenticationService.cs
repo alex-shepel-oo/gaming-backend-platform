@@ -168,6 +168,38 @@ public sealed partial class AuthenticationService(
         return new LoginResult(accessToken, issued.RawToken);
     }
 
+    public async Task<LoginResult> SelectGameAsync(
+        Guid userId, Guid gameId, string? ip, string? userAgent, CancellationToken cancellationToken = default)
+    {
+        var game = await dbContext.Games
+            .SingleOrDefaultAsync(g => g.Id == gameId && g.IsActive, cancellationToken);
+
+        if (game is null)
+        {
+            throw new GameNotFoundException();
+        }
+
+        var user = await dbContext.Users.SingleAsync(u => u.Id == userId, cancellationToken);
+
+        var role = await dbContext.UserGameRoles
+            .SingleOrDefaultAsync(r => r.UserId == userId && r.GameId == gameId, cancellationToken);
+
+        var now = timeProvider.GetUtcNow();
+
+        if (role is null)
+        {
+            role = NewPlayerRole(userId, gameId, now);
+            dbContext.UserGameRoles.Add(role);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        var permissions = await permissionResolver.ResolveAsync(role.Role, gameId, cancellationToken);
+        var issued = await refreshTokenService.IssueFamilyAsync(userId, gameId, TokenScope.Game, ip, userAgent, cancellationToken);
+        var accessToken = tokenService.IssueAccessToken(user, gameId, role.Role, issued.Family.Id, TokenScope.Game, permissions);
+
+        return new LoginResult(accessToken, issued.RawToken);
+    }
+
     private static UserGameRole NewPlayerRole(Guid userId, Guid gameId, DateTimeOffset now) => new()
     {
         Id = Guid.CreateVersion7(),

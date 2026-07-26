@@ -22,6 +22,7 @@ public static class AuthEndpoints
         group.MapPost("/login", LoginAsync).RequireRateLimiting(RateLimitPolicies.Login);
         group.MapPost("/refresh", RefreshAsync);
         group.MapPost("/logout", LogoutAsync).RequireAuthorization();
+        group.MapPost("/select-game", SelectGameAsync).RequireAuthorization();
     }
 
     private static async Task<Accepted<RegistrationAcceptedResponse>> RegisterAsync(
@@ -123,6 +124,29 @@ public static class AuthEndpoints
         }
 
         return TypedResults.Ok(new TokenPairResponse(result.AccessToken, result.RawRefreshToken));
+    }
+
+    private static async Task<Results<Ok<TokenPairResponse>, Ok<AccessTokenResponse>>> SelectGameAsync(
+        SelectGameRequest request,
+        IAuthenticationService authenticationService,
+        ICookieAuthWriter cookieAuthWriter,
+        ICurrentUser currentUser,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString();
+        var userAgent = httpContext.Request.Headers.UserAgent.ToString();
+
+        var result = await authenticationService.SelectGameAsync(
+            currentUser.UserId, request.GameId, ip, userAgent, cancellationToken);
+
+        if (ClientMode.IsWeb(httpContext))
+        {
+            cookieAuthWriter.WriteRefresh(httpContext.Response, result.RefreshToken);
+            return TypedResults.Ok(new AccessTokenResponse(result.AccessToken));
+        }
+
+        return TypedResults.Ok(new TokenPairResponse(result.AccessToken, result.RefreshToken));
     }
 
     private static async Task<NoContent> LogoutAsync(
