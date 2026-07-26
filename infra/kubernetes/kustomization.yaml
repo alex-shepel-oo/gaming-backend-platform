@@ -35,4 +35,6 @@ resources:
   - mailpit/service.yaml
   - player-client/deployment.yaml
   - player-client/service.yaml
+  - admin-client/deployment.yaml
+  - admin-client/service.yaml
   - gateway
