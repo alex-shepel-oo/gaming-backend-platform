@@ -29,8 +29,8 @@ public sealed class DeduplicatingEventConsumer(
     // seam so integration tests can each bind their own queue instead of
     // sharing one durable queue across test runs.
     string queueName = "gbp.economy.log-projector")
-    : DeduplicatingConsumerBase<EconomyDbContext>(
-        connection, options, scopeFactory, faultInjector, timeProvider, logger, queueName, RoutingKeys)
+    : InboxConsumerBase<EconomyDbContext>(
+        connection, scopeFactory, faultInjector, timeProvider, logger, options.Value.ExchangeName, queueName, RoutingKeys)
 {
     private static readonly string[] RoutingKeys =
     [

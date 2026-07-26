@@ -9,9 +9,11 @@ WORKDIR /src
 
 COPY Directory.Build.props Directory.Packages.props ./
 COPY IdentityService/IdentityService.csproj IdentityService/
+COPY BuildingBlocks.Messaging/BuildingBlocks.Messaging.csproj BuildingBlocks.Messaging/
 RUN dotnet restore IdentityService/IdentityService.csproj
 
 COPY IdentityService/ IdentityService/
+COPY BuildingBlocks.Messaging/ BuildingBlocks.Messaging/
 RUN dotnet publish IdentityService/IdentityService.csproj -c Release -o /app --no-restore
 
 # One-shot migration runner. Kept separate from the app image: with the

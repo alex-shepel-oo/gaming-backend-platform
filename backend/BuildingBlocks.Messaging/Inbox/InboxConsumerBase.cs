@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
@@ -14,13 +13,13 @@ namespace BuildingBlocks.Messaging.Inbox;
 // routing keys it binds to, and what to actually do with an accepted message
 // - everything else is the same RabbitMQ + inbox contour regardless of which
 // service or which side effect is behind it.
-public abstract partial class DeduplicatingConsumerBase<TDbContext>(
+public abstract partial class InboxConsumerBase<TDbContext>(
     IRabbitMqConnection connection,
-    IOptions<RabbitMqOptions> options,
     IServiceScopeFactory scopeFactory,
     IInboxFaultInjector faultInjector,
     TimeProvider timeProvider,
     ILogger logger,
+    string exchangeName,
     string queueName,
     IReadOnlyList<string> routingKeys) : BackgroundService
     where TDbContext : DbContext
@@ -33,7 +32,7 @@ public abstract partial class DeduplicatingConsumerBase<TDbContext>(
 
         foreach (var routingKey in routingKeys)
         {
-            await channel.QueueBindAsync(queueName, options.Value.ExchangeName, routingKey, cancellationToken: stoppingToken);
+            await channel.QueueBindAsync(queueName, exchangeName, routingKey, cancellationToken: stoppingToken);
         }
 
         var consumer = new AsyncEventingBasicConsumer(channel);

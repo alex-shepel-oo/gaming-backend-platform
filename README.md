@@ -372,7 +372,7 @@ fractional digits to render for a given currency without hardcoding it.
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | GET | `/currencies` | bearer | Platform currencies plus the caller's own game currency |
-| GET | `/balances/me` | bearer | Current user's balances (`?gameId=` cross-checks against the token's own game, it does not select a different one) |
+| GET | `/balances/me` | bearer | Current user's balances — the welcome grant (see [Messaging](#messaging)) arrives asynchronously, not as a side effect of this call, so a balance may briefly be absent right after registration (`?gameId=` cross-checks against the token's own game, it does not select a different one) |
 | POST | `/balances/{userId}/adjust` | bearer, `platform.balance.adjust` or `game.balance.adjust` (own game only) | Manual correction with a required audit `reason`; `Amount` is a signed delta, not a magnitude |
 | POST | `/transactions/grant` | bearer, `platform.balance.adjust` or `game.balance.adjust` (own game only) | Credit a user's balance, with an audit `reason` |
 | POST | `/transactions/spend` | bearer | Debit the caller's own balance |
@@ -463,7 +463,7 @@ why. Worth stating plainly here, since it's the kind of gap that looks fine unti
 deliveries aren't landing.
 
 `BalanceChangedConsumer` consumes the queue directly through `IRabbitMqConnection` as a plain
-`BackgroundService`, bypassing `BuildingBlocks.Messaging`'s `DeduplicatingConsumerBase<TDbContext>`
+`BackgroundService`, bypassing `BuildingBlocks.Messaging`'s `InboxConsumerBase<TDbContext>`
 entirely — that base class ties its dedup step to a database transaction, and this service was built
 without one on purpose. There's no dedup layer here at all: if a message gets redelivered, the consumer
 just pushes the same, still-current balance a second time, which a connected client re-renders without
@@ -637,6 +637,29 @@ consumer of `BuildingBlocks.Messaging`, not just EconomyService):
 - The dispatcher polls on an interval rather than reacting to commits via
   logical replication/CDC, so there is always some delay between a ledger
   entry landing and its event reaching the broker.
+- Both IdentityService and EconomyService now fail to start without a
+  reachable broker — RabbitMQ went from an EconomyService-only dependency
+  to a platform-wide one the moment Identity got its own outbox.
+
+### Welcome grant
+
+IdentityService has its own `outbox_messages` table and its own exchange (`gbp.identity`), populated the
+same way EconomyService's is — confirming an email writes a `UserEmailConfirmed` row in the same call
+that flips `EmailConfirmed`, no separate transaction needed since that call already goes through one
+`SaveChangesAsync`. EconomyService's `UserEmailConfirmedConsumer` binds to that exchange directly — the
+first consumer in the system that isn't reading its own service's events — and grants a starting
+`PLATFORM_CREDITS` balance through the existing `ILedgerService.GrantAsync`, keyed on
+`welcome:{userId}` so a redelivery replays instead of double-granting. Seeded demo users
+(`admin`, `player.one`, `player.two`, `gameadmin@demo-racer.dev`, `player.three`) never go through
+register/confirm-email, so they get the same balance directly from `EconomyService.DevelopmentSeeder`
+instead, addressed by a fixed `UserId` IdentityService's own seeder now assigns them (the same
+no-real-foreign-key convention already used for the seeded game ids).
+
+Binding a queue to another service's exchange needed one small change to the shared library:
+`InboxConsumerBase<TDbContext>` used to read the exchange to bind from the same `RabbitMqOptions` a
+service publishes with, which only ever worked because the one consumer that existed listened to its
+own exchange. It now takes the exchange as an explicit argument instead. Full reasoning in
+[ADR 0010's welcome-grant addendum](docs/adr/0010-transactional-outbox-event-bus.md#addendum-the-welcome-grant-and-identitys-first-outbox).
 
 ## Platform.Worker
 

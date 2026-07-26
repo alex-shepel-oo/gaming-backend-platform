@@ -1,3 +1,4 @@
+using System.Globalization;
 using IdentityService.Services.Email;
 using IdentityService.Tests.Integration.Fakes;
 using Microsoft.AspNetCore.Hosting;
@@ -10,7 +11,7 @@ using Xunit;
 
 namespace IdentityService.Tests.Integration.Fixtures;
 
-public sealed class IdentityApiFactory(PostgresFixture postgres) : WebApplicationFactory<Program>
+public sealed class IdentityApiFactory(PostgresFixture postgres, RabbitMqFixture rabbitMq) : WebApplicationFactory<Program>
 {
     public FakeTimeProvider TimeProvider { get; } = new(DateTimeOffset.UtcNow);
 
@@ -31,6 +32,12 @@ public sealed class IdentityApiFactory(PostgresFixture postgres) : WebApplicatio
             {
                 ["ConnectionStrings:IdentityDb"] = postgres.ConnectionString,
                 ["Jwt:Key"] = "integration-test-signing-key-at-least-32-bytes-long",
+
+                ["RabbitMq:Host"] = rabbitMq.Hostname,
+                ["RabbitMq:Port"] = rabbitMq.Port.ToString(CultureInfo.InvariantCulture),
+                ["RabbitMq:Username"] = "guest",
+                ["RabbitMq:Password"] = "guest",
+                ["RabbitMq:ExchangeName"] = "gbp.identity",
 
                 // High enough that the many unrelated tests sharing this one host and one
                 // rate limiter instance never trip a partition by accident. Tests that
@@ -56,4 +63,4 @@ public sealed class IdentityApiFactory(PostgresFixture postgres) : WebApplicatio
 }
 
 [CollectionDefinition(nameof(IdentityApiCollectionDefinition))]
-public sealed class IdentityApiCollectionDefinition : ICollectionFixture<PostgresFixture>;
+public sealed class IdentityApiCollectionDefinition : ICollectionFixture<PostgresFixture>, ICollectionFixture<RabbitMqFixture>;

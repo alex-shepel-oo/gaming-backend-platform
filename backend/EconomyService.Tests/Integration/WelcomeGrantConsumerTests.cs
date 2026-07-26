@@ -1,11 +1,15 @@
 using AwesomeAssertions;
 using BuildingBlocks.Messaging;
 using BuildingBlocks.Messaging.Inbox;
+using BuildingBlocks.Messaging.Outbox;
+using EconomyService.Domain;
+using EconomyService.Domain.Enums;
 using EconomyService.Messaging;
+using EconomyService.Options;
 using EconomyService.Persistence;
+using EconomyService.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using NUnit.Framework;
@@ -16,16 +20,21 @@ using MsOptions = Microsoft.Extensions.Options.Options;
 
 namespace EconomyService.Tests.Integration;
 
+// Covers Group A7 Session 4: UserEmailConfirmedConsumer binds to
+// gbp.identity (a real external exchange, not self-consumption like
+// DeduplicatingEventConsumer/ConsumerDeduplicationTests) and grants a
+// welcome balance through WelcomeGrantService -> ILedgerService. The
+// interesting risk here is the nested-transaction avoidance described in
+// UserEmailConfirmedConsumer (A.4): the grant runs in its own scope/
+// transaction, separate from the inbox's own processed_messages bookkeeping,
+// so both layers of idempotency are exercised and asserted independently.
 [TestFixture]
-public sealed class ConsumerDeduplicationTests : IAsyncDisposable
+public sealed class WelcomeGrantConsumerTests : IAsyncDisposable
 {
-    private const string RoutingKey = "balance.changed";
-
-    // A second exchange, entirely separate from _rabbitMqOptions.ExchangeName
-    // (gbp.economy) - exists only to prove a consumer can bind to an
-    // exchange it was handed explicitly rather than the one on its own
-    // publish-side options (A.3).
-    private const string OtherExchangeName = "gbp.test-other";
+    private const string ExchangeName = "gbp.identity";
+    private const string RoutingKey = "user.email_confirmed";
+    private const string CurrencyCode = "PLATFORM_CREDITS";
+    private const decimal GrantAmount = 100m;
 
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17-alpine")
         .WithDatabase("economy_db")
@@ -36,6 +45,7 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
     private string _connectionString = null!;
     private Respawner _respawner = null!;
     private RabbitMqOptions _rabbitMqOptions = null!;
+    private Guid _currencyId;
 
     [OneTimeSetUp]
     public async Task OneTimeSetUpAsync()
@@ -55,25 +65,24 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
             DbAdapter = DbAdapter.Postgres,
         });
 
+        // Publish-side options point at gbp.identity, not gbp.economy - this
+        // fixture plays the role of identity-service's own publisher, since
+        // no real IdentityService host runs in this test. The consumer under
+        // test binds to the same exchange via its own hardcoded exchangeName
+        // constant, independent of this options object.
         _rabbitMqOptions = new RabbitMqOptions
         {
             Host = RabbitMqTestBroker.Container.Hostname,
             Port = RabbitMqTestBroker.Container.GetMappedPublicPort(5672),
             Username = "guest",
             Password = "guest",
+            ExchangeName = ExchangeName,
         };
 
         await using var topologyConnection = new RabbitMqConnection(MsOptions.Create(_rabbitMqOptions));
         await using var channel = await topologyConnection.CreateChannelAsync(TestContext.CurrentContext.CancellationToken);
         await channel.ExchangeDeclareAsync(
-            _rabbitMqOptions.ExchangeName,
-            ExchangeType.Topic,
-            durable: true,
-            autoDelete: false,
-            cancellationToken: TestContext.CurrentContext.CancellationToken);
-
-        await channel.ExchangeDeclareAsync(
-            OtherExchangeName,
+            ExchangeName,
             ExchangeType.Topic,
             durable: true,
             autoDelete: false,
@@ -90,18 +99,34 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
         await connection.OpenAsync();
         await _respawner.ResetAsync(connection);
 
-        // Each test gets its own queue name (see CreateConsumer) so a
-        // leftover binding or in-flight message from a previous test can
-        // never leak into the next one via the shared exchange.
+        // WelcomeGrantService looks the currency up by code, not by a
+        // hardcoded id - seed it with a fresh, test-generated Id each run so
+        // a passing assertion against that Id later actually proves the
+        // lookup, rather than coincidentally matching a literal.
+        _currencyId = Guid.CreateVersion7();
+
+        await using var dbContext = CreateDbContext();
+        dbContext.Currencies.Add(new Currency
+        {
+            Id = _currencyId,
+            Code = CurrencyCode,
+            DisplayName = "Platform Credits",
+            Scope = CurrencyScope.Platform,
+            GameId = null,
+            Decimals = 2,
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+        await dbContext.SaveChangesAsync();
     }
 
     public async ValueTask DisposeAsync() => await _container.DisposeAsync();
 
     [Test]
-    public async Task Deliver_NewMessage_WritesProcessedMessageAndAppliesSideEffectOnce()
+    public async Task Deliver_UserEmailConfirmed_GrantsWelcomeBalanceOnce()
     {
         var cancellationToken = TestContext.CurrentContext.CancellationToken;
         var messageId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         await using var provider = BuildProvider(new NoOpInboxFaultInjector());
         using var consumer = CreateConsumer(provider, out var queueName);
@@ -110,13 +135,13 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
         try
         {
             await WaitForConsumerReadyAsync(queueName, cancellationToken);
-            await PublishAsync(messageId, cancellationToken);
+            await PublishAsync(messageId, userId, cancellationToken);
 
             await WaitUntilAsync(
                 async () =>
                 {
                     await using var verify = CreateDbContext();
-                    return await verify.ProcessedMessages.AnyAsync(m => m.MessageId == messageId, cancellationToken);
+                    return await verify.LedgerEntries.AnyAsync(e => e.UserId == userId, cancellationToken);
                 },
                 TimeSpan.FromSeconds(15));
         }
@@ -126,20 +151,24 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
         }
 
         await using var final = CreateDbContext();
-        var processed = await final.ProcessedMessages.SingleAsync(m => m.MessageId == messageId, cancellationToken);
-        processed.ProcessedAt.Should().NotBe(default);
 
-        var count = await final.ProjectedEventCounts.SingleAsync(c => c.EventType == RoutingKey, cancellationToken);
-        count.Count.Should().Be(1);
+        var entry = await final.LedgerEntries.SingleAsync(e => e.UserId == userId, cancellationToken);
+        entry.IdempotencyKey.Should().Be($"welcome:{userId}");
+        entry.Amount.Should().Be(GrantAmount);
+        // Proves the currency was resolved by configured code, not a
+        // hardcoded id - _currencyId is generated fresh per test run.
+        entry.CurrencyId.Should().Be(_currencyId);
 
-        await AssertQueueEmptyAsync(queueName, cancellationToken);
+        var balance = await final.Balances.SingleAsync(b => b.UserId == userId && b.CurrencyId == _currencyId, cancellationToken);
+        balance.Amount.Should().Be(GrantAmount);
     }
 
     [Test]
-    public async Task Deliver_SameMessageTwice_AppliesSideEffectOnceAndAcksBothDeliveries()
+    public async Task Deliver_SameMessageTwice_DoesNotCreateSecondLedgerEntry()
     {
         var cancellationToken = TestContext.CurrentContext.CancellationToken;
         var messageId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         await using var provider = BuildProvider(new NoOpInboxFaultInjector());
         using var consumer = CreateConsumer(provider, out var queueName);
@@ -148,15 +177,14 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
         try
         {
             await WaitForConsumerReadyAsync(queueName, cancellationToken);
-            await PublishAsync(messageId, cancellationToken);
-            await PublishAsync(messageId, cancellationToken);
+            await PublishAsync(messageId, userId, cancellationToken);
+            await PublishAsync(messageId, userId, cancellationToken);
 
             await WaitUntilAsync(
                 async () =>
                 {
                     await using var verify = CreateDbContext();
-                    var projected = await verify.ProjectedEventCounts.SingleOrDefaultAsync(c => c.EventType == RoutingKey, cancellationToken);
-                    return projected is not null;
+                    return await verify.LedgerEntries.AnyAsync(e => e.UserId == userId, cancellationToken);
                 },
                 TimeSpan.FromSeconds(15));
 
@@ -170,18 +198,25 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
         }
 
         await using var final = CreateDbContext();
+
+        // Both idempotency layers checked separately, not just "one row in
+        // total": the inbox's own processed_messages dedup...
         var processedCount = await final.ProcessedMessages.CountAsync(m => m.MessageId == messageId, cancellationToken);
         processedCount.Should().Be(1);
 
-        var projectedCount = await final.ProjectedEventCounts.SingleAsync(c => c.EventType == RoutingKey, cancellationToken);
-        projectedCount.Count.Should().Be(1);
+        // ...and, independently, the ledger's own idempotency_key - this is
+        // the one that actually stops a double grant if it were ever reached
+        // twice, and it's what A.4 is really about.
+        var ledgerCount = await final.LedgerEntries.CountAsync(e => e.UserId == userId, cancellationToken);
+        ledgerCount.Should().Be(1);
     }
 
     [Test]
-    public async Task Deliver_CrashBetweenSideEffectAndCommit_RedeliveryReprocessesSuccessfully()
+    public async Task Deliver_CrashBetweenSideEffectAndCommit_RedeliveryGrantsExactlyOnce()
     {
         var cancellationToken = TestContext.CurrentContext.CancellationToken;
         var messageId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
         var faultInjector = new ThrowOnceInboxFaultInjector();
 
         await using var provider = BuildProvider(faultInjector);
@@ -191,7 +226,7 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
         try
         {
             await WaitForConsumerReadyAsync(queueName, cancellationToken);
-            await PublishAsync(messageId, cancellationToken);
+            await PublishAsync(messageId, userId, cancellationToken);
 
             await WaitUntilAsync(
                 async () =>
@@ -209,81 +244,26 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
         faultInjector.Invocations.Should().BeGreaterThanOrEqualTo(2, "the first delivery must have been rolled back and redelivered");
 
         await using var final = CreateDbContext();
+
+        // The grant itself already committed on the first attempt (it runs
+        // in its own scope/transaction, independent of the inbox's), before
+        // the injected fault rolled back the inbox's processed_messages
+        // insert. Redelivery re-runs WelcomeGrantService with the same
+        // idempotency key and replays instead of posting a second entry.
         var processedCount = await final.ProcessedMessages.CountAsync(m => m.MessageId == messageId, cancellationToken);
         processedCount.Should().Be(1);
 
-        var projectedCount = await final.ProjectedEventCounts.SingleAsync(c => c.EventType == RoutingKey, cancellationToken);
-        projectedCount.Count.Should().Be(1);
+        var ledgerCount = await final.LedgerEntries.CountAsync(e => e.UserId == userId, cancellationToken);
+        ledgerCount.Should().Be(1);
     }
 
-    [Test]
-    public async Task Deliver_MessageOnExplicitExchange_ConsumerBoundToThatExchangeReceivesItNotOptionsExchange()
+    private async Task PublishAsync(Guid messageId, Guid userId, CancellationToken cancellationToken)
     {
-        var cancellationToken = TestContext.CurrentContext.CancellationToken;
-        var messageId = Guid.CreateVersion7();
-
-        await using var provider = BuildProvider(new NoOpInboxFaultInjector());
-        using var consumer = CreateOtherExchangeConsumer(provider, out var queueName);
-
-        await consumer.StartAsync(cancellationToken);
-        try
-        {
-            await WaitForConsumerReadyAsync(queueName, cancellationToken);
-            await PublishToOtherExchangeAsync(messageId, cancellationToken);
-
-            await WaitUntilAsync(
-                async () =>
-                {
-                    await using var verify = CreateDbContext();
-                    return await verify.ProcessedMessages.AnyAsync(m => m.MessageId == messageId, cancellationToken);
-                },
-                TimeSpan.FromSeconds(15));
-        }
-        finally
-        {
-            await consumer.StopAsync(cancellationToken);
-        }
-
-        await using var final = CreateDbContext();
-        var processed = await final.ProcessedMessages.SingleAsync(m => m.MessageId == messageId, cancellationToken);
-        processed.ProcessedAt.Should().NotBe(default);
-
-        var count = await final.ProjectedEventCounts.SingleAsync(c => c.EventType == OtherExchangeRoutingKey, cancellationToken);
-        count.Count.Should().Be(1);
-    }
-
-    private async Task PublishAsync(Guid messageId, CancellationToken cancellationToken)
-    {
-        var payload = $$"""{"Id":"{{messageId}}","OccurredAt":"2026-07-19T00:00:00+00:00"}""";
+        var payload = $$"""{"Id":"{{messageId}}","OccurredAt":"2026-07-19T00:00:00+00:00","UserId":"{{userId}}"}""";
 
         await using var connection = new RabbitMqConnection(MsOptions.Create(_rabbitMqOptions));
         var eventBus = new RabbitMqEventBus(connection, MsOptions.Create(_rabbitMqOptions));
         await eventBus.PublishAsync(new EventEnvelope(RoutingKey, 1, payload), cancellationToken);
-    }
-
-    private const string OtherExchangeRoutingKey = "other-exchange.test-event";
-
-    private async Task PublishToOtherExchangeAsync(Guid messageId, CancellationToken cancellationToken)
-    {
-        var payload = $$"""{"Id":"{{messageId}}","OccurredAt":"2026-07-19T00:00:00+00:00"}""";
-
-        // Same broker connection details as _rabbitMqOptions, but a
-        // publish-side ExchangeName pointed at the second exchange - the
-        // consumer under test is bound to that exchange via its own explicit
-        // exchangeName argument, independent of this options object.
-        var otherExchangeOptions = new RabbitMqOptions
-        {
-            Host = _rabbitMqOptions.Host,
-            Port = _rabbitMqOptions.Port,
-            Username = _rabbitMqOptions.Username,
-            Password = _rabbitMqOptions.Password,
-            VirtualHost = _rabbitMqOptions.VirtualHost,
-            ExchangeName = OtherExchangeName,
-        };
-
-        await using var connection = new RabbitMqConnection(MsOptions.Create(otherExchangeOptions));
-        var eventBus = new RabbitMqEventBus(connection, MsOptions.Create(otherExchangeOptions));
-        await eventBus.PublishAsync(new EventEnvelope(OtherExchangeRoutingKey, 1, payload), cancellationToken);
     }
 
     // BackgroundService.StartAsync returns once ExecuteAsync has been
@@ -339,31 +319,16 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
         Assert.Fail($"Condition was not met within {timeout}.");
     }
 
-    private DeduplicatingEventConsumer CreateConsumer(ServiceProvider provider, out string queueName)
+    private UserEmailConfirmedConsumer CreateConsumer(ServiceProvider provider, out string queueName)
     {
-        queueName = $"gbp.economy.log-projector.test.{Guid.NewGuid():N}";
+        queueName = $"gbp.economy.welcome-grant.test.{Guid.NewGuid():N}";
 
-        return new DeduplicatingEventConsumer(
-            new RabbitMqConnection(MsOptions.Create(_rabbitMqOptions)),
-            MsOptions.Create(_rabbitMqOptions),
-            provider.GetRequiredService<IServiceScopeFactory>(),
-            provider.GetRequiredService<IInboxFaultInjector>(),
-            TimeProvider.System,
-            NullLogger<DeduplicatingEventConsumer>.Instance,
-            queueName);
-    }
-
-    private OtherExchangeConsumer CreateOtherExchangeConsumer(ServiceProvider provider, out string queueName)
-    {
-        queueName = $"gbp.test-other.consumer.test.{Guid.NewGuid():N}";
-
-        return new OtherExchangeConsumer(
+        return new UserEmailConfirmedConsumer(
             new RabbitMqConnection(MsOptions.Create(_rabbitMqOptions)),
             provider.GetRequiredService<IServiceScopeFactory>(),
             provider.GetRequiredService<IInboxFaultInjector>(),
             TimeProvider.System,
-            NullLogger<OtherExchangeConsumer>.Instance,
-            OtherExchangeName,
+            NullLogger<UserEmailConfirmedConsumer>.Instance,
             queueName);
     }
 
@@ -372,6 +337,17 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
         var services = new ServiceCollection();
         services.AddDbContext<EconomyDbContext>(o => o.UseNpgsql(_connectionString));
         services.AddSingleton(faultInjector);
+        services.AddSingleton(TimeProvider.System);
+        services.AddScoped<IIdempotencyStore, IdempotencyStore>();
+        services.AddScoped<IBalanceService, BalanceService>();
+        services.AddScoped<ILedgerService, LedgerService>();
+        services.AddScoped<IOutboxWriter, OutboxWriter<EconomyDbContext>>();
+        services.AddScoped<IWelcomeGrantService, WelcomeGrantService>();
+        services.AddOptions<WelcomeGrantOptions>().Configure(o =>
+        {
+            o.Amount = GrantAmount;
+            o.CurrencyCode = CurrencyCode;
+        });
         return services.BuildServiceProvider();
     }
 
@@ -400,34 +376,5 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
 
             return Task.CompletedTask;
         }
-    }
-
-    // Minimal InboxConsumerBase subclass, test-only: exists only to prove
-    // exchangeName controls the bind, independent of options.Value.ExchangeName
-    // (which stays pointed at gbp.economy throughout). Side effect mirrors
-    // DeduplicatingEventConsumer.ApplySideEffectAsync - same upsert, nothing
-    // new to verify there.
-    private sealed class OtherExchangeConsumer(
-        IRabbitMqConnection connection,
-        IServiceScopeFactory scopeFactory,
-        IInboxFaultInjector faultInjector,
-        TimeProvider timeProvider,
-        ILogger<OtherExchangeConsumer> logger,
-        string exchangeName,
-        string queueName)
-        : InboxConsumerBase<EconomyDbContext>(
-            connection, scopeFactory, faultInjector, timeProvider, logger, exchangeName, queueName, RoutingKeys)
-    {
-        private static readonly string[] RoutingKeys = [OtherExchangeRoutingKey];
-
-        protected override async Task ApplySideEffectAsync(
-            EconomyDbContext dbContext, Guid messageId, string routingKey, ReadOnlyMemory<byte> body, CancellationToken cancellationToken) =>
-            await dbContext.Database.ExecuteSqlInterpolatedAsync(
-                $"""
-                INSERT INTO projected_event_counts (event_type, count)
-                VALUES ({routingKey}, 1)
-                ON CONFLICT (event_type) DO UPDATE SET count = projected_event_counts.count + 1
-                """,
-                cancellationToken);
     }
 }
