@@ -8,6 +8,7 @@ export * from './lib/auth/auth.interceptor';
 export * from './lib/auth/auth.service';
 export * from './lib/auth/client-type';
 export * from './lib/auth/game-scope.guard';
+export * from './lib/auth/guest-redirect-path';
 export * from './lib/auth/guest.guard';
 export * from './lib/auth/role.guard';
 export * from './lib/auth/silent-session-restore';
