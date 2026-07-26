@@ -67,10 +67,11 @@ docker compose up
 
 This brings up the whole stack in one command: both Postgres instances,
 Consul, RabbitMQ, Mailpit, IdentityService, EconomyService, Platform.Worker,
-ApiGateway and player-client. The browser client is at
-`http://localhost:8080`; anything hitting the API directly goes through the
-gateway at `http://localhost:5100`. Mailpit's UI (for reading verification
-emails without a real mailbox) is at `http://localhost:8025`.
+ApiGateway, player-client and admin-client. The player browser client is at
+`http://localhost:8080`, the admin one at `http://localhost:8081`; anything
+hitting the API directly goes through the gateway at `http://localhost:5100`.
+Mailpit's UI (for reading verification emails without a real mailbox) is at
+`http://localhost:8025`.
 
 The values in `infra/.env.example` are committed on purpose and are not
 production secrets: the stack only binds to `localhost`, so nothing in it is
@@ -80,12 +81,13 @@ reachable from outside the machine it runs on, and every clone gets its own
 ## Running on Kubernetes
 
 Manifests live under `infra/kubernetes/` — `base/`, `identity/`, `economy/`,
-`rabbitmq/`, `worker/`, `player-client/`, `gateway/`, `mailpit/` — one
-namespace (`gaming-platform`) with the same services as the compose stack
-above. They target a local `kind` cluster or a sandbox namespace, not
-production — see [docs/architecture.md](docs/architecture.md#local-vs-kubernetes)
-for the full local-vs-cluster breakdown, including why the environment is
-pinned to `Development` here.
+`rabbitmq/`, `worker/`, `player-client/`, `admin-client/`, `gateway/`,
+`mailpit/` — one namespace (`gaming-platform`) with the same services as the
+compose stack above. They target a local `kind` cluster or a sandbox
+namespace, not production — see
+[docs/architecture.md](docs/architecture.md#local-vs-kubernetes) for the
+full local-vs-cluster breakdown, including why the environment is pinned to
+`Development` here.
 
 Secrets are never committed; each service ships a `secret.example.yaml`
 template instead:
@@ -108,8 +110,8 @@ discovery (ADR 0002).
 tree) does more than a bare `kubectl apply -f`: the two database
 StatefulSets are applied and waited on first, then the `identity-migrator`/
 `economy-migrator` Jobs are applied and waited on to completion, and only
-after that does the rest of the tree — including `mailpit` and
-`player-client` — get applied. That ordering is spelled out explicitly
+after that does the rest of the tree — including `mailpit`, `player-client`
+and `admin-client` — get applied. That ordering is spelled out explicitly
 because a Kubernetes `Job` has no `depends_on: condition:
 service_completed_successfully` equivalent the way compose's migrator
 containers do.
@@ -125,13 +127,19 @@ the script renders with `kubectl kustomize
 --load-restrictor=LoadRestrictionsNone` first and pipes the result into
 `kubectl apply -f -`.
 
-Reach the stack through the Ingress (assumes `ingress-nginx`; its one rule
+Reach the stack through the Ingress (assumes `ingress-nginx`). Its first rule
 routes `/` to `player-client`, which proxies `/api` onward to the gateway
-itself — see [docs/architecture.md](docs/architecture.md#local-vs-kubernetes)),
-or port-forward directly:
+itself — see [docs/architecture.md](docs/architecture.md#local-vs-kubernetes).
+A second, host-based rule routes `admin.gaming-platform.local` to
+`admin-client` instead — a path prefix under the same host wouldn't give
+`admin-client` a genuinely separate origin, so this is the first host-based
+rule in the repo; on a local `kind` cluster the hostname needs an
+`/etc/hosts` entry pointed at the ingress controller's address, where a real
+cluster would just resolve it through DNS. Or port-forward directly:
 
 ```
 kubectl -n gaming-platform port-forward svc/player-client 8080:8080
+kubectl -n gaming-platform port-forward svc/admin-client 8081:8081
 kubectl -n gaming-platform port-forward svc/api-gateway 5100:5100
 kubectl -n gaming-platform port-forward svc/mailpit 8025:8025   # kind/sandbox only
 ```
@@ -185,21 +193,43 @@ policies underneath regardless of what the gateway already checked.
 | POST | `/api/identity/auth/refresh` | anonymous | Rotate a refresh token for a new pair (body or cookie, depending on mode) |
 | POST | `/api/identity/auth/logout` | anonymous at the gateway, bearer required by the service | Revoke the current session |
 | GET | `/api/identity/users/me` | bearer | Current user's profile |
-| GET | `/api/identity/users/{userId}` | bearer | Look up a user in the caller's game (moderator and above) |
-| GET | `/api/identity/users` | bearer | Search/paginate users in the caller's game (moderator and above) |
-| POST | `/api/identity/users/{userId}/revoke-sessions` | bearer | Revoke all of a user's sessions (admin) |
-| GET | `/api/identity/users/{userId}/roles` | bearer; scope and ownership checked by the service | A user's role in a given scope (`?gameId=`) |
-| PATCH | `/api/identity/users/{userId}/roles` | bearer; scope and ownership checked by the service | Assign a role to a user |
-| GET | `/api/identity/permissions` | bearer, moderator or above | The permission catalog — every key the code actually enforces |
-| GET | `/api/identity/roles/{role}/permissions` | bearer; scope and ownership checked by the service | A role's effective permissions, optionally scoped to a game (`?gameId=`) |
-| PUT | `/api/identity/roles/{role}/permissions` | bearer; scope and ownership checked by the service | Replace a role's permission set |
-| GET | `/api/identity/games` | bearer, `platform.games.manage` permission | List registered games, all fields |
-| POST | `/api/identity/games` | bearer, `platform.games.manage` permission | Register a new game |
-| PATCH | `/api/identity/games/{id}` | bearer, `platform.games.manage` permission | Update a game's name or active flag |
 | GET | `/api/identity/games/public` | bearer, any player | List active games only, `id`/`slug`/`name` only - the catalog a player picks a game from |
 | GET | `/openapi/identity/v1.json` | anonymous | IdentityService's OpenAPI document, proxied through the gateway |
 | GET | `/scalar/identity` | anonymous | Interactive API reference (Scalar) |
 | GET | `/health` | anonymous | Gateway liveness probe |
+
+Everything above sits on the plain `/api/identity/**` prefix that `player-client`
+(and any other non-admin caller) uses. The routes that used to live here —
+game management, permission/role management, user search and role
+assignment — moved to `/api/admin/identity/**` once `admin-client` got its
+own audience-gated surface; see below and
+[ADR 0016](docs/adr/0016-admin-surface-isolation.md).
+
+### Admin API (`/api/admin/identity/**`)
+
+Every route below is additionally gated on `aud=gbp-admin` at the gateway
+itself (`RouteClaimsRequirement`) — a `player-client` token never carries
+that audience, so it's rejected before the request ever reaches
+IdentityService, regardless of what `perms` it happens to hold. The two
+`games` routes further require `scope=Platform` at the gateway, since
+`platform.games.manage` is a platform-only permission anyway. IdentityService's
+own policies (the "Auth" column below) apply on top of that gate exactly as
+they did before the move.
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/api/admin/identity/users/{userId}` | bearer | Look up a user in the caller's scope — one game, or platform-wide (moderator and above) |
+| GET | `/api/admin/identity/users` | bearer | Search/paginate users in the caller's scope — one game, or platform-wide (moderator and above) |
+| POST | `/api/admin/identity/users/{userId}/revoke-sessions` | bearer | Revoke all of a user's sessions (admin) |
+| GET | `/api/admin/identity/users/{userId}/roles` | bearer; scope and ownership checked by the service | A user's role in a given scope (`?gameId=`) |
+| PATCH | `/api/admin/identity/users/{userId}/roles` | bearer; scope and ownership checked by the service | Assign a role to a user |
+| GET | `/api/admin/identity/users/me/games` | bearer | Games the caller personally has a role on — backs `admin-client`'s game picker for a caller with no platform role |
+| GET | `/api/admin/identity/permissions` | bearer, moderator or above | The permission catalog — every key the code actually enforces |
+| GET | `/api/admin/identity/roles/{role}/permissions` | bearer; scope and ownership checked by the service | A role's effective permissions, optionally scoped to a game (`?gameId=`) |
+| PUT | `/api/admin/identity/roles/{role}/permissions` | bearer; scope and ownership checked by the service | Replace a role's permission set |
+| GET | `/api/admin/identity/games` | bearer, `platform.games.manage` permission | List registered games, all fields |
+| POST | `/api/admin/identity/games` | bearer, `platform.games.manage` permission | Register a new game |
+| PATCH | `/api/admin/identity/games/{id}` | bearer, `platform.games.manage` permission | Update a game's name or active flag |
 
 ### Web auth (cookie mode)
 
@@ -331,8 +361,14 @@ Three claims ride alongside the existing `role` and `game_id`:
   [Ecosystem-first login](#ecosystem-first-login) below.
 - `perms` - the caller's resolved permissions for that session, as an
   array.
-- `aud` - `gbp-player` on every token minted right now; `gbp-admin` is
-  reserved for an admin surface a later slice adds, and isn't issued yet.
+- `aud` - `gbp-player` or `gbp-admin`, decided per request from the
+  `X-Client-Type` header rather than stored on the token family: `web` gets
+  `gbp-player`, `admin` gets `gbp-admin`, anything else (or no header at all)
+  defaults to `gbp-player` too. The gateway's `/api/admin/**` routes reject
+  anything without `aud=gbp-admin` before IdentityService sees it, so a
+  stolen or misdirected player token can't reach admin endpoints just
+  because its `perms` would otherwise allow it. See
+  [ADR 0016](docs/adr/0016-admin-surface-isolation.md).
 
 `role` itself is only present on `Game`/`Platform` tokens - an account-scoped
 session has no game role to report, and the claim is genuinely absent rather
@@ -579,20 +615,94 @@ for the full reasoning.
 
 ### CORS
 
-The gateway whitelists `http://localhost:8080` and `http://localhost:4200`
-(`Cors:AllowedOrigins`, `AllowCredentials=true`, `X-Client-Type` in
-`AllowedHeaders`) via `AddCors`/`UseCors` middleware ahead of `UseOcelot()`,
-not Ocelot's own per-route CORS config. The built demo path doesn't need it
-at all, since Nginx proxies `/api` onto the same origin as the static files
-— CORS only matters for `ng serve` and any future direct client.
+The gateway runs two named CORS policies, not one shared whitelist:
+`PlayerClientCors` (`Cors:AllowedOrigins` — `http://localhost:8080` and
+`http://localhost:4200`) and `AdminClientCors` (`AdminCors:AllowedOrigins` —
+`http://localhost:8081` and `http://localhost:4201`), both with
+`AllowCredentials=true` and `X-Client-Type` in `AllowedHeaders`. Two
+`UseWhen` branches pick a policy by path prefix (`/api/admin/**` gets
+`AdminClientCors`, everything else gets `PlayerClientCors`) ahead of
+`UseOcelot()`, since Ocelot has no per-route CORS config of its own. The
+built demo path doesn't need either policy, since each frontend's own Nginx
+proxies `/api` onto its own origin — CORS only matters for `ng serve` and
+any future direct client. See [ADR 0016](docs/adr/0016-admin-surface-isolation.md).
 
 ### Known limitations
 
-- **Admin panel not built.** Slice 3 scope.
 - **`ng serve` has no `proxy.conf.json` yet.** Local dev currently needs
   either that file (pointing `/api` at the gateway) or manually hitting the
   gateway's absolute URL; CORS alone doesn't help until requests are
   actually cross-origin.
+
+## Admin-client (Angular)
+
+A second Angular workspace app under `frontend/` (`projects/admin-client`,
+sharing the same `shared` library `player-client` does), covering platform
+and game admin/moderator tooling that used to be part of `player-client`'s
+own reach and now lives entirely off-player-surface instead. One
+application, not two — platform-wide sections and game-scoped sections both
+live here, gated by permission rather than split into separate SPAs. See
+[ADR 0016](docs/adr/0016-admin-surface-isolation.md) for the full reasoning.
+
+### Running it
+
+Built image (matches the demo path, proxies `/api` through its own Nginx,
+same shape as `player-client`):
+
+```
+cd frontend
+docker build -f projects/admin-client/Dockerfile -t admin-client .
+docker run -p 8081:8081 --network infra_platform-network admin-client
+```
+
+Reach it at `http://localhost:8081`. Local iteration goes through the same
+`shared`-then-app build order as `player-client`:
+
+```
+cd frontend
+npm install
+npm run build            # shared first, then each app
+npm start -- admin-client # ng serve, http://localhost:4201
+npm test                  # Vitest, all projects
+```
+
+### Login and the game picker
+
+Login is account-first — there's no game-slug field the way `player-client`
+still has one for direct game logins. A caller with a platform-wide role
+(`scope=Platform` back from `login`) lands straight in. A caller with only
+game-scoped roles gets a game picker instead, backed by
+`GET /api/admin/identity/users/me/games` (the games they actually hold a
+role on, not the public catalog); picking one calls the same
+`POST /api/identity/auth/select-game` player-client's ecosystem-first login
+already uses, not a second, admin-only mechanism.
+
+### Cookie flow, client side
+
+Same shape as `player-client`: the access token lives only in an in-memory
+signal, and the refresh token is an `httpOnly` cookie the client never reads
+— here named `gbp_admin_refresh` rather than `gbp_refresh`, on its own
+options section server-side. `admin-client` has its own Nginx doing the same
+reverse-proxy trick player-client's does, so the browser sees one origin for
+statics and `/api` alike, and the cookie keeps `SameSite=Strict` despite
+being a genuinely separate frontend on a different host and port. See
+[ADR 0016](docs/adr/0016-admin-surface-isolation.md).
+
+### Screens
+
+- **Games** (`platform.games.manage`) — list/register/update games.
+- **Roles** (`platform.roles.manage`) — the permission catalog and each
+  role's effective permission set, per game or platform-wide.
+- **Users** (Moderator/Admin role tier) — search and look up users in the
+  caller's own scope, assign roles, and revoke a user's sessions
+  (session revocation itself is Admin-only, stricter than the tier that
+  gets into the screen at all).
+
+None of this re-implements the backend's anti-escalation rules client-side —
+the UI disables a role option it can't confirm the caller is actually
+allowed to grant, by asking the same `roles/{role}/permissions` endpoint the
+backend's own guard checks against, not a copy of that logic living in the
+frontend.
 
 ## Messaging
 
@@ -765,13 +875,23 @@ that service's own rules. It does so through narrow, cleanup-only
   database-per-service boundary made for housekeeping only — it never reads
   either database to serve a request, only to delete rows each owning
   service already considers dead.
-- The web cookie flow assumes the SPA and the API share an origin, which is
-  what lets the refresh cookie use `SameSite=Strict`. A cross-origin
-  deployment would need `SameSite=None` plus a CSRF token, neither of which
-  is built yet. See ADR 0011.
-- A backend-for-frontend would keep even more of the token handling out of
-  the browser than the current cookie-only approach, but is more
-  infrastructure than this slice justifies.
+- The web cookie flow needs the browser to see its frontend and the API as
+  one origin, which is what lets the refresh cookie use `SameSite=Strict`
+  with no CSRF token. That no longer means a single shared origin for the
+  whole platform: `admin-client` is a genuinely separate frontend, on its
+  own host and port, and still gets a clean `SameSite=Strict` cookie,
+  because its own Nginx reverse-proxies `/api` onto itself the same way
+  `player-client`'s does — the browser never makes a cross-origin call
+  either way. See ADR 0011 and
+  [ADR 0016](docs/adr/0016-admin-surface-isolation.md).
+- A true backend-for-frontend — one where the server itself holds the
+  tokens, not just a reverse proxy that keeps the browser same-origin with
+  its own frontend — would keep even more token handling out of the browser
+  than the cookie-only approach both clients use today. `admin-client`'s own
+  origin doesn't do this: the access token still lives in browser memory and
+  the refresh cookie still goes straight through the proxy to
+  IdentityService, so that gap is unchanged, just now shared by two
+  frontends instead of one.
 - The conversion saga is in-process and sequential, not cross-service
   choreography over the message bus — a second service reacting to an
   event mid-saga needs InventoryService, which doesn't exist until slice 3.
