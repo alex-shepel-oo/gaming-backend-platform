@@ -1,3 +1,4 @@
+using IdentityService.Auth;
 using IdentityService.Domain;
 using IdentityService.Domain.Enums;
 using IdentityService.Exceptions;
@@ -145,7 +146,17 @@ public sealed partial class AuthenticationService(
 
         if (role is null)
         {
-            throw new NoAccessToGameException();
+            if (gameId is not null)
+            {
+                throw new NoAccessToGameException();
+            }
+
+            var accountIssued = await refreshTokenService.IssueFamilyAsync(
+                user.Id, null, TokenScope.Account, ip, userAgent, cancellationToken);
+            var accountAccessToken = tokenService.IssueAccessToken(
+                user, null, null, accountIssued.Family.Id, TokenScope.Account, AccountPermissions.All);
+
+            return new LoginResult(accountAccessToken, accountIssued.RawToken);
         }
 
         var scope = gameId is null ? TokenScope.Platform : TokenScope.Game;

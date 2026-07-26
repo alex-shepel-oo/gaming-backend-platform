@@ -1,3 +1,4 @@
+using IdentityService.Auth;
 using IdentityService.Domain;
 using IdentityService.Domain.Enums;
 using IdentityService.Exceptions;
@@ -109,8 +110,13 @@ public sealed partial class RefreshTokenService(
             throw new InvalidRefreshTokenException();
         }
 
-        var role = await dbContext.UserGameRoles
-            .SingleAsync(r => r.UserId == family.UserId && r.GameId == family.GameId, cancellationToken);
+        UserGameRole? role = null;
+
+        if (family.Scope != TokenScope.Account)
+        {
+            role = await dbContext.UserGameRoles
+                .SingleAsync(r => r.UserId == family.UserId && r.GameId == family.GameId, cancellationToken);
+        }
 
         var newTokenId = Guid.CreateVersion7();
         var newRawToken = generator.GenerateRaw();
@@ -149,9 +155,11 @@ public sealed partial class RefreshTokenService(
 
         await transaction.CommitAsync(cancellationToken);
 
-        var scope = family.GameId is null ? TokenScope.Platform : TokenScope.Game;
-        var permissions = await permissionResolver.ResolveAsync(role.Role, family.GameId, cancellationToken);
-        var accessToken = tokenService.IssueAccessToken(user, family.GameId, role.Role, family.Id, scope, permissions);
+        var permissions = role is not null
+            ? await permissionResolver.ResolveAsync(role.Role, family.GameId, cancellationToken)
+            : AccountPermissions.All;
+
+        var accessToken = tokenService.IssueAccessToken(user, family.GameId, role?.Role, family.Id, family.Scope, permissions);
 
         return new RefreshRotationResult(accessToken, newRawToken, newToken, family);
     }

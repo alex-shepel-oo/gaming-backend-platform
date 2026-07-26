@@ -47,6 +47,29 @@ public sealed class UserEndpointsTests(IdentityApiFactory factory) : IClassFixtu
     }
 
     [Fact]
+    public async Task Me_OnAccountScopedToken_ReturnsNullRoleInsteadOf500()
+    {
+        var game = await SeedGameAsync();
+        var user = await SeedUserAsync(game.Id, PlatformRole.Player);
+        var client = factory.CreateClient();
+
+        var login = await client.PostAsJsonAsync(
+            "/api/identity/auth/login",
+            new LoginRequest(GameSlug: null, user.Email, Password),
+            JsonOptions,
+            TestContext.Current.CancellationToken);
+        var tokens = await login.Content.ReadFromJsonAsync<TokenPairResponse>(JsonOptions, TestContext.Current.CancellationToken);
+
+        var response = await GetAuthorizedAsync(client, "/api/identity/users/me", tokens!.AccessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<UserDto>(JsonOptions, TestContext.Current.CancellationToken);
+        body!.Id.Should().Be(user.Id);
+        body.Role.Should().BeNull();
+        body.GameId.Should().BeNull();
+    }
+
+    [Fact]
     public async Task GetUserById_UnknownUser_Returns404()
     {
         var game = await SeedGameAsync();
