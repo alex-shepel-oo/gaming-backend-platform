@@ -6,8 +6,8 @@ import { provideRouter, Router } from '@angular/router';
 import { IdentityAuthEndpoints, TokenStore } from 'shared';
 import { AdminShell } from './admin-shell';
 
-function fakeAccessToken(scope: string): string {
-  const payload = { sub: 'user-1', email: 'admin@example.com', name: 'Admin One', scope };
+function fakeAccessToken(scope: string, permissions: string[] = []): string {
+  const payload = { sub: 'user-1', email: 'admin@example.com', name: 'Admin One', scope, perms: permissions };
 
   return `header.${btoa(JSON.stringify(payload))}.signature`;
 }
@@ -65,5 +65,38 @@ describe('AdminShell', () => {
     httpMock.expectOne(IdentityAuthEndpoints.logout).flush(null);
 
     expect(navigateSpy).toHaveBeenCalledWith('/login');
+  });
+
+  it('hides the Games and Roles nav links when the caller holds neither permission', () => {
+    tokenStore.set(fakeAccessToken('platform'));
+
+    const fixture = TestBed.createComponent(AdminShell);
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toContain('Games');
+    expect(text).not.toContain('Roles');
+  });
+
+  it('shows the Games nav link only when the caller holds platform.games.manage', () => {
+    tokenStore.set(fakeAccessToken('platform', ['platform.games.manage']));
+
+    const fixture = TestBed.createComponent(AdminShell);
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Games');
+    expect(text).not.toContain('Roles');
+  });
+
+  it('shows the Roles nav link only when the caller holds platform.roles.manage', () => {
+    tokenStore.set(fakeAccessToken('platform', ['platform.roles.manage']));
+
+    const fixture = TestBed.createComponent(AdminShell);
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Roles');
+    expect(text).not.toContain('Games');
   });
 });

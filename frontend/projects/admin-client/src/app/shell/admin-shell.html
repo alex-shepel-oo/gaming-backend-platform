@@ -1,6 +1,14 @@
 <mat-toolbar class="shell-toolbar">
   <span class="shell-brand">Gaming Backend Platform — Admin</span>
 
+  @if (tokenStore.claims()?.permissions?.includes('platform.games.manage')) {
+    <a mat-button routerLink="/games">Games</a>
+  }
+
+  @if (tokenStore.claims()?.permissions?.includes('platform.roles.manage')) {
+    <a mat-button routerLink="/roles">Roles</a>
+  }
+
   <span class="shell-spacer"></span>
 
   @if (tokenStore.claims(); as claims) {

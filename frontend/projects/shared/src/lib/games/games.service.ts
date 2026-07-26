@@ -9,6 +9,28 @@ export interface PublicGame {
   name: string;
 }
 
+// The platform-admin shape (GameDto on the backend) -- distinct from
+// PublicGame, which is the narrower, public-facing shape returned by
+// /games/public. Don't conflate the two: PublicGame is what a player picks
+// from, Game is what platform.games.manage lets an admin CRUD.
+export interface Game {
+  id: string;
+  slug: string;
+  name: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface CreateGameRequest {
+  slug: string;
+  name: string;
+}
+
+export interface UpdateGameRequest {
+  name?: string;
+  isActive?: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class GamesService {
   private readonly http = inject(HttpClient);
@@ -19,5 +41,17 @@ export class GamesService {
 
   listMyGames(): Observable<PublicGame[]> {
     return this.http.get<PublicGame[]>(IdentityGameEndpoints.myGames);
+  }
+
+  listAllGames(): Observable<Game[]> {
+    return this.http.get<Game[]>(IdentityGameEndpoints.allGames);
+  }
+
+  createGame(request: CreateGameRequest): Observable<Game> {
+    return this.http.post<Game>(IdentityGameEndpoints.allGames, request);
+  }
+
+  updateGame(id: string, request: UpdateGameRequest): Observable<Game> {
+    return this.http.patch<Game>(IdentityGameEndpoints.game(id), request);
   }
 }
