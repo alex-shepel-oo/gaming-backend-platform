@@ -95,6 +95,23 @@ public sealed class HealthReadyRabbitMqDownTests : IAsyncDisposable
         // while the broker is still alive, before it gets stopped below.
         using var warmupClient = _factory.CreateClient();
         await warmupClient.GetAsync(new Uri("/health/ready", UriKind.Relative));
+
+        // The health check above only proves the shared RabbitMQ *connection*
+        // is open - it says nothing about whether this host's own background
+        // consumers (DeduplicatingEventConsumer, UserEmailConfirmedConsumer)
+        // have finished their own independent declare/bind/consume startup
+        // sequence on their own channels. Each is started as a fire-and-
+        // forget background task by BackgroundService.StartAsync, so "warmup
+        // GET returned 200" can race ahead of either one still being mid-
+        // BasicConsumeAsync when the test stops the broker below. If that
+        // happens, the broker's own graceful shutdown sends a
+        // CONNECTION_FORCED close to the still-connecting consumer,
+        // OperationInterruptedException escapes ExecuteAsync unhandled, and
+        // the host's default BackgroundServiceExceptionBehavior.StopHost
+        // tears the whole TestServer down before the test method ever runs.
+        // Wait for both consumers to actually be attached first.
+        await WaitForConsumerReadyAsync("gbp.economy.log-projector", TestContext.CurrentContext.CancellationToken);
+        await WaitForConsumerReadyAsync("gbp.economy.welcome-grant", TestContext.CurrentContext.CancellationToken);
     }
 
     [OneTimeTearDown]
@@ -105,6 +122,49 @@ public sealed class HealthReadyRabbitMqDownTests : IAsyncDisposable
         _factory.Dispose();
         await _postgres.DisposeAsync();
         await _rabbitMq.DisposeAsync();
+    }
+
+    // Polls until the queue has a consumer actually attached (not just
+    // declared) - ConsumerCount only reaches 1 once BasicConsumeAsync has
+    // completed, which is the specific point the startup race above needs
+    // to have passed. Same poll-until-ready shape as
+    // WelcomeGrantConsumerTests/ConsumerDeduplicationTests use elsewhere in
+    // this namespace, just checking consumer attachment rather than mere
+    // queue existence.
+    private async Task WaitForConsumerReadyAsync(string queueName, CancellationToken cancellationToken)
+    {
+        var options = new RabbitMqOptions
+        {
+            Host = _rabbitMq.Hostname,
+            Port = _rabbitMq.GetMappedPublicPort(5672),
+            Username = "guest",
+            Password = "guest",
+        };
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(15));
+
+        while (!cts.IsCancellationRequested)
+        {
+            try
+            {
+                await using var connection = new RabbitMqConnection(MsOptions.Create(options));
+                await using var channel = await connection.CreateChannelAsync(cts.Token);
+                var declareOk = await channel.QueueDeclarePassiveAsync(queueName, cts.Token);
+
+                if (declareOk.ConsumerCount >= 1)
+                {
+                    return;
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(100), cts.Token);
+        }
+
+        Assert.Fail($"Consumer for queue '{queueName}' was not attached within the timeout.");
     }
 
     [Test]
