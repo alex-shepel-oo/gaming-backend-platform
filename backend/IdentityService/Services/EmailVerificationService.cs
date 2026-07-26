@@ -1,5 +1,7 @@
+using BuildingBlocks.Messaging.Outbox;
 using IdentityService.Domain;
 using IdentityService.Exceptions;
+using IdentityService.Messaging.Events;
 using IdentityService.Options;
 using IdentityService.Persistence;
 using IdentityService.Services.Email;
@@ -17,6 +19,7 @@ public sealed partial class EmailVerificationService(
     IEmailTemplateRenderer templateRenderer,
     IOptions<EmailVerificationOptions> options,
     TimeProvider timeProvider,
+    IOutboxWriter outboxWriter,
     ILogger<EmailVerificationService> logger) : IEmailVerificationService
 {
     private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(10);
@@ -131,7 +134,9 @@ public sealed partial class EmailVerificationService(
         user.EmailConfirmedAt = now;
         user.UpdatedAt = now;
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await outboxWriter.WriteAsync(
+            new UserEmailConfirmedEvent { Id = Guid.CreateVersion7(), OccurredAt = now, UserId = user.Id },
+            cancellationToken);
     }
 
     public async Task ResendAsync(string email, string? gameSlug, CancellationToken cancellationToken = default)
