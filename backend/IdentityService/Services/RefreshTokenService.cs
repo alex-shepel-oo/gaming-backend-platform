@@ -66,6 +66,7 @@ public sealed partial class RefreshTokenService(
     public async Task<RefreshRotationResult> RotateAsync(
         string rawToken,
         string? createdByIp,
+        string audience,
         CancellationToken cancellationToken = default)
     {
         var now = timeProvider.GetUtcNow();
@@ -159,7 +160,7 @@ public sealed partial class RefreshTokenService(
             ? await permissionResolver.ResolveAsync(role.Role, family.GameId, cancellationToken)
             : AccountPermissions.All;
 
-        var accessToken = tokenService.IssueAccessToken(user, family.GameId, role?.Role, family.Id, family.Scope, permissions);
+        var accessToken = tokenService.IssueAccessToken(user, family.GameId, role?.Role, family.Id, family.Scope, permissions, audience);
 
         return new RefreshRotationResult(accessToken, newRawToken, newToken, family);
     }

@@ -102,6 +102,7 @@ public sealed partial class AuthenticationService(
         string password,
         string? ip,
         string? userAgent,
+        string audience,
         CancellationToken cancellationToken = default)
     {
         Guid? gameId = null;
@@ -154,7 +155,7 @@ public sealed partial class AuthenticationService(
             var accountIssued = await refreshTokenService.IssueFamilyAsync(
                 user.Id, null, TokenScope.Account, ip, userAgent, cancellationToken);
             var accountAccessToken = tokenService.IssueAccessToken(
-                user, null, null, accountIssued.Family.Id, TokenScope.Account, AccountPermissions.All);
+                user, null, null, accountIssued.Family.Id, TokenScope.Account, AccountPermissions.All, audience);
 
             return new LoginResult(accountAccessToken, accountIssued.RawToken);
         }
@@ -163,13 +164,18 @@ public sealed partial class AuthenticationService(
         var permissions = await permissionResolver.ResolveAsync(role.Role, gameId, cancellationToken);
 
         var issued = await refreshTokenService.IssueFamilyAsync(user.Id, gameId, scope, ip, userAgent, cancellationToken);
-        var accessToken = tokenService.IssueAccessToken(user, gameId, role.Role, issued.Family.Id, scope, permissions);
+        var accessToken = tokenService.IssueAccessToken(user, gameId, role.Role, issued.Family.Id, scope, permissions, audience);
 
         return new LoginResult(accessToken, issued.RawToken);
     }
 
     public async Task<LoginResult> SelectGameAsync(
-        Guid userId, Guid gameId, string? ip, string? userAgent, CancellationToken cancellationToken = default)
+        Guid userId,
+        Guid gameId,
+        string? ip,
+        string? userAgent,
+        string audience,
+        CancellationToken cancellationToken = default)
     {
         var game = await dbContext.Games
             .SingleOrDefaultAsync(g => g.Id == gameId && g.IsActive, cancellationToken);
@@ -195,7 +201,7 @@ public sealed partial class AuthenticationService(
 
         var permissions = await permissionResolver.ResolveAsync(role.Role, gameId, cancellationToken);
         var issued = await refreshTokenService.IssueFamilyAsync(userId, gameId, TokenScope.Game, ip, userAgent, cancellationToken);
-        var accessToken = tokenService.IssueAccessToken(user, gameId, role.Role, issued.Family.Id, TokenScope.Game, permissions);
+        var accessToken = tokenService.IssueAccessToken(user, gameId, role.Role, issued.Family.Id, TokenScope.Game, permissions, audience);
 
         return new LoginResult(accessToken, issued.RawToken);
     }

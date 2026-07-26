@@ -12,6 +12,7 @@ using IdentityService.Services;
 using IdentityService.Tests.Integration.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.Net.Http.Headers;
 using Xunit;
 
@@ -23,6 +24,8 @@ public sealed class WebLoginTests(IdentityApiFactory factory) : IClassFixture<Id
     private const string Password = "correct-horse-battery";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    private static readonly JsonWebTokenHandler TokenHandler = new();
 
     public ValueTask InitializeAsync() => new(factory.ResetAsync());
 
@@ -68,6 +71,44 @@ public sealed class WebLoginTests(IdentityApiFactory factory) : IClassFixture<Id
     }
 
     [Fact]
+    public async Task Login_AdminClientType_ReturnsAdminAudienceTokenAndAdminRefreshCookie()
+    {
+        var game = await SeedGameAsync();
+        var user = await SeedUserAsync(game.Id, confirmed: true, active: true);
+        using var client = factory.CreateClient();
+
+        var response = await LoginWithClientTypeAsync(client, game.Slug, user.Email, Password, "admin");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        var jwt = TokenHandler.ReadJsonWebToken(json.GetProperty("accessToken").GetString());
+        jwt.Audiences.Should().ContainSingle().Which.Should().Be(TokenAudiences.Admin);
+
+        var setCookie = SetCookieHeaderValue.Parse(response.Headers.GetValues("Set-Cookie").Single());
+        setCookie.Name.ToString().Should().Be("gbp_admin_refresh");
+    }
+
+    [Fact]
+    public async Task Login_WebClientType_ReturnsPlayerAudienceTokenAndPlayerRefreshCookie()
+    {
+        var game = await SeedGameAsync();
+        var user = await SeedUserAsync(game.Id, confirmed: true, active: true);
+        using var client = factory.CreateClient();
+
+        var response = await LoginWithClientTypeAsync(client, game.Slug, user.Email, Password, "web");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        var jwt = TokenHandler.ReadJsonWebToken(json.GetProperty("accessToken").GetString());
+        jwt.Audiences.Should().ContainSingle().Which.Should().Be(TokenAudiences.Player);
+
+        var setCookie = SetCookieHeaderValue.Parse(response.Headers.GetValues("Set-Cookie").Single());
+        setCookie.Name.ToString().Should().Be("gbp_refresh");
+    }
+
+    [Fact]
     public async Task Login_WebMode_UnconfirmedUser_Returns403EmailNotConfirmed()
     {
         var game = await SeedGameAsync();
@@ -106,6 +147,19 @@ public sealed class WebLoginTests(IdentityApiFactory factory) : IClassFixture<Id
         {
             request.Headers.Add(ClientMode.HeaderName, "web");
         }
+
+        return await client.SendAsync(request, TestContext.Current.CancellationToken);
+    }
+
+    private static async Task<HttpResponseMessage> LoginWithClientTypeAsync(
+        HttpClient client, string? gameSlug, string email, string password, string clientType)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/identity/auth/login")
+        {
+            Content = JsonContent.Create(new LoginRequest(gameSlug, email, password), options: JsonOptions),
+        };
+
+        request.Headers.Add(ClientMode.HeaderName, clientType);
 
         return await client.SendAsync(request, TestContext.Current.CancellationToken);
     }
