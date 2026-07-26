@@ -4,6 +4,7 @@ using System.Text.Json;
 using AwesomeAssertions;
 using IdentityService.Auth;
 using IdentityService.Contracts.Requests;
+using IdentityService.Contracts.Responses;
 using IdentityService.Domain;
 using IdentityService.Domain.Enums;
 using IdentityService.Persistence;
@@ -12,6 +13,7 @@ using IdentityService.Tests.Integration.Fixtures;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.Net.Http.Headers;
 using Xunit;
 
@@ -23,6 +25,8 @@ public sealed class WebRefreshTests(IdentityApiFactory factory) : IClassFixture<
     private const string Password = "correct-horse-battery";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    private static readonly JsonWebTokenHandler TokenHandler = new();
 
     public ValueTask InitializeAsync() => new(factory.ResetAsync());
 
@@ -78,6 +82,54 @@ public sealed class WebRefreshTests(IdentityApiFactory factory) : IClassFixture<
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    [Fact]
+    public async Task AdminRefresh_ValidAdminCookie_ReturnsAdminAudienceTokenAndAdminCookie()
+    {
+        var (gameSlug, email) = await SeedPlayerAsync();
+        using var client = CreateClient();
+
+        var loginResponse = await LoginWithClientTypeAsync(client, gameSlug, email, "admin");
+        var adminCookie = SetCookieHeaderValue.Parse(loginResponse.Headers.GetValues("Set-Cookie").Single());
+        adminCookie.Name.ToString().Should().Be("gbp_admin_refresh");
+
+        var refreshResponse = await RefreshWithClientTypeAsync(client, adminCookie.Value.ToString(), "admin", "gbp_admin_refresh");
+
+        refreshResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var json = await refreshResponse.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        var jwt = TokenHandler.ReadJsonWebToken(json.GetProperty("accessToken").GetString());
+        jwt.Audiences.Should().ContainSingle().Which.Should().Be(TokenAudiences.Admin);
+
+        var rotatedCookie = SetCookieHeaderValue.Parse(refreshResponse.Headers.GetValues("Set-Cookie").Single());
+        rotatedCookie.Name.ToString().Should().Be("gbp_admin_refresh");
+    }
+
+    [Fact]
+    public async Task BodyModeRefresh_NoClientTypeHeader_ReturnsPlayerAudienceToken()
+    {
+        var (gameSlug, email) = await SeedPlayerAsync();
+        using var client = CreateClient();
+
+        using var loginRequest = new HttpRequestMessage(HttpMethod.Post, "/api/identity/auth/login")
+        {
+            Content = JsonContent.Create(new LoginRequest(gameSlug, email, Password), options: JsonOptions),
+        };
+        var loginResponse = await client.SendAsync(loginRequest, TestContext.Current.CancellationToken);
+        var loginBody = await loginResponse.Content.ReadFromJsonAsync<TokenPairResponse>(JsonOptions, TestContext.Current.CancellationToken);
+
+        using var refreshRequest = new HttpRequestMessage(HttpMethod.Post, "/api/identity/auth/refresh")
+        {
+            Content = JsonContent.Create(new RefreshRequest(loginBody!.RefreshToken), options: JsonOptions),
+        };
+        var refreshResponse = await client.SendAsync(refreshRequest, TestContext.Current.CancellationToken);
+
+        refreshResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var json = await refreshResponse.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        var jwt = TokenHandler.ReadJsonWebToken(json.GetProperty("accessToken").GetString());
+        jwt.Audiences.Should().ContainSingle().Which.Should().Be(TokenAudiences.Player);
+    }
+
     private HttpClient CreateClient() => factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
 
     private static async Task<HttpResponseMessage> LoginWebAsync(HttpClient client, string gameSlug, string email)
@@ -91,6 +143,18 @@ public sealed class WebRefreshTests(IdentityApiFactory factory) : IClassFixture<
         return await client.SendAsync(request, TestContext.Current.CancellationToken);
     }
 
+    private static async Task<HttpResponseMessage> LoginWithClientTypeAsync(
+        HttpClient client, string gameSlug, string email, string clientType)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/identity/auth/login")
+        {
+            Content = JsonContent.Create(new LoginRequest(gameSlug, email, Password), options: JsonOptions),
+        };
+        request.Headers.Add(ClientMode.HeaderName, clientType);
+
+        return await client.SendAsync(request, TestContext.Current.CancellationToken);
+    }
+
     private static async Task<HttpResponseMessage> RefreshWebAsync(HttpClient client, string? cookieValue)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/identity/auth/refresh");
@@ -100,6 +164,16 @@ public sealed class WebRefreshTests(IdentityApiFactory factory) : IClassFixture<
         {
             request.Headers.Add("Cookie", $"gbp_refresh={cookieValue}");
         }
+
+        return await client.SendAsync(request, TestContext.Current.CancellationToken);
+    }
+
+    private static async Task<HttpResponseMessage> RefreshWithClientTypeAsync(
+        HttpClient client, string cookieValue, string clientType, string cookieName)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/identity/auth/refresh");
+        request.Headers.Add(ClientMode.HeaderName, clientType);
+        request.Headers.Add("Cookie", $"{cookieName}={cookieValue}");
 
         return await client.SendAsync(request, TestContext.Current.CancellationToken);
     }

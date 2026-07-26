@@ -160,7 +160,7 @@ public sealed class RefreshRotationTests(IdentityApiFactory factory) : IClassFix
         await using var scope = factory.Services.CreateAsyncScope();
         var refreshTokenService = scope.ServiceProvider.GetRequiredService<IRefreshTokenService>();
 
-        return await refreshTokenService.RotateAsync(rawToken, "127.0.0.1");
+        return await refreshTokenService.RotateAsync(rawToken, "127.0.0.1", TokenAudiences.Player);
     }
 
     private async Task<RefreshToken> FindTokenAsync(Guid id)

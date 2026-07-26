@@ -254,6 +254,17 @@ services:
     networks:
       - platform-network
 
+  admin-client:
+    build:
+      context: ../frontend
+      dockerfile: projects/admin-client/Dockerfile
+    ports:
+      - "${ADMIN_CLIENT_PORT:-8081}:8081"
+    depends_on:
+      - api-gateway
+    networks:
+      - platform-network
+
   mailpit:
     image: axllent/mailpit
     environment:

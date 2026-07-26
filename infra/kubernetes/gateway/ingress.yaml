@@ -18,3 +18,18 @@ spec:
                 name: player-client
                 port:
                   number: 8080
+    # Host-based rule, the first in this repo -- admin-client needs a
+    # genuinely separate origin, not just another path prefix under the same
+    # host. On a local kind cluster this hostname resolves only via an
+    # /etc/hosts entry pointed at the ingress controller's address; a real
+    # cluster would resolve it through actual DNS instead.
+    - host: admin.gaming-platform.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: admin-client
+                port:
+                  number: 8081

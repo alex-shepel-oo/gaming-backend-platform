@@ -4,9 +4,9 @@ namespace IdentityService.Auth;
 
 public interface ICookieAuthWriter
 {
-    void WriteRefresh(HttpResponse response, string refreshToken);
+    void WriteRefresh(HttpResponse response, string refreshToken, ClientSurface surface);
 
-    void ClearRefresh(HttpResponse response);
+    void ClearRefresh(HttpResponse response, ClientSurface surface);
 
-    string? ReadRefresh(HttpRequest request);
+    string? ReadRefresh(HttpRequest request, ClientSurface surface);
 }

@@ -24,5 +24,6 @@ public interface IRefreshTokenService
     Task<RefreshRotationResult> RotateAsync(
         string rawToken,
         string? createdByIp,
+        string audience,
         CancellationToken cancellationToken = default);
 }

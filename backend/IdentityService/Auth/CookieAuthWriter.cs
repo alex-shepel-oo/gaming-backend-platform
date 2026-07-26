@@ -4,25 +4,40 @@ using Microsoft.Extensions.Options;
 
 namespace IdentityService.Auth;
 
-public sealed class CookieAuthWriter(IOptions<RefreshCookieOptions> options) : ICookieAuthWriter
+public sealed class CookieAuthWriter(
+    IOptions<RefreshCookieOptions> playerOptions, IOptions<AdminRefreshCookieOptions> adminOptions) : ICookieAuthWriter
 {
-    public void WriteRefresh(HttpResponse response, string refreshToken)
+    public void WriteRefresh(HttpResponse response, string refreshToken, ClientSurface surface)
     {
-        var cookie = options.Value;
+        var cookie = Resolve(surface);
 
         response.Cookies.Append(cookie.Name, refreshToken, BuildCookieOptions(cookie, TimeSpan.FromDays(cookie.MaxAgeDays)));
     }
 
-    public void ClearRefresh(HttpResponse response)
+    public void ClearRefresh(HttpResponse response, ClientSurface surface)
     {
-        var cookie = options.Value;
+        var cookie = Resolve(surface);
 
         response.Cookies.Append(cookie.Name, string.Empty, BuildCookieOptions(cookie, TimeSpan.Zero));
     }
 
-    public string? ReadRefresh(HttpRequest request) => request.Cookies[options.Value.Name];
+    public string? ReadRefresh(HttpRequest request, ClientSurface surface) => request.Cookies[Resolve(surface).Name];
 
-    private static CookieOptions BuildCookieOptions(RefreshCookieOptions cookie, TimeSpan maxAge) => new()
+    private CookieConfig Resolve(ClientSurface surface)
+    {
+        if (surface == ClientSurface.Admin)
+        {
+            var admin = adminOptions.Value;
+
+            return new CookieConfig(admin.Name, admin.Path, admin.HttpOnly, admin.RequireSecure, admin.SameSite, admin.MaxAgeDays);
+        }
+
+        var player = playerOptions.Value;
+
+        return new CookieConfig(player.Name, player.Path, player.HttpOnly, player.RequireSecure, player.SameSite, player.MaxAgeDays);
+    }
+
+    private static CookieOptions BuildCookieOptions(CookieConfig cookie, TimeSpan maxAge) => new()
     {
         HttpOnly = cookie.HttpOnly,
         Secure = cookie.RequireSecure,
@@ -30,4 +45,7 @@ public sealed class CookieAuthWriter(IOptions<RefreshCookieOptions> options) : I
         Path = cookie.Path,
         MaxAge = maxAge,
     };
+
+    private sealed record CookieConfig(
+        string Name, string Path, bool HttpOnly, bool RequireSecure, SameSiteMode SameSite, int MaxAgeDays);
 }

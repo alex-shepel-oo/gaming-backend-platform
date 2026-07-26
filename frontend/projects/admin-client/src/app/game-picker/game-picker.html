@@ -1,0 +1,46 @@
+<h1>Choose a game</h1>
+
+@if (loading()) {
+  <div class="state-panel">
+    <mat-spinner diameter="32" />
+    <p>Loading your games…</p>
+  </div>
+} @else if (loadError()) {
+  <div class="state-panel">
+    <p class="state-error" role="alert">We couldn't load your games. Please try again later.</p>
+  </div>
+} @else if (games().length === 0) {
+  <div class="state-panel">
+    <p>You don't have a role in any game yet.</p>
+  </div>
+} @else {
+  <div class="games-grid">
+    @for (game of games(); track game.id) {
+      <mat-card
+        class="game-card"
+        tabindex="0"
+        role="button"
+        [attr.aria-label]="'Enter ' + game.name"
+        (click)="pick(game)"
+        (keydown.enter)="pick(game)"
+        (keydown.space)="$event.preventDefault(); pick(game)"
+      >
+        <mat-card-header>
+          <mat-card-title>{{ game.name }}</mat-card-title>
+          <mat-card-subtitle>{{ game.slug }}</mat-card-subtitle>
+        </mat-card-header>
+      </mat-card>
+    }
+  </div>
+}
+
+@if (entering()) {
+  <div class="state-panel">
+    <mat-spinner diameter="24" />
+    <p>Entering game…</p>
+  </div>
+} @else if (enterError()) {
+  <div class="state-panel">
+    <p class="state-error" role="alert">We couldn't enter that game. Please try again.</p>
+  </div>
+}

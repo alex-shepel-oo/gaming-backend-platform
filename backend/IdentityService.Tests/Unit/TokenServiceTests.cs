@@ -45,7 +45,7 @@ public class TokenServiceTests
         var gameId = Guid.NewGuid();
 
         var jwt = Handler.ReadJsonWebToken(service.IssueAccessToken(
-            TestUser, gameId, PlatformRole.Player, familyId, TokenScope.Game, []));
+            TestUser, gameId, PlatformRole.Player, familyId, TokenScope.Game, [], TokenAudiences.Player));
 
         jwt.Subject.Should().Be(TestUser.Id.ToString());
         jwt.Id.Should().NotBeNullOrEmpty();
@@ -58,13 +58,26 @@ public class TokenServiceTests
         jwt.Audiences.Should().ContainSingle().Which.Should().Be(TokenAudiences.Player);
     }
 
+    [Theory]
+    [InlineData(TokenAudiences.Player)]
+    [InlineData(TokenAudiences.Admin)]
+    public void IssueAccessToken_AudienceReflectsWhicheverValueIsPassedIn(string audience)
+    {
+        var service = CreateService(new FakeTimeProvider(FixedInstant));
+
+        var jwt = Handler.ReadJsonWebToken(service.IssueAccessToken(
+            TestUser, Guid.NewGuid(), PlatformRole.Player, Guid.NewGuid(), TokenScope.Game, [], audience));
+
+        jwt.Audiences.Should().ContainSingle().Which.Should().Be(audience);
+    }
+
     [Fact]
     public void IssueAccessToken_ExpiresFifteenMinutesAfterIssuedAt()
     {
         var service = CreateService(new FakeTimeProvider(FixedInstant));
 
         var jwt = Handler.ReadJsonWebToken(
-            service.IssueAccessToken(TestUser, Guid.NewGuid(), PlatformRole.Player, Guid.NewGuid(), TokenScope.Game, []));
+            service.IssueAccessToken(TestUser, Guid.NewGuid(), PlatformRole.Player, Guid.NewGuid(), TokenScope.Game, [], TokenAudiences.Player));
 
         (jwt.ValidTo - jwt.IssuedAt).Should().Be(TimeSpan.FromMinutes(15));
     }
@@ -75,9 +88,9 @@ public class TokenServiceTests
         var service = CreateService(new FakeTimeProvider(FixedInstant));
 
         var first = Handler.ReadJsonWebToken(
-            service.IssueAccessToken(TestUser, Guid.NewGuid(), PlatformRole.Player, Guid.NewGuid(), TokenScope.Game, []));
+            service.IssueAccessToken(TestUser, Guid.NewGuid(), PlatformRole.Player, Guid.NewGuid(), TokenScope.Game, [], TokenAudiences.Player));
         var second = Handler.ReadJsonWebToken(
-            service.IssueAccessToken(TestUser, Guid.NewGuid(), PlatformRole.Player, Guid.NewGuid(), TokenScope.Game, []));
+            service.IssueAccessToken(TestUser, Guid.NewGuid(), PlatformRole.Player, Guid.NewGuid(), TokenScope.Game, [], TokenAudiences.Player));
 
         first.Id.Should().NotBe(second.Id);
     }
@@ -88,7 +101,7 @@ public class TokenServiceTests
         var service = CreateService(new FakeTimeProvider(FixedInstant));
 
         var jwt = Handler.ReadJsonWebToken(
-            service.IssueAccessToken(TestUser, null, PlatformRole.Admin, Guid.NewGuid(), TokenScope.Platform, []));
+            service.IssueAccessToken(TestUser, null, PlatformRole.Admin, Guid.NewGuid(), TokenScope.Platform, [], TokenAudiences.Player));
 
         jwt.TryGetClaim(IdentityClaims.GameId, out _).Should().BeFalse();
     }
@@ -99,7 +112,7 @@ public class TokenServiceTests
         var service = CreateService(new FakeTimeProvider(FixedInstant));
 
         var jwt = Handler.ReadJsonWebToken(
-            service.IssueAccessToken(TestUser, null, null, Guid.NewGuid(), TokenScope.Account, AccountPermissions.All));
+            service.IssueAccessToken(TestUser, null, null, Guid.NewGuid(), TokenScope.Account, AccountPermissions.All, TokenAudiences.Player));
 
         jwt.TryGetClaim(IdentityClaims.Role, out _).Should().BeFalse();
     }
@@ -109,7 +122,7 @@ public class TokenServiceTests
     {
         var service = CreateService(new FakeTimeProvider(DateTimeOffset.UtcNow));
         var token = service.IssueAccessToken(
-            TestUser, Guid.NewGuid(), PlatformRole.Player, Guid.NewGuid(), TokenScope.Game, []);
+            TestUser, Guid.NewGuid(), PlatformRole.Player, Guid.NewGuid(), TokenScope.Game, [], TokenAudiences.Player);
 
         var result = await Handler.ValidateTokenAsync(token, ValidationParametersFor(SigningKey));
 
@@ -121,7 +134,7 @@ public class TokenServiceTests
     {
         var service = CreateService(new FakeTimeProvider(DateTimeOffset.UtcNow));
         var token = service.IssueAccessToken(
-            TestUser, Guid.NewGuid(), PlatformRole.Player, Guid.NewGuid(), TokenScope.Game, []);
+            TestUser, Guid.NewGuid(), PlatformRole.Player, Guid.NewGuid(), TokenScope.Game, [], TokenAudiences.Player);
 
         var result = await Handler.ValidateTokenAsync(token, ValidationParametersFor("a-completely-different-32-byte-key"));
 
@@ -133,7 +146,7 @@ public class TokenServiceTests
     {
         var service = CreateService(new FakeTimeProvider(LongExpiredInstant));
         var token = service.IssueAccessToken(
-            TestUser, Guid.NewGuid(), PlatformRole.Player, Guid.NewGuid(), TokenScope.Game, []);
+            TestUser, Guid.NewGuid(), PlatformRole.Player, Guid.NewGuid(), TokenScope.Game, [], TokenAudiences.Player);
 
         var result = await Handler.ValidateTokenAsync(token, ValidationParametersFor(SigningKey));
 
@@ -145,7 +158,7 @@ public class TokenServiceTests
     {
         var service = CreateService(new FakeTimeProvider(DateTimeOffset.UtcNow));
         var token = service.IssueAccessToken(
-            TestUser, Guid.NewGuid(), PlatformRole.Admin, Guid.NewGuid(), TokenScope.Platform, ["a", "b", "c"]);
+            TestUser, Guid.NewGuid(), PlatformRole.Admin, Guid.NewGuid(), TokenScope.Platform, ["a", "b", "c"], TokenAudiences.Player);
 
         var result = await Handler.ValidateTokenAsync(token, ValidationParametersFor(SigningKey));
         result.IsValid.Should().BeTrue();

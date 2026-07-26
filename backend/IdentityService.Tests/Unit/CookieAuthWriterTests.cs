@@ -21,13 +21,22 @@ public class CookieAuthWriterTests
         MaxAgeDays = 14,
     };
 
+    private static readonly AdminRefreshCookieOptions DefaultAdminOptions = new()
+    {
+        Name = "gbp_admin_refresh",
+        Path = "/api/identity/auth",
+        RequireSecure = true,
+        SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Strict,
+        MaxAgeDays = 14,
+    };
+
     [Fact]
     public void WriteRefresh_SetsCookieWithConfiguredAttributes()
     {
-        var writer = CreateWriter(DefaultOptions);
+        var writer = CreateWriter(DefaultOptions, DefaultAdminOptions);
         var context = new DefaultHttpContext();
 
-        writer.WriteRefresh(context.Response, "the-refresh-token");
+        writer.WriteRefresh(context.Response, "the-refresh-token", ClientSurface.Player);
 
         var cookie = GetSetCookie(context.Response);
 
@@ -39,16 +48,30 @@ public class CookieAuthWriterTests
         cookie.MaxAge.Should().Be(TimeSpan.FromDays(14));
     }
 
+    [Fact]
+    public void WriteRefresh_AdminSurface_UsesAdminCookieNameInsteadOfPlayerCookieName()
+    {
+        var writer = CreateWriter(DefaultOptions, DefaultAdminOptions);
+        var context = new DefaultHttpContext();
+
+        writer.WriteRefresh(context.Response, "the-refresh-token", ClientSurface.Admin);
+
+        var cookie = GetSetCookie(context.Response);
+
+        cookie.Name.ToString().Should().Be("gbp_admin_refresh");
+        cookie.SameSite.Should().Be(HeaderSameSiteMode.Strict);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public void WriteRefresh_SecureMatchesRequireSecure(bool requireSecure)
     {
         var options = CloneWith(requireSecure: requireSecure);
-        var writer = CreateWriter(options);
+        var writer = CreateWriter(options, DefaultAdminOptions);
         var context = new DefaultHttpContext();
 
-        writer.WriteRefresh(context.Response, "token");
+        writer.WriteRefresh(context.Response, "token", ClientSurface.Player);
 
         GetSetCookie(context.Response).Secure.Should().Be(requireSecure);
     }
@@ -56,10 +79,10 @@ public class CookieAuthWriterTests
     [Fact]
     public void ClearRefresh_SetsExpiredCookieWithSamePathAndSameSiteAndSecure()
     {
-        var writer = CreateWriter(DefaultOptions);
+        var writer = CreateWriter(DefaultOptions, DefaultAdminOptions);
         var context = new DefaultHttpContext();
 
-        writer.ClearRefresh(context.Response);
+        writer.ClearRefresh(context.Response, ClientSurface.Player);
 
         var cookie = GetSetCookie(context.Response);
 
@@ -73,20 +96,30 @@ public class CookieAuthWriterTests
     [Fact]
     public void ReadRefresh_ReturnsIncomingCookieValueByConfiguredName()
     {
-        var writer = CreateWriter(DefaultOptions);
+        var writer = CreateWriter(DefaultOptions, DefaultAdminOptions);
         var context = new DefaultHttpContext();
         context.Request.Headers.Cookie = "gbp_refresh=incoming-token";
 
-        writer.ReadRefresh(context.Request).Should().Be("incoming-token");
+        writer.ReadRefresh(context.Request, ClientSurface.Player).Should().Be("incoming-token");
+    }
+
+    [Fact]
+    public void ReadRefresh_AdminSurface_ReadsAdminCookieName()
+    {
+        var writer = CreateWriter(DefaultOptions, DefaultAdminOptions);
+        var context = new DefaultHttpContext();
+        context.Request.Headers.Cookie = "gbp_admin_refresh=incoming-admin-token";
+
+        writer.ReadRefresh(context.Request, ClientSurface.Admin).Should().Be("incoming-admin-token");
     }
 
     [Fact]
     public void ReadRefresh_NoCookiePresent_ReturnsNull()
     {
-        var writer = CreateWriter(DefaultOptions);
+        var writer = CreateWriter(DefaultOptions, DefaultAdminOptions);
         var context = new DefaultHttpContext();
 
-        writer.ReadRefresh(context.Request).Should().BeNull();
+        writer.ReadRefresh(context.Request, ClientSurface.Player).Should().BeNull();
     }
 
     private static RefreshCookieOptions CloneWith(bool requireSecure) => new()
@@ -98,8 +131,8 @@ public class CookieAuthWriterTests
         MaxAgeDays = DefaultOptions.MaxAgeDays,
     };
 
-    private static CookieAuthWriter CreateWriter(RefreshCookieOptions options) =>
-        new(MsOptions.Create(options));
+    private static CookieAuthWriter CreateWriter(RefreshCookieOptions options, AdminRefreshCookieOptions adminOptions) =>
+        new(MsOptions.Create(options), MsOptions.Create(adminOptions));
 
     private static SetCookieHeaderValue GetSetCookie(HttpResponse response) =>
         response.GetTypedHeaders().SetCookie.Single();

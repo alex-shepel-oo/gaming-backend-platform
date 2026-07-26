@@ -88,13 +88,14 @@ public static class AuthEndpoints
     {
         var ip = httpContext.Connection.RemoteIpAddress?.ToString();
         var userAgent = httpContext.Request.Headers.UserAgent.ToString();
+        var surface = ClientMode.Resolve(httpContext);
 
         var result = await authenticationService.LoginAsync(
-            request.GameSlug, request.Email, request.Password, ip, userAgent, cancellationToken);
+            request.GameSlug, request.Email, request.Password, ip, userAgent, ClientMode.ResolveAudience(httpContext), cancellationToken);
 
-        if (ClientMode.IsWeb(httpContext))
+        if (surface != ClientSurface.None)
         {
-            cookieAuthWriter.WriteRefresh(httpContext.Response, result.RefreshToken);
+            cookieAuthWriter.WriteRefresh(httpContext.Response, result.RefreshToken, surface);
 
             return TypedResults.Ok(new AccessTokenResponse(result.AccessToken));
         }
@@ -110,15 +111,16 @@ public static class AuthEndpoints
         CancellationToken cancellationToken)
     {
         var ip = httpContext.Connection.RemoteIpAddress?.ToString();
-        var isWeb = ClientMode.IsWeb(httpContext);
+        var surface = ClientMode.Resolve(httpContext);
+        var isWeb = surface != ClientSurface.None;
 
-        var rawToken = (isWeb ? cookieAuthWriter.ReadRefresh(httpContext.Request) : request?.RefreshToken) ?? string.Empty;
+        var rawToken = (isWeb ? cookieAuthWriter.ReadRefresh(httpContext.Request, surface) : request?.RefreshToken) ?? string.Empty;
 
-        var result = await refreshTokenService.RotateAsync(rawToken, ip, cancellationToken);
+        var result = await refreshTokenService.RotateAsync(rawToken, ip, ClientMode.ResolveAudience(httpContext), cancellationToken);
 
         if (isWeb)
         {
-            cookieAuthWriter.WriteRefresh(httpContext.Response, result.RawRefreshToken);
+            cookieAuthWriter.WriteRefresh(httpContext.Response, result.RawRefreshToken, surface);
 
             return TypedResults.Ok(new AccessTokenResponse(result.AccessToken));
         }
@@ -136,13 +138,14 @@ public static class AuthEndpoints
     {
         var ip = httpContext.Connection.RemoteIpAddress?.ToString();
         var userAgent = httpContext.Request.Headers.UserAgent.ToString();
+        var surface = ClientMode.Resolve(httpContext);
 
         var result = await authenticationService.SelectGameAsync(
-            currentUser.UserId, request.GameId, ip, userAgent, cancellationToken);
+            currentUser.UserId, request.GameId, ip, userAgent, ClientMode.ResolveAudience(httpContext), cancellationToken);
 
-        if (ClientMode.IsWeb(httpContext))
+        if (surface != ClientSurface.None)
         {
-            cookieAuthWriter.WriteRefresh(httpContext.Response, result.RefreshToken);
+            cookieAuthWriter.WriteRefresh(httpContext.Response, result.RefreshToken, surface);
             return TypedResults.Ok(new AccessTokenResponse(result.AccessToken));
         }
 
@@ -157,9 +160,10 @@ public static class AuthEndpoints
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
-        var isWeb = ClientMode.IsWeb(httpContext);
+        var surface = ClientMode.Resolve(httpContext);
+        var isWeb = surface != ClientSurface.None;
 
-        var rawToken = (isWeb ? cookieAuthWriter.ReadRefresh(httpContext.Request) : request?.RefreshToken) ?? string.Empty;
+        var rawToken = (isWeb ? cookieAuthWriter.ReadRefresh(httpContext.Request, surface) : request?.RefreshToken) ?? string.Empty;
 
         await sessionService.LogoutAsync(
             currentUser.UserId,
@@ -171,7 +175,7 @@ public static class AuthEndpoints
 
         if (isWeb)
         {
-            cookieAuthWriter.ClearRefresh(httpContext.Response);
+            cookieAuthWriter.ClearRefresh(httpContext.Response, surface);
         }
 
         return TypedResults.NoContent();
