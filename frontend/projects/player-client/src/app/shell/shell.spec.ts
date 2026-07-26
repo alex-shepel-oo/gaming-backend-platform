@@ -133,7 +133,7 @@ describe('Shell', () => {
 
   it('shows an avatar linking to the profile once the user is known', () => {
     tokenStore.set(
-      buildFakeToken({ sub: 'user-1', email: 'player@example.com', name: 'Player One', role: 'Player' }),
+      buildFakeToken({ sub: 'user-1', email: 'player@example.com', name: 'Player One', role: 'Player', scope: 'game' }),
     );
 
     const fixture = createAndFlushBalances();

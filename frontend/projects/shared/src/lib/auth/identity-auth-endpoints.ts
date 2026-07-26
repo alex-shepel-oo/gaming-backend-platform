@@ -7,6 +7,7 @@ export const IdentityAuthEndpoints = {
   requestPasswordReset: `${IDENTITY_AUTH_BASE_PATH}/request-password-reset`,
   resetPassword: `${IDENTITY_AUTH_BASE_PATH}/reset-password`,
   login: `${IDENTITY_AUTH_BASE_PATH}/login`,
+  selectGame: `${IDENTITY_AUTH_BASE_PATH}/select-game`,
   refresh: `${IDENTITY_AUTH_BASE_PATH}/refresh`,
   logout: `${IDENTITY_AUTH_BASE_PATH}/logout`,
 } as const;

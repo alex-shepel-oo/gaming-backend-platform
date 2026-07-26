@@ -1,3 +1,4 @@
+using IdentityService.Auth;
 using IdentityService.Domain;
 using IdentityService.Domain.Enums;
 using IdentityService.Exceptions;
@@ -145,14 +146,56 @@ public sealed partial class AuthenticationService(
 
         if (role is null)
         {
-            throw new NoAccessToGameException();
+            if (gameId is not null)
+            {
+                throw new NoAccessToGameException();
+            }
+
+            var accountIssued = await refreshTokenService.IssueFamilyAsync(
+                user.Id, null, TokenScope.Account, ip, userAgent, cancellationToken);
+            var accountAccessToken = tokenService.IssueAccessToken(
+                user, null, null, accountIssued.Family.Id, TokenScope.Account, AccountPermissions.All);
+
+            return new LoginResult(accountAccessToken, accountIssued.RawToken);
         }
 
         var scope = gameId is null ? TokenScope.Platform : TokenScope.Game;
         var permissions = await permissionResolver.ResolveAsync(role.Role, gameId, cancellationToken);
 
-        var issued = await refreshTokenService.IssueFamilyAsync(user.Id, gameId, ip, userAgent, cancellationToken);
+        var issued = await refreshTokenService.IssueFamilyAsync(user.Id, gameId, scope, ip, userAgent, cancellationToken);
         var accessToken = tokenService.IssueAccessToken(user, gameId, role.Role, issued.Family.Id, scope, permissions);
+
+        return new LoginResult(accessToken, issued.RawToken);
+    }
+
+    public async Task<LoginResult> SelectGameAsync(
+        Guid userId, Guid gameId, string? ip, string? userAgent, CancellationToken cancellationToken = default)
+    {
+        var game = await dbContext.Games
+            .SingleOrDefaultAsync(g => g.Id == gameId && g.IsActive, cancellationToken);
+
+        if (game is null)
+        {
+            throw new GameNotFoundException();
+        }
+
+        var user = await dbContext.Users.SingleAsync(u => u.Id == userId, cancellationToken);
+
+        var role = await dbContext.UserGameRoles
+            .SingleOrDefaultAsync(r => r.UserId == userId && r.GameId == gameId, cancellationToken);
+
+        var now = timeProvider.GetUtcNow();
+
+        if (role is null)
+        {
+            role = NewPlayerRole(userId, gameId, now);
+            dbContext.UserGameRoles.Add(role);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        var permissions = await permissionResolver.ResolveAsync(role.Role, gameId, cancellationToken);
+        var issued = await refreshTokenService.IssueFamilyAsync(userId, gameId, TokenScope.Game, ip, userAgent, cancellationToken);
+        var accessToken = tokenService.IssueAccessToken(user, gameId, role.Role, issued.Family.Id, TokenScope.Game, permissions);
 
         return new LoginResult(accessToken, issued.RawToken);
     }

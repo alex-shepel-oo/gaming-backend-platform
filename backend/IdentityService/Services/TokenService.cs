@@ -16,7 +16,7 @@ public sealed class TokenService(IOptions<JwtOptions> options, TimeProvider time
     private readonly JwtOptions _options = options.Value;
 
     public string IssueAccessToken(
-        User user, Guid? gameId, PlatformRole role, Guid familyId, TokenScope scope, IReadOnlyList<string> permissions)
+        User user, Guid? gameId, PlatformRole? role, Guid familyId, TokenScope scope, IReadOnlyList<string> permissions)
     {
         var now = timeProvider.GetUtcNow().UtcDateTime;
 
@@ -26,11 +26,15 @@ public sealed class TokenService(IOptions<JwtOptions> options, TimeProvider time
             [JwtRegisteredClaimNames.Jti] = Guid.CreateVersion7().ToString(),
             [JwtRegisteredClaimNames.Email] = user.Email,
             [JwtRegisteredClaimNames.Name] = user.DisplayName,
-            [IdentityClaims.Role] = role.ToString(),
             [IdentityClaims.FamilyId] = familyId.ToString(),
             [IdentityClaims.Scope] = scope.ToString(),
             [IdentityClaims.Perms] = permissions.ToArray(),
         };
+
+        if (role is not null)
+        {
+            claims[IdentityClaims.Role] = role.Value.ToString();
+        }
 
         if (gameId is not null)
         {

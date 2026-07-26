@@ -156,15 +156,46 @@ public sealed class LoginEndpointTests(IdentityApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public async Task Login_PlatformLoginWithoutPlatformRole_Returns403NoAccessToGame()
+    public async Task Login_NoGameSlugAndNoPlatformRole_ReturnsAccountScopedSession()
     {
         var game = await SeedGameAsync();
         var user = await SeedUserAsync(game.Id, confirmed: true, active: true);
         using var client = factory.CreateClient();
 
         var response = await LoginAsync(client, gameSlug: null, user.Email, Password);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        var jwt = await DecodeAccessTokenAsync(response);
+        jwt.GetClaim(IdentityClaims.Scope).Value.Should().Be(nameof(TokenScope.Account));
+        jwt.TryGetClaim(IdentityClaims.Role, out _).Should().BeFalse();
+        jwt.TryGetClaim(IdentityClaims.GameId, out _).Should().BeFalse();
+        jwt.Claims.Where(c => c.Type == IdentityClaims.Perms).Select(c => c.Value).Should()
+            .BeEquivalentTo([AccountPermissions.GamesList, AccountPermissions.ProfileManage]);
+    }
+
+    [Fact]
+    public async Task Login_AccountScopedSession_RefreshKeepsAccountScopeAndPermissions()
+    {
+        var game = await SeedGameAsync();
+        var user = await SeedUserAsync(game.Id, confirmed: true, active: true);
+        using var client = factory.CreateClient();
+
+        var login = await LoginAsync(client, gameSlug: null, user.Email, Password);
+        var loginBody = await login.Content.ReadFromJsonAsync<TokenPairResponse>(JsonOptions, TestContext.Current.CancellationToken);
+
+        var refresh = await client.PostAsJsonAsync(
+            "/api/identity/auth/refresh",
+            new RefreshRequest(loginBody!.RefreshToken),
+            JsonOptions,
+            TestContext.Current.CancellationToken);
+
+        refresh.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var jwt = await DecodeAccessTokenAsync(refresh);
+        jwt.GetClaim(IdentityClaims.Scope).Value.Should().Be(nameof(TokenScope.Account));
+        jwt.TryGetClaim(IdentityClaims.Role, out _).Should().BeFalse();
+        jwt.Claims.Where(c => c.Type == IdentityClaims.Perms).Select(c => c.Value).Should()
+            .BeEquivalentTo([AccountPermissions.GamesList, AccountPermissions.ProfileManage]);
     }
 
     [Fact]

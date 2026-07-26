@@ -1,4 +1,5 @@
 using IdentityService.Domain;
+using IdentityService.Domain.Enums;
 
 namespace IdentityService.Services;
 
@@ -15,6 +16,7 @@ public interface IRefreshTokenService
     Task<RefreshTokenIssueResult> IssueFamilyAsync(
         Guid userId,
         Guid? gameId,
+        TokenScope scope,
         string? createdByIp,
         string? userAgent,
         CancellationToken cancellationToken = default);

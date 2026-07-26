@@ -1,12 +1,14 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { GameSelectionService, IdentityGameEndpoints } from 'shared';
+import { provideRouter, Router } from '@angular/router';
+import { GameSelectionService, IdentityAuthEndpoints, IdentityGameEndpoints } from 'shared';
 import { Games } from './games';
 
 describe('Games', () => {
   let httpMock: HttpTestingController;
   let gameSelection: GameSelectionService;
+  let router: Router;
 
   const publicGames = [
     { id: 'game-1', slug: 'space-invaders', name: 'Space Invaders' },
@@ -16,11 +18,12 @@ describe('Games', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       imports: [Games],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     });
 
     httpMock = TestBed.inject(HttpTestingController);
     gameSelection = TestBed.inject(GameSelectionService);
+    router = TestBed.inject(Router);
   });
 
   afterEach(() => {
@@ -95,6 +98,7 @@ describe('Games', () => {
 
   it('updates the shared game-selection state when "Select this game" is clicked in the dialog', async () => {
     const fixture = TestBed.createComponent(Games);
+    const navigateSpy = vi.spyOn(router, 'navigateByUrl');
 
     httpMock.expectOne(IdentityGameEndpoints.publicGames).flush(publicGames);
     fixture.detectChanges();
@@ -115,5 +119,11 @@ describe('Games', () => {
     fixture.detectChanges();
 
     expect(gameSelection.selected()).toEqual(publicGames[1]);
+
+    const selectGameRequest = httpMock.expectOne(IdentityAuthEndpoints.selectGame);
+    expect(selectGameRequest.request.body).toEqual({ gameId: 'game-2' });
+    selectGameRequest.flush({ accessToken: 'the-game-scoped-access-token' });
+
+    expect(navigateSpy).toHaveBeenCalledWith('/wallet');
   });
 });

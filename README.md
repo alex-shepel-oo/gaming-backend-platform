@@ -180,7 +180,8 @@ policies underneath regardless of what the gateway already checked.
 | POST | `/api/identity/auth/resend-verification` | anonymous | Request a new confirmation code |
 | POST | `/api/identity/auth/request-password-reset` | anonymous | Request a password reset link by email; 202 regardless of whether the account exists |
 | POST | `/api/identity/auth/reset-password` | anonymous | Complete a password reset using the emailed token; 204, or 400 for any invalid, expired, or already-used token |
-| POST | `/api/identity/auth/login` | anonymous | Exchange credentials for a token pair (or an access token plus a refresh cookie, in web mode) |
+| POST | `/api/identity/auth/login` | anonymous | Exchange credentials for a token pair; without `gameSlug`, an account-scoped session with no game attached |
+| POST | `/api/identity/auth/select-game` | bearer | Exchange the current session for a game-scoped one for `gameId`, self-joining as `Player` if the caller has no role there yet |
 | POST | `/api/identity/auth/refresh` | anonymous | Rotate a refresh token for a new pair (body or cookie, depending on mode) |
 | POST | `/api/identity/auth/logout` | anonymous at the gateway, bearer required by the service | Revoke the current session |
 | GET | `/api/identity/users/me` | bearer | Current user's profile |
@@ -325,13 +326,45 @@ resolver - it's just that Platform-Admin's default rows happen to include
 
 Three claims ride alongside the existing `role` and `game_id`:
 
-- `scope` - `Game` or `Platform` for every token issued today (`Account`
-  is a reserved third value for a future ecosystem-wide login that doesn't
-  require picking a game up front).
+- `scope` - `Account`, `Game`, or `Platform`. `Account` is what `login`
+  issues without a `gameSlug` - no game attached yet, see
+  [Ecosystem-first login](#ecosystem-first-login) below.
 - `perms` - the caller's resolved permissions for that session, as an
   array.
 - `aud` - `gbp-player` on every token minted right now; `gbp-admin` is
   reserved for an admin surface a later slice adds, and isn't issued yet.
+
+`role` itself is only present on `Game`/`Platform` tokens - an account-scoped
+session has no game role to report, and the claim is genuinely absent rather
+than carrying a placeholder value.
+
+### Ecosystem-first login
+
+Logging in without a `gameSlug` no longer fails for an ordinary player - it
+returns an account-scoped session instead, exactly the same platform-role
+check that already decided whether an admin could log in without one. From
+there, `POST /auth/select-game { gameId }` exchanges that session for a
+game-scoped one, joining as `Player` on the spot if the caller has no role
+in that game yet - the same helper `register` already uses to create one,
+not a second mechanism. An already game-scoped session can call it too, to
+switch games without a fresh login.
+
+Because `account.games.list`/`account.profile.manage` aren't resolved
+through `role_permissions` (there's no `(role, game_id)` behind an account
+session), they're a fixed pair granted to any authenticated account
+regardless of role, not an assignable permission set - they don't show up in
+`GET /permissions`'s catalog either, since nothing currently gate-checks
+them the way `platform.*`/`game.*` keys actually are.
+
+Web clients hold exactly one refresh cookie: after `select-game`, the
+account session is still valid server-side, but the cookie now carries the
+game-scoped token, so the browser can't address the account session again
+without logging in fresh. Non-web clients, holding both raw tokens
+themselves, don't have this limitation - a direct consequence of the
+single-cookie design ([ADR 0011](docs/adr/0011-web-auth-cookie-flow.md)),
+not a new trade-off.
+
+Full reasoning in [ADR 0013's ecosystem-first-login addendum](docs/adr/0013-permission-based-rbac-and-audience-scoped-tokens.md#addendum-ecosystem-first-login).
 
 ### Anti-escalation
 
@@ -560,12 +593,6 @@ at all, since Nginx proxies `/api` onto the same origin as the static files
   either that file (pointing `/api` at the gateway) or manually hitting the
   gateway's absolute URL; CORS alone doesn't help until requests are
   actually cross-origin.
-- **Login is hardcoded to one game** (`DEFAULT_GAME_SLUG = 'demo-shooter'`,
-  see the games screen commit). There's no game picker.
-- **"Log into the ecosystem, then pick a game" isn't built.** Today login
-  and game selection are the same step; a platform-level login followed by
-  a separate game-switch flow is a named future direction, not current
-  scope.
 
 ## Messaging
 

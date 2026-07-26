@@ -144,6 +144,6 @@ public sealed class RefreshEndpointTests(IdentityApiFactory factory) : IClassFix
         await using var scope = factory.Services.CreateAsyncScope();
         var refreshTokenService = scope.ServiceProvider.GetRequiredService<IRefreshTokenService>();
 
-        return await refreshTokenService.IssueFamilyAsync(userId, gameId, "127.0.0.1", "test-agent");
+        return await refreshTokenService.IssueFamilyAsync(userId, gameId, TokenScope.Game, "127.0.0.1", "test-agent");
     }
 }

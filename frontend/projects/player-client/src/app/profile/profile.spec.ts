@@ -22,7 +22,7 @@ function buildFakeToken(payload: Record<string, unknown>): string {
 describe('Profile', () => {
   it('shows the real email, display name and role from the access token', () => {
     TestBed.inject(TokenStore).set(
-      buildFakeToken({ sub: 'user-1', email: 'player@example.com', name: 'Player One', role: 'Player' }),
+      buildFakeToken({ sub: 'user-1', email: 'player@example.com', name: 'Player One', role: 'Player', scope: 'game' }),
     );
 
     const fixture = TestBed.createComponent(Profile);
@@ -36,7 +36,7 @@ describe('Profile', () => {
 
   it('shows a not-available note for fields the token does not carry', () => {
     TestBed.inject(TokenStore).set(
-      buildFakeToken({ sub: 'user-1', email: 'player@example.com', name: 'Player One', role: 'Player' }),
+      buildFakeToken({ sub: 'user-1', email: 'player@example.com', name: 'Player One', role: 'Player', scope: 'game' }),
     );
 
     const fixture = TestBed.createComponent(Profile);

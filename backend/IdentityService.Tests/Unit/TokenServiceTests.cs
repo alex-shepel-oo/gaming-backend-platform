@@ -94,6 +94,17 @@ public class TokenServiceTests
     }
 
     [Fact]
+    public void IssueAccessToken_NoRole_OmitsRoleClaim()
+    {
+        var service = CreateService(new FakeTimeProvider(FixedInstant));
+
+        var jwt = Handler.ReadJsonWebToken(
+            service.IssueAccessToken(TestUser, null, null, Guid.NewGuid(), TokenScope.Account, AccountPermissions.All));
+
+        jwt.TryGetClaim(IdentityClaims.Role, out _).Should().BeFalse();
+    }
+
+    [Fact]
     public async Task IssueAccessToken_ValidatesSuccessfullyWithTheSameKey()
     {
         var service = CreateService(new FakeTimeProvider(DateTimeOffset.UtcNow));

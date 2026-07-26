@@ -6,7 +6,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Router, RouterLink } from '@angular/router';
-import { AuthService, DEFAULT_GAME_SLUG, EMAIL_NOT_CONFIRMED_PROBLEM_TYPE } from 'shared';
+import { AuthService, EMAIL_NOT_CONFIRMED_PROBLEM_TYPE } from 'shared';
 
 type LoginError = 'invalid-credentials' | 'email-not-confirmed';
 
@@ -56,7 +56,7 @@ export class Login {
     this.submitting.set(true);
     this.error.set(null);
 
-    this.authService.login({ ...this.form.getRawValue(), gameSlug: DEFAULT_GAME_SLUG }).subscribe({
+    this.authService.login(this.form.getRawValue()).subscribe({
       next: () => this.router.navigateByUrl('/games'),
       error: (error: unknown) => {
         this.submitting.set(false);

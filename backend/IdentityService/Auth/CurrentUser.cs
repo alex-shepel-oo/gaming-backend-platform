@@ -18,7 +18,8 @@ public sealed class CurrentUser(IHttpContextAccessor httpContextAccessor) : ICur
 
     public Guid? GameId => Principal.FindFirstValue(IdentityClaims.GameId) is { } value ? Guid.Parse(value) : null;
 
-    public PlatformRole Role => Enum.Parse<PlatformRole>(RequireClaim(IdentityClaims.Role));
+    public PlatformRole? Role =>
+        Principal.FindFirstValue(IdentityClaims.Role) is { } value ? Enum.Parse<PlatformRole>(value) : null;
 
     public Guid FamilyId => Guid.Parse(RequireClaim(IdentityClaims.FamilyId));
 

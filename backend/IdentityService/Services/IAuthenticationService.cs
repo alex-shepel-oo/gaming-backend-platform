@@ -20,4 +20,7 @@ public interface IAuthenticationService
         string? ip,
         string? userAgent,
         CancellationToken cancellationToken = default);
+
+    Task<LoginResult> SelectGameAsync(
+        Guid userId, Guid gameId, string? ip, string? userAgent, CancellationToken cancellationToken = default);
 }
