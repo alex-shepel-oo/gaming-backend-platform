@@ -6,8 +6,8 @@ import { provideRouter, Router } from '@angular/router';
 import { IdentityAuthEndpoints, TokenStore } from 'shared';
 import { AdminShell } from './admin-shell';
 
-function fakeAccessToken(scope: string, permissions: string[] = []): string {
-  const payload = { sub: 'user-1', email: 'admin@example.com', name: 'Admin One', scope, perms: permissions };
+function fakeAccessToken(scope: string, permissions: string[] = [], role: string | null = null): string {
+  const payload = { sub: 'user-1', email: 'admin@example.com', name: 'Admin One', scope, perms: permissions, role };
 
   return `header.${btoa(JSON.stringify(payload))}.signature`;
 }
@@ -98,5 +98,35 @@ describe('AdminShell', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Roles');
     expect(text).not.toContain('Games');
+  });
+
+  it('hides the Users nav link for a caller with no role claim', () => {
+    tokenStore.set(fakeAccessToken('platform'));
+
+    const fixture = TestBed.createComponent(AdminShell);
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toContain('Users');
+  });
+
+  it('shows the Users nav link for a Moderator', () => {
+    tokenStore.set(fakeAccessToken('platform', [], 'Moderator'));
+
+    const fixture = TestBed.createComponent(AdminShell);
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Users');
+  });
+
+  it('shows the Users nav link for an Admin', () => {
+    tokenStore.set(fakeAccessToken('platform', [], 'Admin'));
+
+    const fixture = TestBed.createComponent(AdminShell);
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Users');
   });
 });

@@ -9,6 +9,10 @@
     <a mat-button routerLink="/roles">Roles</a>
   }
 
+  @if (tokenStore.claims()?.role === 'Moderator' || tokenStore.claims()?.role === 'Admin') {
+    <a mat-button routerLink="/users">Users</a>
+  }
+
   <span class="shell-spacer"></span>
 
   @if (tokenStore.claims(); as claims) {

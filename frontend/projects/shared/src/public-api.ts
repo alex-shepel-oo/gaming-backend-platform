@@ -29,3 +29,5 @@ export * from './lib/notifications/balance-changed-message';
 export * from './lib/notifications/notification-hub.service';
 export * from './lib/roles/identity-role-endpoints';
 export * from './lib/roles/role-permissions.service';
+export * from './lib/users/identity-user-endpoints';
+export * from './lib/users/user-management.service';

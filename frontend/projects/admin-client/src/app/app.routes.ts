@@ -1,11 +1,12 @@
 import { Routes } from '@angular/router';
-import { authGuard, guestGuard, permissionGuard } from 'shared';
+import { authGuard, guestGuard, permissionGuard, roleGuard } from 'shared';
 import { AdminDashboard } from './dashboard/admin-dashboard';
 import { GamePicker } from './game-picker/game-picker';
 import { GamesManagement } from './games-management/games-management';
 import { AdminLogin } from './login/admin-login';
 import { RolePermissionsEditor } from './role-permissions-editor/role-permissions-editor';
 import { AdminShell } from './shell/admin-shell';
+import { UserManagement } from './user-management/user-management';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'login' },
@@ -28,6 +29,12 @@ export const routes: Routes = [
         component: RolePermissionsEditor,
         canActivate: [permissionGuard],
         data: { permission: 'platform.roles.manage' },
+      },
+      {
+        path: 'users',
+        component: UserManagement,
+        canActivate: [roleGuard],
+        data: { roles: ['Moderator', 'Admin'] },
       },
     ],
   },
