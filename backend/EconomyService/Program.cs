@@ -21,11 +21,12 @@ builder.Services.AddEconomyHealthChecks();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddEconomyPersistence(builder.Configuration);
 builder.Services.AddEconomyAuthentication(builder.Configuration);
-builder.Services.AddEconomyServices();
+builder.Services.AddEconomyServices(builder.Configuration);
 builder.Services.AddRabbitMqEventBus(builder.Configuration);
 builder.Services.AddOutbox<EconomyDbContext>();
 builder.Services.AddOutboxDispatcher<EconomyDbContext>(builder.Configuration);
 builder.Services.AddDeduplicatingEventConsumer();
+builder.Services.AddWelcomeGrantConsumer();
 builder.Services.AddScoped<DevelopmentSeeder>();
 
 var app = builder.Build();

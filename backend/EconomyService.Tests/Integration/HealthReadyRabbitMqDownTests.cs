@@ -1,14 +1,17 @@
 using System.Globalization;
 using System.Net;
 using AwesomeAssertions;
+using BuildingBlocks.Messaging;
 using EconomyService.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using NUnit.Framework;
+using RabbitMQ.Client;
 using Testcontainers.PostgreSql;
 using Testcontainers.RabbitMq;
+using MsOptions = Microsoft.Extensions.Options.Options;
 
 namespace EconomyService.Tests.Integration;
 
@@ -42,6 +45,31 @@ public sealed class HealthReadyRabbitMqDownTests : IAsyncDisposable
         await using (var dbContext = new EconomyDbContext(optionsBuilder.Options))
         {
             await dbContext.Database.MigrateAsync();
+        }
+
+        // UserEmailConfirmedConsumer binds its own queue to gbp.identity at
+        // startup, independent of this service's own gbp.economy topology -
+        // this isolated container has no identity-service standing in to
+        // declare it, so the bind fails and the whole host goes down unless
+        // it's declared here first (mirrors RabbitMqTestBroker's fix for the
+        // shared container).
+        var identityOptions = new RabbitMqOptions
+        {
+            Host = _rabbitMq.Hostname,
+            Port = _rabbitMq.GetMappedPublicPort(5672),
+            Username = "guest",
+            Password = "guest",
+        };
+
+        await using (var topologyConnection = new RabbitMqConnection(MsOptions.Create(identityOptions)))
+        await using (var channel = await topologyConnection.CreateChannelAsync(TestContext.CurrentContext.CancellationToken))
+        {
+            await channel.ExchangeDeclareAsync(
+                "gbp.identity",
+                ExchangeType.Topic,
+                durable: true,
+                autoDelete: false,
+                cancellationToken: TestContext.CurrentContext.CancellationToken);
         }
 
         // The broker must be up when the factory builds the host: topology

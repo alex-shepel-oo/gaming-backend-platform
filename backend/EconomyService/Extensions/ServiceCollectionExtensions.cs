@@ -93,7 +93,7 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddEconomyServices(this IServiceCollection services)
+    public static IServiceCollection AddEconomyServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddScoped<IIdempotencyStore, IdempotencyStore>();
         services.AddScoped<IBalanceService, BalanceService>();
@@ -104,6 +104,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IConversionRequestService, ConversionRequestService>();
         services.AddHostedService<ConversionSagaRunner>();
 
+        services.AddOptions<WelcomeGrantOptions>()
+            .Bind(configuration.GetSection(WelcomeGrantOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<IWelcomeGrantService, WelcomeGrantService>();
+
         return services;
     }
 
@@ -111,6 +117,13 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<IInboxFaultInjector, NoOpInboxFaultInjector>();
         services.AddHostedService<DeduplicatingEventConsumer>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddWelcomeGrantConsumer(this IServiceCollection services)
+    {
+        services.AddHostedService<UserEmailConfirmedConsumer>();
 
         return services;
     }

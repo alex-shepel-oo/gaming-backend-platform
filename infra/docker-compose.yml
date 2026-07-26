@@ -151,6 +151,13 @@ services:
         condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
+      # UserEmailConfirmedConsumer binds its queue to gbp.identity at startup
+      # and the whole host goes down if that exchange doesn't exist yet; only
+      # identity-service's own topology initializer declares it. Mirrors the
+      # notification-service -> economy-service entry above, just pointed the
+      # other way now that economy depends on identity instead.
+      identity-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:5001/health/ready || exit 1"]
       interval: 5s

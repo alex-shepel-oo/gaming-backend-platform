@@ -13,6 +13,18 @@ spec:
       labels:
         app: economy-service
     spec:
+      initContainers:
+        # UserEmailConfirmedConsumer binds its queue to gbp.identity at
+        # startup and the whole host goes down if that exchange doesn't
+        # exist yet; only identity-service's own topology initializer
+        # declares it. There is no depends_on in Kubernetes, so this waits
+        # for identity-service to report ready before the main container
+        # starts, instead of letting economy-service crash-loop until it
+        # wins the race on its own. Mirrors wait-for-economy in
+        # notification-service's Deployment, just pointed at Identity.
+        - name: wait-for-identity
+          image: busybox:1.36
+          command: ["sh", "-c", "until wget -qO- http://identity-service:5000/health/ready; do sleep 2; done"]
       containers:
         - name: economy-service
           image: ghcr.io/alex-shepel-oo/economy-service:latest
