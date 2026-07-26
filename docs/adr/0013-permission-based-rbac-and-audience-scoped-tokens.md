@@ -107,3 +107,57 @@ organization or team layer between platform and game), the catalog and the `role
 column both need a second look. If `revoke-sessions` turns out to be too coarse a tool for the freshness
 trade-off in practice, a shorter access-token lifetime is a smaller change than building real-time
 permission propagation.
+
+
+## Addendum: ecosystem-first login
+
+### Context
+
+`scope=account` was reserved above but never issued — logging in without a `gameSlug` was only ever
+valid for a platform admin, everyone else got a `403`. The player-client already has a `Login → Games`
+flow, but `Login` forced `DEFAULT_GAME_SLUG` on every request, so the account tier this ADR already
+named had nothing exercising it. This addendum is the concrete implementation of that reserved value,
+not a new decision about what `scope=account` means.
+
+### Decision
+
+**The same check that already distinguished a platform admin from everyone else now decides `account`
+vs. `platform`, not `platform` vs. an error.** Logging in without a `gameSlug` still looks for a
+platform-wide `user_game_roles` row; found, the session is `scope=platform` exactly as before; not
+found, the caller gets an account-scoped session instead of a `403`.
+
+**`RefreshTokenFamily` gains an explicit `Scope` column.** `game_id IS NULL` used to mean exactly one
+thing (a platform role); it now has to mean two, so the family records which one directly rather than
+having both `login` and `refresh` independently re-derive it from a null check that's no longer
+unambiguous. `IssueFamilyAsync` takes `scope` as a required argument, not inferred, not defaulted.
+
+**The `role` claim becomes optional.** An account-scoped session has no game role to report — minting
+one anyway (`Player`, say) would misrepresent the token, not simplify it. Its permissions are a fixed
+pair, `account.games.list` and `account.profile.manage`, granted to any authenticated account
+regardless of role and never resolved through `role_permissions` — that table is shaped for
+`(role, game_id)`, and an account session has neither.
+
+**`POST /auth/select-game` exchanges an account session for a game-scoped one, self-joining as `Player`
+if the caller has no role there yet.** The same helper `register` already uses to create a player role
+on signup creates it here too — self-join is one mechanism serving two entry points, not two. The
+existing `login`-with-`gameSlug` path is untouched: it still requires a pre-existing role and still
+rejects a caller who lacks one, for clients that haven't moved to the two-step flow.
+
+### Alternatives considered
+
+| Alternative | Why it was not chosen |
+|---|---|
+| A dedicated flag marking "this is a platform user" instead of reusing the existing platform-role lookup | Duplicates a fact the partial unique index on platform roles already encodes |
+| A placeholder role (e.g. `Player`) on account-scoped tokens instead of an optional claim | Would assert a game-level role that doesn't exist — the token would lie about what the caller can do |
+| Resolving account-tier permissions through `role_permissions` like every other scope | The table is keyed on `(role, game_id)`; an account session has neither, and every account gets the identical fixed pair regardless |
+
+### Consequences
+
+**`GET /users/me` now returns a `role` that can be `null`.** A deliberate, documented contract change,
+not an oversight — any client reading it needs to handle the account-scoped case.
+
+**A web client holds exactly one refresh cookie.** The account session stays valid server-side after
+`select-game`, but the cookie now carries the game-scoped token — a web client can't address its own
+account session again without logging in fresh, even though the row is still live. Non-web clients,
+holding both raw tokens themselves, don't have this limitation. This falls directly out of the
+single-cookie design ADR-0011 already chose, not a new trade-off this addendum introduces.
