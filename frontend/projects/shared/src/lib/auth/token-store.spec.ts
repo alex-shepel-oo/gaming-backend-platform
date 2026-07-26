@@ -30,7 +30,13 @@ describe('TokenStore claims', () => {
 
   it('decodes email, display name and role from the access token', () => {
     tokenStore.set(
-      buildFakeToken({ sub: 'user-1', email: 'player@example.com', name: 'Player One', role: 'Player' }),
+      buildFakeToken({
+        sub: 'user-1',
+        email: 'player@example.com',
+        name: 'Player One',
+        role: 'Player',
+        scope: 'game',
+      }),
     );
 
     expect(tokenStore.claims()).toEqual({
@@ -38,6 +44,7 @@ describe('TokenStore claims', () => {
       email: 'player@example.com',
       displayName: 'Player One',
       role: 'Player',
+      scope: 'game',
       gameId: null,
     });
   });
@@ -49,11 +56,27 @@ describe('TokenStore claims', () => {
         email: 'player@example.com',
         name: 'Player One',
         role: 'Player',
+        scope: 'game',
         game_id: 'game-1',
       }),
     );
 
     expect(tokenStore.claims()?.gameId).toBe('game-1');
+  });
+
+  it('decodes an account-scoped token with no role claim as role: null', () => {
+    tokenStore.set(
+      buildFakeToken({ sub: 'user-1', email: 'player@example.com', name: 'Player One', scope: 'account' }),
+    );
+
+    expect(tokenStore.claims()).toEqual({
+      userId: 'user-1',
+      email: 'player@example.com',
+      displayName: 'Player One',
+      role: null,
+      scope: 'account',
+      gameId: null,
+    });
   });
 
   it('returns null for a malformed token instead of throwing', () => {
@@ -63,7 +86,15 @@ describe('TokenStore claims', () => {
   });
 
   it('clears claims on clear()', () => {
-    tokenStore.set(buildFakeToken({ sub: 'user-1', email: 'player@example.com', name: 'Player One', role: 'Player' }));
+    tokenStore.set(
+      buildFakeToken({
+        sub: 'user-1',
+        email: 'player@example.com',
+        name: 'Player One',
+        role: 'Player',
+        scope: 'game',
+      }),
+    );
 
     tokenStore.clear();
 

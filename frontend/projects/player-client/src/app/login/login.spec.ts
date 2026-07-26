@@ -53,8 +53,8 @@ describe('Login', () => {
     expect(request.request.body).toEqual({
       email: 'player@example.com',
       password: 'correct-password',
-      gameSlug: 'demo-shooter',
     });
+    expect(request.request.body).not.toHaveProperty('gameSlug');
     request.flush({ accessToken: 'the-access-token' });
 
     expect(navigateSpy).toHaveBeenCalledWith('/games');

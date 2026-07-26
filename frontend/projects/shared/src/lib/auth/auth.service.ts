@@ -57,6 +57,15 @@ export class AuthService {
       );
   }
 
+  selectGame(gameId: string): Observable<void> {
+    return this.http
+      .post<AccessTokenResponse>(IdentityAuthEndpoints.selectGame, { gameId }, { headers: WEB_CLIENT_TYPE_HEADERS })
+      .pipe(
+        tap((response) => this.tokenStore.set(response.accessToken)),
+        map(() => undefined),
+      );
+  }
+
   refresh(): Observable<void> {
     return this.http
       .post<AccessTokenResponse>(IdentityAuthEndpoints.refresh, null, { headers: WEB_CLIENT_TYPE_HEADERS })
