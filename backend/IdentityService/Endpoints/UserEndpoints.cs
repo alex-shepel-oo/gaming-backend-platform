@@ -34,7 +34,7 @@ public static class UserEndpoints
 
         return TypedResults.Ok(new UserDto(
             user.Id, user.Email, user.DisplayName, currentUser.GameId, currentUser.Role, user.CreatedAt,
-            user.AvatarUrl));
+            user.AvatarUrl, user.LastLoginAt));
     }
 
     private static async Task<Ok<UserDto>> UpdateMeAsync(
@@ -74,7 +74,7 @@ public static class UserEndpoints
 
         return TypedResults.Ok(new UserDto(
             user.Id, user.Email, user.DisplayName, currentUser.GameId, currentUser.Role, user.CreatedAt,
-            user.AvatarUrl));
+            user.AvatarUrl, user.LastLoginAt));
     }
 
     private static async Task<Ok<PublicGameDto[]>> GetMyGamesAsync(
@@ -105,7 +105,7 @@ public static class UserEndpoints
 
         return TypedResults.Ok(new UserDto(
             role.User!.Id, role.User.Email, role.User.DisplayName, role.GameId, role.Role, role.User.CreatedAt,
-            role.User.AvatarUrl));
+            role.User.AvatarUrl, role.User.LastLoginAt));
     }
 
     private static async Task<Ok<PagedResult<UserSummaryDto>>> ListUsersAsync(
@@ -131,7 +131,7 @@ public static class UserEndpoints
             .OrderBy(r => r.User!.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(r => new UserSummaryDto(r.User!.Id, r.User.Email, r.User.DisplayName, r.Role, r.User.CreatedAt))
+            .Select(r => new UserSummaryDto(r.User!.Id, r.User.Email, r.User.DisplayName, r.Role, r.User.CreatedAt, r.User.LastLoginAt))
             .ToListAsync(cancellationToken);
 
         return TypedResults.Ok(new PagedResult<UserSummaryDto>(items, page, pageSize, totalCount));

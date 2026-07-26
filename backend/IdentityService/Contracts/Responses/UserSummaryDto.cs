@@ -7,4 +7,5 @@ public sealed record UserSummaryDto(
     string Email,
     string DisplayName,
     PlatformRole Role,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? LastLoginAt);

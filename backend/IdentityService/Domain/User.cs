@@ -10,6 +10,7 @@ public sealed class User
     public required bool IsActive { get; set; }
     public required bool EmailConfirmed { get; set; }
     public DateTimeOffset? EmailConfirmedAt { get; set; }
+    public DateTimeOffset? LastLoginAt { get; set; }
     public required DateTimeOffset CreatedAt { get; init; }
     public required DateTimeOffset UpdatedAt { get; set; }
 

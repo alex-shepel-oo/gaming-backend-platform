@@ -9,4 +9,5 @@ public sealed record UserDto(
     Guid? GameId,
     PlatformRole? Role,
     DateTimeOffset CreatedAt,
-    string? AvatarUrl);
+    string? AvatarUrl,
+    DateTimeOffset? LastLoginAt);
