@@ -23,6 +23,7 @@ public sealed partial class RefreshTokenService(
     public async Task<RefreshTokenIssueResult> IssueFamilyAsync(
         Guid userId,
         Guid? gameId,
+        TokenScope scope,
         string? createdByIp,
         string? userAgent,
         CancellationToken cancellationToken = default)
@@ -34,6 +35,7 @@ public sealed partial class RefreshTokenService(
             Id = Guid.CreateVersion7(),
             UserId = userId,
             GameId = gameId,
+            Scope = scope,
             CreatedAt = now,
             ExpiresAt = now.AddDays(_options.FamilyAbsoluteLifetimeDays),
             CreatedByIp = createdByIp,

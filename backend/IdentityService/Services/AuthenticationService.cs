@@ -151,7 +151,7 @@ public sealed partial class AuthenticationService(
         var scope = gameId is null ? TokenScope.Platform : TokenScope.Game;
         var permissions = await permissionResolver.ResolveAsync(role.Role, gameId, cancellationToken);
 
-        var issued = await refreshTokenService.IssueFamilyAsync(user.Id, gameId, ip, userAgent, cancellationToken);
+        var issued = await refreshTokenService.IssueFamilyAsync(user.Id, gameId, scope, ip, userAgent, cancellationToken);
         var accessToken = tokenService.IssueAccessToken(user, gameId, role.Role, issued.Family.Id, scope, permissions);
 
         return new LoginResult(accessToken, issued.RawToken);
