@@ -8,11 +8,11 @@ using RabbitMQ.Client.Events;
 
 namespace NotificationService.Messaging;
 
-// Not DeduplicatingConsumerBase<TDbContext>: that base class requires a
-// DbContext for its dedup transaction, and this service has no database by
-// design. Hand-rolled BackgroundService straight on IRabbitMqConnection
-// instead, with no dedup step at all -- a redelivered message just pushes the
-// same (still current) balance again, which a client harmlessly re-renders.
+// Not InboxConsumerBase<TDbContext>: that base class requires a DbContext for
+// its dedup transaction, and this service has no database by design.
+// Hand-rolled BackgroundService straight on IRabbitMqConnection instead, with
+// no dedup step at all -- a redelivered message just pushes the same (still
+// current) balance again, which a client harmlessly re-renders.
 public sealed partial class BalanceChangedConsumer(
     IRabbitMqConnection connection,
     IOptions<RabbitMqOptions> options,

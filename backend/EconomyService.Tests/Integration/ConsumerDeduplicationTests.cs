@@ -5,6 +5,7 @@ using EconomyService.Messaging;
 using EconomyService.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using NUnit.Framework;
@@ -19,6 +20,12 @@ namespace EconomyService.Tests.Integration;
 public sealed class ConsumerDeduplicationTests : IAsyncDisposable
 {
     private const string RoutingKey = "balance.changed";
+
+    // A second exchange, entirely separate from _rabbitMqOptions.ExchangeName
+    // (gbp.economy) - exists only to prove a consumer can bind to an
+    // exchange it was handed explicitly rather than the one on its own
+    // publish-side options (A.3).
+    private const string OtherExchangeName = "gbp.test-other";
 
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17-alpine")
         .WithDatabase("economy_db")
@@ -60,6 +67,13 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
         await using var channel = await topologyConnection.CreateChannelAsync(TestContext.CurrentContext.CancellationToken);
         await channel.ExchangeDeclareAsync(
             _rabbitMqOptions.ExchangeName,
+            ExchangeType.Topic,
+            durable: true,
+            autoDelete: false,
+            cancellationToken: TestContext.CurrentContext.CancellationToken);
+
+        await channel.ExchangeDeclareAsync(
+            OtherExchangeName,
             ExchangeType.Topic,
             durable: true,
             autoDelete: false,
@@ -202,6 +216,42 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
         projectedCount.Count.Should().Be(1);
     }
 
+    [Test]
+    public async Task Deliver_MessageOnExplicitExchange_ConsumerBoundToThatExchangeReceivesItNotOptionsExchange()
+    {
+        var cancellationToken = TestContext.CurrentContext.CancellationToken;
+        var messageId = Guid.CreateVersion7();
+
+        await using var provider = BuildProvider(new NoOpInboxFaultInjector());
+        using var consumer = CreateOtherExchangeConsumer(provider, out var queueName);
+
+        await consumer.StartAsync(cancellationToken);
+        try
+        {
+            await WaitForConsumerReadyAsync(queueName, cancellationToken);
+            await PublishToOtherExchangeAsync(messageId, cancellationToken);
+
+            await WaitUntilAsync(
+                async () =>
+                {
+                    await using var verify = CreateDbContext();
+                    return await verify.ProcessedMessages.AnyAsync(m => m.MessageId == messageId, cancellationToken);
+                },
+                TimeSpan.FromSeconds(15));
+        }
+        finally
+        {
+            await consumer.StopAsync(cancellationToken);
+        }
+
+        await using var final = CreateDbContext();
+        var processed = await final.ProcessedMessages.SingleAsync(m => m.MessageId == messageId, cancellationToken);
+        processed.ProcessedAt.Should().NotBe(default);
+
+        var count = await final.ProjectedEventCounts.SingleAsync(c => c.EventType == OtherExchangeRoutingKey, cancellationToken);
+        count.Count.Should().Be(1);
+    }
+
     private async Task PublishAsync(Guid messageId, CancellationToken cancellationToken)
     {
         var payload = $$"""{"Id":"{{messageId}}","OccurredAt":"2026-07-19T00:00:00+00:00"}""";
@@ -209,6 +259,31 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
         await using var connection = new RabbitMqConnection(MsOptions.Create(_rabbitMqOptions));
         var eventBus = new RabbitMqEventBus(connection, MsOptions.Create(_rabbitMqOptions));
         await eventBus.PublishAsync(new EventEnvelope(RoutingKey, 1, payload), cancellationToken);
+    }
+
+    private const string OtherExchangeRoutingKey = "other-exchange.test-event";
+
+    private async Task PublishToOtherExchangeAsync(Guid messageId, CancellationToken cancellationToken)
+    {
+        var payload = $$"""{"Id":"{{messageId}}","OccurredAt":"2026-07-19T00:00:00+00:00"}""";
+
+        // Same broker connection details as _rabbitMqOptions, but a
+        // publish-side ExchangeName pointed at the second exchange - the
+        // consumer under test is bound to that exchange via its own explicit
+        // exchangeName argument, independent of this options object.
+        var otherExchangeOptions = new RabbitMqOptions
+        {
+            Host = _rabbitMqOptions.Host,
+            Port = _rabbitMqOptions.Port,
+            Username = _rabbitMqOptions.Username,
+            Password = _rabbitMqOptions.Password,
+            VirtualHost = _rabbitMqOptions.VirtualHost,
+            ExchangeName = OtherExchangeName,
+        };
+
+        await using var connection = new RabbitMqConnection(MsOptions.Create(otherExchangeOptions));
+        var eventBus = new RabbitMqEventBus(connection, MsOptions.Create(otherExchangeOptions));
+        await eventBus.PublishAsync(new EventEnvelope(OtherExchangeRoutingKey, 1, payload), cancellationToken);
     }
 
     // BackgroundService.StartAsync returns once ExecuteAsync has been
@@ -278,6 +353,20 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
             queueName);
     }
 
+    private OtherExchangeConsumer CreateOtherExchangeConsumer(ServiceProvider provider, out string queueName)
+    {
+        queueName = $"gbp.test-other.consumer.test.{Guid.NewGuid():N}";
+
+        return new OtherExchangeConsumer(
+            new RabbitMqConnection(MsOptions.Create(_rabbitMqOptions)),
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            provider.GetRequiredService<IInboxFaultInjector>(),
+            TimeProvider.System,
+            NullLogger<OtherExchangeConsumer>.Instance,
+            OtherExchangeName,
+            queueName);
+    }
+
     private ServiceProvider BuildProvider(IInboxFaultInjector faultInjector)
     {
         var services = new ServiceCollection();
@@ -311,5 +400,34 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
 
             return Task.CompletedTask;
         }
+    }
+
+    // Minimal InboxConsumerBase subclass, test-only: exists only to prove
+    // exchangeName controls the bind, independent of options.Value.ExchangeName
+    // (which stays pointed at gbp.economy throughout). Side effect mirrors
+    // DeduplicatingEventConsumer.ApplySideEffectAsync - same upsert, nothing
+    // new to verify there.
+    private sealed class OtherExchangeConsumer(
+        IRabbitMqConnection connection,
+        IServiceScopeFactory scopeFactory,
+        IInboxFaultInjector faultInjector,
+        TimeProvider timeProvider,
+        ILogger<OtherExchangeConsumer> logger,
+        string exchangeName,
+        string queueName)
+        : InboxConsumerBase<EconomyDbContext>(
+            connection, scopeFactory, faultInjector, timeProvider, logger, exchangeName, queueName, RoutingKeys)
+    {
+        private static readonly string[] RoutingKeys = [OtherExchangeRoutingKey];
+
+        protected override async Task ApplySideEffectAsync(
+            EconomyDbContext dbContext, Guid messageId, string routingKey, ReadOnlyMemory<byte> body, CancellationToken cancellationToken) =>
+            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"""
+                INSERT INTO projected_event_counts (event_type, count)
+                VALUES ({routingKey}, 1)
+                ON CONFLICT (event_type) DO UPDATE SET count = projected_event_counts.count + 1
+                """,
+                cancellationToken);
     }
 }
