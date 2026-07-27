@@ -105,7 +105,7 @@ describe('Shell', () => {
     let text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).not.toContain('Demo Shooter');
 
-    gameSelection.select({ id: 'game-1', slug: 'demo-shooter', name: 'Demo Shooter' });
+    gameSelection.select({ id: 'game-1', slug: 'demo-shooter', name: 'Demo Shooter', description: null, iconUrl: null });
     fixture.detectChanges();
 
     text = (fixture.nativeElement as HTMLElement).textContent ?? '';
@@ -173,7 +173,7 @@ describe('Shell', () => {
 
   it('logs out, clears the selected game and balances, and redirects to Login', () => {
     const navigateSpy = vi.spyOn(router, 'navigateByUrl');
-    gameSelection.select({ id: 'game-1', slug: 'demo-shooter', name: 'Demo Shooter' });
+    gameSelection.select({ id: 'game-1', slug: 'demo-shooter', name: 'Demo Shooter', description: null, iconUrl: null });
 
     const fixture = createAndFlushBalances([
       { currencyId: 'platform-1', currencyCode: 'PLATFORM_CREDITS', scope: CurrencyScope.Platform, gameId: null, amount: 500 },
