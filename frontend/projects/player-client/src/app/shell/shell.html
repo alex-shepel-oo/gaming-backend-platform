@@ -28,7 +28,11 @@
 
   @if (tokenStore.claims(); as claims) {
     <a routerLink="/profile" class="shell-avatar-link" title="Profile">
-      <app-avatar [name]="claims.displayName" style="--avatar-size: 32px" />
+      <app-avatar
+        [name]="claims.displayName"
+        [avatarUrl]="profileService.profile()?.avatarUrl ?? null"
+        style="--avatar-size: 32px"
+      />
     </a>
   }
 

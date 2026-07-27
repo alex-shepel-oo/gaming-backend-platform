@@ -1,4 +1,9 @@
 @use '../../styles/states';
+@use '../../styles/forms';
+
+.state-panel {
+  @include states.state-panel();
+}
 
 .profile-card {
   max-width: 480px;
@@ -37,4 +42,16 @@
 
 .profile-error {
   @include states.error-text();
+}
+
+.profile-edit-form {
+  @include forms.stack();
+  @include forms.full-width-field();
+  max-width: 360px;
+}
+
+.profile-saved {
+  margin: 0;
+  color: var(--mat-sys-primary);
+  font: var(--mat-sys-body-medium);
 }

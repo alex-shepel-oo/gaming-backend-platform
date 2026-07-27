@@ -1,1 +1,5 @@
-<span class="avatar" [style.background-color]="color()" [attr.aria-label]="name()">{{ initials() }}</span>
+@if (avatarUrl(); as url) {
+  <img class="avatar" [src]="url" [alt]="name()" />
+} @else {
+  <span class="avatar" [style.background-color]="color()" [attr.aria-label]="name()">{{ initials() }}</span>
+}

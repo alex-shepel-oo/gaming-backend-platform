@@ -8,6 +8,7 @@ import {
   CurrencyScope,
   GameSelectionService,
   NotificationHubService,
+  ProfileService,
   TokenStore,
   WalletService,
 } from 'shared';
@@ -37,6 +38,7 @@ export class Shell {
   protected readonly gameSelection = inject(GameSelectionService);
   protected readonly tokenStore = inject(TokenStore);
   protected readonly theme = inject(ThemeService);
+  protected readonly profileService = inject(ProfileService);
 
   protected readonly platformBalances = computed(
     () => this.walletService.balances()?.filter((balance) => balance.scope === CurrencyScope.Platform) ?? [],
@@ -44,6 +46,7 @@ export class Shell {
 
   constructor() {
     this.walletService.refreshBalances().subscribe();
+    this.profileService.refreshProfile().subscribe();
     this.notificationHub.connect();
   }
 
@@ -51,6 +54,7 @@ export class Shell {
     this.authService.logout().subscribe(() => {
       this.gameSelection.clear();
       this.walletService.clearBalances();
+      this.profileService.clearProfile();
       this.notificationHub.disconnect();
       this.router.navigateByUrl('/login');
     });

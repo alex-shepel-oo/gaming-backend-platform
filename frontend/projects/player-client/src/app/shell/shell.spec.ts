@@ -7,8 +7,11 @@ import {
   EconomyEndpoints,
   GameSelectionService,
   IdentityAuthEndpoints,
+  IdentityProfileEndpoints,
   NotificationHubService,
+  ProfileService,
   TokenStore,
+  UserProfile,
   WalletService,
 } from 'shared';
 import { Shell } from './shell';
@@ -36,6 +39,7 @@ describe('Shell', () => {
   let gameSelection: GameSelectionService;
   let tokenStore: TokenStore;
   let walletService: WalletService;
+  let profileService: ProfileService;
   let notificationHub: { connect: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
@@ -68,6 +72,7 @@ describe('Shell', () => {
     gameSelection = TestBed.inject(GameSelectionService);
     tokenStore = TestBed.inject(TokenStore);
     walletService = TestBed.inject(WalletService);
+    profileService = TestBed.inject(ProfileService);
   });
 
   afterEach(() => {
@@ -76,9 +81,10 @@ describe('Shell', () => {
     localStorage.clear();
   });
 
-  function createAndFlushBalances(balances: unknown[] = []) {
+  function createAndFlushBalances(balances: unknown[] = [], profile: UserProfile | null = null) {
     const fixture = TestBed.createComponent(Shell);
     httpMock.expectOne((req) => req.url === EconomyEndpoints.balances).flush(balances);
+    httpMock.expectOne((req) => req.url === IdentityProfileEndpoints.me).flush(profile);
     fixture.detectChanges();
 
     return fixture;
@@ -143,6 +149,28 @@ describe('Shell', () => {
     expect(link!.textContent).toContain('PO');
   });
 
+  it('refreshes the profile on construction and shows the fetched avatar image', () => {
+    tokenStore.set(
+      buildFakeToken({ sub: 'user-1', email: 'player@example.com', name: 'Player One', role: 'Player', scope: 'game' }),
+    );
+
+    const fixture = createAndFlushBalances([], {
+      id: 'user-1',
+      email: 'player@example.com',
+      displayName: 'Player One',
+      gameId: null,
+      role: 'Player',
+      createdAt: '2026-01-01T00:00:00Z',
+      avatarUrl: 'https://example.com/avatar.png',
+      lastLoginAt: null,
+    });
+
+    expect(profileService.profile()?.avatarUrl).toBe('https://example.com/avatar.png');
+
+    const img = (fixture.nativeElement as HTMLElement).querySelector('a[href="/profile"] img');
+    expect(img?.getAttribute('src')).toBe('https://example.com/avatar.png');
+  });
+
   it('logs out, clears the selected game and balances, and redirects to Login', () => {
     const navigateSpy = vi.spyOn(router, 'navigateByUrl');
     gameSelection.select({ id: 'game-1', slug: 'demo-shooter', name: 'Demo Shooter' });
@@ -159,6 +187,7 @@ describe('Shell', () => {
 
     expect(gameSelection.selected()).toBeNull();
     expect(walletService.balances()).toBeNull();
+    expect(profileService.profile()).toBeNull();
     expect(notificationHub.disconnect).toHaveBeenCalled();
     expect(navigateSpy).toHaveBeenCalledWith('/login');
   });
