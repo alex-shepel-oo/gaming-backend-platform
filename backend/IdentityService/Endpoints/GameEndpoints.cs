@@ -14,12 +14,13 @@ public static class GameEndpoints
 {
     public static void MapGameEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/identity/games")
-            .RequireAuthorization(policy => policy.RequireClaim(IdentityClaims.Perms, Permissions.PlatformGamesManage));
+        var group = app.MapGroup("/api/identity/games");
 
-        group.MapGet("", ListGamesAsync);
-        group.MapPost("", CreateGameAsync);
-        group.MapPatch("/{id:guid}", UpdateGameAsync);
+        group.MapGet("", ListGamesAsync)
+            .RequireAuthorization(policy => policy.RequireClaim(IdentityClaims.Perms, Permissions.PlatformGamesManage));
+        group.MapPost("", CreateGameAsync)
+            .RequireAuthorization(policy => policy.RequireClaim(IdentityClaims.Perms, Permissions.PlatformGamesManage));
+        group.MapPatch("/{id:guid}", UpdateGameAsync).RequireAuthorization();
 
         app.MapGet("/api/identity/games/public", ListPublicGamesAsync).RequireAuthorization(Policies.Player);
     }
@@ -72,13 +73,27 @@ public static class GameEndpoints
     }
 
     private static async Task<Ok<GameDto>> UpdateGameAsync(
-        Guid id, UpdateGameRequest request, IdentityDbContext dbContext, CancellationToken cancellationToken)
+        Guid id,
+        UpdateGameRequest request,
+        IdentityDbContext dbContext,
+        ICurrentUser currentUser,
+        IScopeAuthorityGuard guard,
+        CancellationToken cancellationToken)
     {
         var game = await dbContext.Games.SingleOrDefaultAsync(g => g.Id == id, cancellationToken);
 
         if (game is null)
         {
             throw new GameNotFoundException();
+        }
+
+        guard.EnsureScopeAuthority(currentUser, id, Permissions.PlatformGamesManage, Permissions.GameMetadataEdit);
+
+        var hasPlatformAuthority = currentUser.Perms.Contains(Permissions.PlatformGamesManage);
+
+        if (!hasPlatformAuthority && (request.Name is not null || request.IsActive is not null))
+        {
+            throw new PermissionEscalationException();
         }
 
         if (request.Name is not null)

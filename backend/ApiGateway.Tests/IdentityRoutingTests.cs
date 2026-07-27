@@ -132,7 +132,7 @@ public sealed class IdentityRoutingTests : IDisposable
         // (401/403) the way the games route above is - a scope=Game token is
         // exactly how a Game-Admin manages their own game's role_permissions,
         // and the gateway must let it through for the service's own
-        // RoleEscalationGuard to make the real decision.
+        // ScopeAuthorityGuard to make the real decision.
         response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
         response.StatusCode.Should().NotBe(HttpStatusCode.Forbidden);
     }

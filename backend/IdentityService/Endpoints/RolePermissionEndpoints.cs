@@ -38,11 +38,11 @@ public static class RolePermissionEndpoints
         PlatformRole role,
         Guid? gameId,
         ICurrentUser currentUser,
-        IRoleEscalationGuard guard,
+        IScopeAuthorityGuard guard,
         IPermissionResolver permissionResolver,
         CancellationToken cancellationToken)
     {
-        guard.EnsureScopeAuthority(currentUser, gameId);
+        guard.EnsureScopeAuthority(currentUser, gameId, Permissions.PlatformRolesManage, Permissions.GameRolesManage);
 
         var permissions = await permissionResolver.ResolveAsync(role, gameId, cancellationToken);
 
@@ -54,12 +54,12 @@ public static class RolePermissionEndpoints
         Guid? gameId,
         UpdateRolePermissionsRequest request,
         ICurrentUser currentUser,
-        IRoleEscalationGuard guard,
+        IScopeAuthorityGuard guard,
         IdentityDbContext dbContext,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
-        guard.EnsureCanGrant(currentUser, gameId, request.Permissions);
+        guard.EnsureCanGrant(currentUser, gameId, request.Permissions, Permissions.PlatformRolesManage, Permissions.GameRolesManage);
 
         var existing = await dbContext.RolePermissions
             .Where(r => r.Role == role && r.GameId == gameId)
@@ -87,11 +87,11 @@ public static class RolePermissionEndpoints
         Guid userId,
         Guid? gameId,
         ICurrentUser currentUser,
-        IRoleEscalationGuard guard,
+        IScopeAuthorityGuard guard,
         IdentityDbContext dbContext,
         CancellationToken cancellationToken)
     {
-        guard.EnsureScopeAuthority(currentUser, gameId);
+        guard.EnsureScopeAuthority(currentUser, gameId, Permissions.PlatformRolesManage, Permissions.GameRolesManage);
 
         var role = await dbContext.UserGameRoles
             .SingleOrDefaultAsync(r => r.UserId == userId && r.GameId == gameId, cancellationToken);
@@ -108,14 +108,15 @@ public static class RolePermissionEndpoints
         Guid userId,
         AssignUserRoleRequest request,
         ICurrentUser currentUser,
-        IRoleEscalationGuard guard,
+        IScopeAuthorityGuard guard,
         IPermissionResolver permissionResolver,
         IdentityDbContext dbContext,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
         var effectivePermissions = await permissionResolver.ResolveAsync(request.Role, request.GameId, cancellationToken);
-        guard.EnsureCanGrant(currentUser, request.GameId, effectivePermissions);
+        guard.EnsureCanGrant(
+            currentUser, request.GameId, effectivePermissions, Permissions.PlatformRolesManage, Permissions.GameRolesManage);
 
         var existing = await dbContext.UserGameRoles
             .SingleOrDefaultAsync(r => r.UserId == userId && r.GameId == request.GameId, cancellationToken);

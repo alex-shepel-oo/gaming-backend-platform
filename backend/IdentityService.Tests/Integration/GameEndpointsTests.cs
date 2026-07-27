@@ -253,6 +253,97 @@ public sealed class GameEndpointsTests(IdentityApiFactory factory) : IClassFixtu
     }
 
     [Fact]
+    public async Task PatchGame_GameAdminWithMetadataEdit_UpdatesDescriptionAndIconUrlOnOwnGame()
+    {
+        var game = await SeedGameAsync();
+        var gameAdmin = await SeedUserAsync(game.Id, PlatformRole.Admin);
+        await SeedRolePermissionsAsync(PlatformRole.Admin, game.Id, Permissions.GameMetadataEdit);
+        var (client, accessToken) = await LoginAsync(gameAdmin.Id, game.Id);
+
+        var response = await PatchAuthorizedAsync(
+            client,
+            $"/api/identity/games/{game.Id}",
+            new UpdateGameRequest(null, null, "Updated by game admin", "https://cdn.example.com/admin-icon.png"),
+            accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<GameDto>(JsonOptions, TestContext.Current.CancellationToken);
+        body!.Description.Should().Be("Updated by game admin");
+        body.IconUrl.Should().Be("https://cdn.example.com/admin-icon.png");
+    }
+
+    [Fact]
+    public async Task PatchGame_GameAdminWithMetadataEdit_OnDifferentGame_Returns403()
+    {
+        var ownGame = await SeedGameAsync();
+        var otherGame = await SeedGameAsync();
+        var gameAdmin = await SeedUserAsync(ownGame.Id, PlatformRole.Admin);
+        await SeedRolePermissionsAsync(PlatformRole.Admin, ownGame.Id, Permissions.GameMetadataEdit);
+        var (client, accessToken) = await LoginAsync(gameAdmin.Id, ownGame.Id);
+
+        var response = await PatchAuthorizedAsync(
+            client,
+            $"/api/identity/games/{otherGame.Id}",
+            new UpdateGameRequest(null, null, "Should not apply", null),
+            accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task PatchGame_GameAdminWithMetadataEdit_AlsoAttemptingNameChange_Returns403()
+    {
+        var game = await SeedGameAsync();
+        var gameAdmin = await SeedUserAsync(game.Id, PlatformRole.Admin);
+        await SeedRolePermissionsAsync(PlatformRole.Admin, game.Id, Permissions.GameMetadataEdit);
+        var (client, accessToken) = await LoginAsync(gameAdmin.Id, game.Id);
+
+        var response = await PatchAuthorizedAsync(
+            client,
+            $"/api/identity/games/{game.Id}",
+            new UpdateGameRequest("New Name", null, "Updated description", null),
+            accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task PatchGame_GameAdminWithMetadataEdit_AttemptingIsActiveChange_Returns403()
+    {
+        var game = await SeedGameAsync();
+        var gameAdmin = await SeedUserAsync(game.Id, PlatformRole.Admin);
+        await SeedRolePermissionsAsync(PlatformRole.Admin, game.Id, Permissions.GameMetadataEdit);
+        var (client, accessToken) = await LoginAsync(gameAdmin.Id, game.Id);
+
+        var response = await PatchAuthorizedAsync(
+            client, $"/api/identity/games/{game.Id}", new UpdateGameRequest(null, false, null, null), accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task PatchGame_PlatformAdmin_CanStillChangeAnyFieldOnAnyGame()
+    {
+        var platformAdmin = await SeedUserAsync(gameId: null, PlatformRole.Admin);
+        await SeedRolePermissionsAsync(PlatformRole.Admin, gameId: null, Permissions.PlatformGamesManage);
+        var game = await SeedGameAsync(description: "Existing description", iconUrl: "https://cdn.example.com/icon.png");
+        var (client, accessToken) = await LoginAsync(platformAdmin.Id, gameId: null);
+
+        var response = await PatchAuthorizedAsync(
+            client,
+            $"/api/identity/games/{game.Id}",
+            new UpdateGameRequest("Renamed", false, "New description", "https://cdn.example.com/new-icon.png"),
+            accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<GameDto>(JsonOptions, TestContext.Current.CancellationToken);
+        body!.Name.Should().Be("Renamed");
+        body.IsActive.Should().BeFalse();
+        body.Description.Should().Be("New description");
+        body.IconUrl.Should().Be("https://cdn.example.com/new-icon.png");
+    }
+
+    [Fact]
     public async Task ListPublicGames_StillReturnsOnlyActiveGamesRegardlessOfPermissions()
     {
         var game = await SeedGameAsync();
