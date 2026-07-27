@@ -13,8 +13,7 @@ public sealed class JwtOptions
     public string[] Audiences { get; set; } = ["gbp-player", "gbp-admin"];
 
     [Required]
-    [MinLength(32)]
-    public string Key { get; set; } = string.Empty;
+    public string JwksUri { get; set; } = string.Empty;
 
     [Range(1, int.MaxValue)]
     public int ClockSkewSeconds { get; set; } = 30;

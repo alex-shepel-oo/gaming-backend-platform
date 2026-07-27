@@ -36,14 +36,6 @@ spec:
             - configMapRef:
                 name: notification-config
           env:
-            # Same signing key identity-service issues (ADR-0008): notification-service
-            # validates the same HS256 tokens, so it reads from the one Secret
-            # rather than holding its own copy that could drift on rotation.
-            - name: Jwt__Key
-              valueFrom:
-                secretKeyRef:
-                  name: identity-secrets
-                  key: Jwt__Key
             # Reuses the broker's own credentials Secret rather than copying
             # the values into a notification-only Secret.
             - name: RabbitMq__Username

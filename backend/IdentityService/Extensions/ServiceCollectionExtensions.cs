@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Security.Claims;
-using System.Text;
 using System.Threading.RateLimiting;
 using BuildingBlocks.Messaging;
 using IdentityService.Auth;
@@ -96,6 +95,7 @@ public static class ServiceCollectionExtensions
             .ValidateOnStart();
 
         services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
+        services.AddSingleton<IJwtSigningKeys, JwtSigningKeys>();
         services.AddSingleton<ITokenService, TokenService>();
         services.AddSingleton<IRefreshTokenGenerator, RefreshTokenGenerator>();
         services.AddSingleton<ICookieAuthWriter, CookieAuthWriter>();
@@ -117,7 +117,7 @@ public static class ServiceCollectionExtensions
             .AddJwtBearer();
 
         services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
-            .Configure<IOptions<JwtOptions>>((bearerOptions, jwtOptions) =>
+            .Configure<IOptions<JwtOptions>, IJwtSigningKeys>((bearerOptions, jwtOptions, signingKeys) =>
             {
                 var options = jwtOptions.Value;
 
@@ -129,7 +129,8 @@ public static class ServiceCollectionExtensions
                 {
                     ValidIssuer = options.Issuer,
                     ValidAudiences = options.Audiences,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.Key)),
+                    IssuerSigningKey = signingKeys.SigningKey,
+                    ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
                     ClockSkew = TimeSpan.FromSeconds(options.ClockSkewSeconds),
                 };
 

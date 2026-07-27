@@ -1,4 +1,3 @@
-using System.Text;
 using IdentityService.Auth;
 using IdentityService.Domain;
 using IdentityService.Domain.Enums;
@@ -9,7 +8,8 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace IdentityService.Services;
 
-public sealed class TokenService(IOptions<JwtOptions> options, TimeProvider timeProvider) : ITokenService
+public sealed class TokenService(IOptions<JwtOptions> options, TimeProvider timeProvider, IJwtSigningKeys signingKeys)
+    : ITokenService
 {
     private static readonly JsonWebTokenHandler Handler = new();
 
@@ -55,9 +55,7 @@ public sealed class TokenService(IOptions<JwtOptions> options, TimeProvider time
             NotBefore = now,
             Expires = now.AddMinutes(_options.AccessTokenLifetimeMinutes),
             Claims = claims,
-            SigningCredentials = new SigningCredentials(
-                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.Key)),
-                SecurityAlgorithms.HmacSha256),
+            SigningCredentials = new SigningCredentials(signingKeys.SigningKey, SecurityAlgorithms.RsaSha256),
         };
 
         return Handler.CreateToken(descriptor);

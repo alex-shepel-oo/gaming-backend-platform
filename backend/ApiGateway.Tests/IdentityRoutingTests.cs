@@ -1,9 +1,11 @@
 using System.Net;
-using System.Text;
+using ApiGateway.Auth;
+using ApiGateway.Tests.Fixtures;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using Xunit;
@@ -12,7 +14,6 @@ namespace ApiGateway.Tests;
 
 public sealed class IdentityRoutingTests : IDisposable
 {
-    private const string SigningKey = "integration-test-signing-key-at-least-32-bytes-long";
     private const string Issuer = "gaming-backend-platform/identity";
     private const string Audience = "gbp-player";
 
@@ -28,9 +29,16 @@ public sealed class IdentityRoutingTests : IDisposable
         builder.ConfigureAppConfiguration((_, configBuilder) => configBuilder.AddInMemoryCollection(
             new Dictionary<string, string?>
             {
-                ["Jwt:Key"] = SigningKey,
+                ["Jwt:JwksUri"] = "https://identity.test/.well-known/jwks.json",
                 ["Cors:AllowedOrigins:0"] = "http://localhost:8080",
             }));
+
+        // The app's startup path does one blocking JWKS refresh before it accepts any
+        // requests -- give it a real, matching key pair so the tokens this test issues
+        // below actually resolve.
+        builder.ConfigureServices(services => services
+            .AddHttpClient<IJwksKeyCache, JwksKeyCache>()
+            .ConfigurePrimaryHttpMessageHandler(() => new FakeJwksHandler(TestJwks.JwksJson)));
     });
 
     public void Dispose() => _factory.Dispose();
@@ -208,9 +216,7 @@ public sealed class IdentityRoutingTests : IDisposable
             NotBefore = DateTime.UtcNow,
             Expires = DateTime.UtcNow.AddMinutes(15),
             Claims = claims,
-            SigningCredentials = new SigningCredentials(
-                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(SigningKey)),
-                SecurityAlgorithms.HmacSha256),
+            SigningCredentials = new SigningCredentials(TestJwks.SigningKey, SecurityAlgorithms.RsaSha256),
         };
 
         return TokenHandler.CreateToken(descriptor);

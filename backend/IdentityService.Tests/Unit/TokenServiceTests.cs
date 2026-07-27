@@ -1,5 +1,5 @@
 using System.Security.Claims;
-using System.Text;
+using System.Security.Cryptography;
 using AwesomeAssertions;
 using IdentityService.Auth;
 using IdentityService.Domain;
@@ -16,7 +16,14 @@ namespace IdentityService.Tests.Unit;
 
 public class TokenServiceTests
 {
-    private const string SigningKey = "unit-test-signing-key-at-least-32-bytes";
+    // RSA-2048 test-only key pairs, generated fresh each test run rather than hardcoded --
+    // see IdentityApiFactory.cs for why (gitleaks flags any committed PEM block on sight,
+    // regardless of context; this also matches how the other three services' test suites
+    // already generate their own JWKS test keys at runtime).
+    private static readonly string PrivateKeyPem = RSA.Create(2048).ExportPkcs8PrivateKeyPem();
+
+    private static readonly string OtherPrivateKeyPem = RSA.Create(2048).ExportPkcs8PrivateKeyPem();
+
     private const string Issuer = "test-issuer";
     private const string Audience = "test-audience";
 
@@ -118,13 +125,25 @@ public class TokenServiceTests
     }
 
     [Fact]
+    public void IssueAccessToken_IsSignedRs256WithANonEmptyKid()
+    {
+        var service = CreateService(new FakeTimeProvider(FixedInstant));
+
+        var jwt = Handler.ReadJsonWebToken(service.IssueAccessToken(
+            TestUser, Guid.NewGuid(), PlatformRole.Player, Guid.NewGuid(), TokenScope.Game, [], TokenAudiences.Player));
+
+        jwt.Alg.Should().Be(SecurityAlgorithms.RsaSha256);
+        jwt.Kid.Should().NotBeNullOrEmpty();
+    }
+
+    [Fact]
     public async Task IssueAccessToken_ValidatesSuccessfullyWithTheSameKey()
     {
         var service = CreateService(new FakeTimeProvider(DateTimeOffset.UtcNow));
         var token = service.IssueAccessToken(
             TestUser, Guid.NewGuid(), PlatformRole.Player, Guid.NewGuid(), TokenScope.Game, [], TokenAudiences.Player);
 
-        var result = await Handler.ValidateTokenAsync(token, ValidationParametersFor(SigningKey));
+        var result = await Handler.ValidateTokenAsync(token, ValidationParametersFor(SigningKeys));
 
         result.IsValid.Should().BeTrue();
     }
@@ -136,7 +155,7 @@ public class TokenServiceTests
         var token = service.IssueAccessToken(
             TestUser, Guid.NewGuid(), PlatformRole.Player, Guid.NewGuid(), TokenScope.Game, [], TokenAudiences.Player);
 
-        var result = await Handler.ValidateTokenAsync(token, ValidationParametersFor("a-completely-different-32-byte-key"));
+        var result = await Handler.ValidateTokenAsync(token, ValidationParametersFor(OtherSigningKeys));
 
         result.IsValid.Should().BeFalse();
     }
@@ -148,7 +167,7 @@ public class TokenServiceTests
         var token = service.IssueAccessToken(
             TestUser, Guid.NewGuid(), PlatformRole.Player, Guid.NewGuid(), TokenScope.Game, [], TokenAudiences.Player);
 
-        var result = await Handler.ValidateTokenAsync(token, ValidationParametersFor(SigningKey));
+        var result = await Handler.ValidateTokenAsync(token, ValidationParametersFor(SigningKeys));
 
         result.IsValid.Should().BeFalse();
     }
@@ -160,7 +179,7 @@ public class TokenServiceTests
         var token = service.IssueAccessToken(
             TestUser, Guid.NewGuid(), PlatformRole.Admin, Guid.NewGuid(), TokenScope.Platform, ["a", "b", "c"], TokenAudiences.Player);
 
-        var result = await Handler.ValidateTokenAsync(token, ValidationParametersFor(SigningKey));
+        var result = await Handler.ValidateTokenAsync(token, ValidationParametersFor(SigningKeys));
         result.IsValid.Should().BeTrue();
 
         var principal = new ClaimsPrincipal(result.ClaimsIdentity);
@@ -169,22 +188,30 @@ public class TokenServiceTests
         permissionClaims.Should().BeEquivalentTo(["a", "b", "c"]);
     }
 
+    private static readonly IJwtSigningKeys SigningKeys = new JwtSigningKeys(
+        Microsoft.Extensions.Options.Options.Create(new JwtOptions { PrivateKeyPem = PrivateKeyPem }));
+
+    private static readonly IJwtSigningKeys OtherSigningKeys = new JwtSigningKeys(
+        Microsoft.Extensions.Options.Options.Create(new JwtOptions { PrivateKeyPem = OtherPrivateKeyPem }));
+
     private static TokenService CreateService(TimeProvider timeProvider) => new(
         Microsoft.Extensions.Options.Options.Create(new JwtOptions
         {
             Issuer = Issuer,
             Audiences = [Audience],
-            Key = SigningKey,
+            PrivateKeyPem = PrivateKeyPem,
             AccessTokenLifetimeMinutes = 15,
             ClockSkewSeconds = 30,
         }),
-        timeProvider);
+        timeProvider,
+        SigningKeys);
 
-    private static TokenValidationParameters ValidationParametersFor(string key) => new()
+    private static TokenValidationParameters ValidationParametersFor(IJwtSigningKeys signingKeys) => new()
     {
         ValidIssuer = Issuer,
         ValidAudiences = [TokenAudiences.Player],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
+        IssuerSigningKey = signingKeys.SigningKey,
+        ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
         ClockSkew = TimeSpan.FromSeconds(30),
     };
 }

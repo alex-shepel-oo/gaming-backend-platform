@@ -24,16 +24,6 @@ spec:
                 name: shared-config
             - configMapRef:
                 name: gateway-config
-          env:
-            # Same signing key identity-service uses, read from its Secret
-            # rather than duplicated into one of the gateway's own: HS256
-            # validation only works if both sides agree on the key, and one
-            # Secret as the source of truth rules out the two drifting apart.
-            - name: Jwt__Key
-              valueFrom:
-                secretKeyRef:
-                  name: identity-secrets
-                  key: Jwt__Key
           volumeMounts:
             - name: ocelot-kubernetes-config
               mountPath: /app/ocelot.Kubernetes.json

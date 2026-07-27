@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using IdentityService.Services.Email;
 using IdentityService.Tests.Integration.Fakes;
 using Microsoft.AspNetCore.Hosting;
@@ -13,6 +14,13 @@ namespace IdentityService.Tests.Integration.Fixtures;
 
 public sealed class IdentityApiFactory(PostgresFixture postgres, RabbitMqFixture rabbitMq) : WebApplicationFactory<Program>
 {
+    // RSA-2048 test-only key pair, generated fresh each test run rather than hardcoded --
+    // avoids ever committing anything that looks like real key material (gitleaks and
+    // friends flag PEM blocks on sight, regardless of context), and matches the same
+    // runtime-generation convention EconomyService.Tests/NotificationService.Tests/
+    // ApiGateway.Tests already use for their own JWKS test fixtures.
+    private static readonly string TestPrivateKeyPem = RSA.Create(2048).ExportPkcs8PrivateKeyPem();
+
     public FakeTimeProvider TimeProvider { get; } = new(DateTimeOffset.UtcNow);
 
     public RecordingEmailSender EmailSender { get; } = new();
@@ -31,7 +39,7 @@ public sealed class IdentityApiFactory(PostgresFixture postgres, RabbitMqFixture
             new Dictionary<string, string?>
             {
                 ["ConnectionStrings:IdentityDb"] = postgres.ConnectionString,
-                ["Jwt:Key"] = "integration-test-signing-key-at-least-32-bytes-long",
+                ["Jwt:PrivateKeyPem"] = TestPrivateKeyPem,
 
                 ["RabbitMq:Host"] = rabbitMq.Hostname,
                 ["RabbitMq:Port"] = rabbitMq.Port.ToString(CultureInfo.InvariantCulture),
