@@ -77,7 +77,7 @@ Almost every value in `infra/.env.example` is committed on purpose and isn't a
 production secret: the stack only binds to `localhost`, so nothing in it is
 reachable from outside the machine it runs on, and every clone gets its own
 `.env` by copying the example rather than sharing one committed file. The one
-exception is `Jwt__PrivateKey` (the RSA key IdentityService signs tokens with,
+exception is `Jwt__PrivateKeyPem` (the RSA key IdentityService signs tokens with,
 [ADR 0017](docs/adr/0017-rs256-and-jwks.md)) — that one is deliberately left as
 a placeholder, not a working key, since real RSA key material is worth
 committing even less than an arbitrary dummy string. Generate your own before
@@ -167,6 +167,9 @@ scripts/
 │   ├── test.sh     # npm run test (Vitest, both projects)
 │   └── deploy.sh   # docker compose up -d player-client
 ├── all/
+│   ├── setup-env.sh # idempotent: creates infra/.env from the example and fills in
+│   │                 # a real local signing key if it's still the placeholder --
+│   │                 # every deploy.sh below calls this first
 │   ├── verify.sh   # backend build+test, then frontend build+test -- no deploy
 │   ├── deploy.sh   # docker compose up -d, the whole stack
 │   ├── ci.sh       # verify.sh, then deploy.sh
