@@ -23,5 +23,5 @@ See the template: [0000-template.md](0000-template.md).
 | [0014](0014-notification-service-and-signalr.md) | NotificationService and Real-Time Delivery over SignalR | Accepted | 3 |
 | [0015](0015-auth-cluster-hardening.md) | Auth-Cluster Hardening: Password Reset, Register Deduplication, OAuth Groundwork | Accepted | 3 |
 | [0016](0016-admin-surface-isolation.md) | Admin Surface Isolation | Accepted | 3 |
-| 0017 | RS256 + JWKS | Planned | 3 |
+| [0017](0017-rs256-and-jwks.md) | RS256 + JWKS | Accepted | 3 |
 | [0018](0018-shared-messaging-building-block.md) | Shared Messaging Building Block (`BuildingBlocks.Messaging`) | Accepted | 3 |
