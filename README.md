@@ -107,10 +107,11 @@ kubectl apply -f /tmp/identity-secrets.yaml -f /tmp/economy-secrets.yaml -f /tmp
 scripts/k8s/apply.sh
 ```
 
-`gateway` and `economy-service` both read the JWT signing key out of
-`identity-secrets` rather than holding a copy of their own, and Consul is not
-deployed at all here — Kubernetes Services and kube-DNS already provide
-discovery (ADR 0002).
+`gateway`, `economy-service` and `notification-service` validate tokens
+against Identity's published JWKS rather than holding any signing secret of
+their own — only `identity-secrets` carries the private key
+([ADR 0017](docs/adr/0017-rs256-and-jwks.md)). Consul is not deployed at all
+here — Kubernetes Services and kube-DNS already provide discovery (ADR 0002).
 
 `scripts/k8s/apply.sh` (no argument defaults to the whole `infra/kubernetes`
 tree) does more than a bare `kubectl apply -f`: the two database
@@ -214,6 +215,12 @@ game management, permission/role management, user search and role
 assignment — moved to `/api/admin/identity/**` once `admin-client` got its
 own audience-gated surface; see below and
 [ADR 0016](docs/adr/0016-admin-surface-isolation.md).
+
+IdentityService also serves `GET /.well-known/jwks.json` directly, not
+proxied through the gateway — this is how Economy, Notification and the
+gateway itself fetch the public key they validate tokens against, a
+service-to-service call rather than something a frontend ever needs to reach.
+See [ADR 0017](docs/adr/0017-rs256-and-jwks.md).
 
 ### Admin API (`/api/admin/identity/**`)
 
@@ -532,7 +539,8 @@ reasoning in [ADR 0014](docs/adr/0014-notification-service-and-signalr.md).
 | GET | `/health` | anonymous | Liveness probe |
 | GET | `/health/ready` | anonymous | Readiness probe (RabbitMQ only — no database to check) |
 
-Auth validates against the same shared HS256 key as every other service, but addressed delivery needs one
+Auth validates against Identity's published JWKS the same way every other service does
+([ADR 0017](docs/adr/0017-rs256-and-jwks.md)), but addressed delivery needs one
 extra piece: a custom `IUserIdProvider`. SignalR's default implementation reads
 `ClaimTypes.NameIdentifier`, while every token issued in this platform carries the caller's id under the
 short claim name `sub` (`MapInboundClaims = false`, already the convention IdentityService and
@@ -866,9 +874,6 @@ that service's own rules. It does so through narrow, cleanup-only
   different reason - one caps how long a *revoked* session's token stays
   valid, this one caps how stale a *still-valid* session's permissions can
   get. See [ADR 0013](docs/adr/0013-permission-based-rbac-and-audience-scoped-tokens.md).
-- Token signing is HS256 with one symmetric key shared by every service
-  that validates tokens. RS256 with a JWKS endpoint is the intended next
-  step, not implemented in this slice.
 - The game registry (`games` table) lives inside IdentityService's own
   database. It conceptually belongs to a platform-level service, which
   does not exist yet at this stage of the build. See ADR 0005.
@@ -919,9 +924,6 @@ that service's own rules. It does so through narrow, cleanup-only
 - The deduplicating consumer's inbox is inbox-lite: `message_id` and
   `processed_at`, nothing more. No per-message retry bookkeeping or
   metadata — that's the full inbox pattern, still Extended scope.
-- EconomyService validates the same shared HS256 key as IdentityService
-  (see above) rather than a key of its own — the same inherited limitation,
-  not a new one this service introduces.
 - Kubernetes Secrets are plain `Secret` objects applied from the
   `*.secret.example.yaml` templates, not sourced from an external
   secrets manager. Kustomize's `secretGenerator` came up as the natural next
