@@ -1,4 +1,3 @@
-using System.Text;
 using BuildingBlocks.Messaging;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.SignalR;
@@ -64,11 +63,15 @@ public static class ServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddSingleton<JwksKeySnapshot>();
+        services.AddHttpClient<IJwksKeyCache, JwksKeyCache>();
+        services.AddHostedService<JwksRefreshHostedService>();
+
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer();
 
         services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
-            .Configure<IOptions<JwtOptions>>((bearerOptions, jwtOptions) =>
+            .Configure<IOptions<JwtOptions>, IJwksKeyCache>((bearerOptions, jwtOptions, jwksKeyCache) =>
             {
                 var options = jwtOptions.Value;
 
@@ -79,7 +82,8 @@ public static class ServiceCollectionExtensions
                 {
                     ValidIssuer = options.Issuer,
                     ValidAudiences = options.Audiences,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.Key)),
+                    IssuerSigningKeyResolver = (_, _, kid, _) => jwksKeyCache.CurrentKeys.Where(key => key.KeyId == kid),
+                    ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
                     ClockSkew = TimeSpan.FromSeconds(options.ClockSkewSeconds),
                 };
 

@@ -1,8 +1,11 @@
 using System.Globalization;
 using AwesomeAssertions;
+using EconomyService.Auth;
+using EconomyService.Tests.Integration.Fixtures;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
 
 namespace EconomyService.Tests.Integration;
@@ -20,7 +23,7 @@ public sealed class CorrelationIdMiddlewareTests : IDisposable
             builder.ConfigureAppConfiguration((_, configBuilder) => configBuilder.AddInMemoryCollection(
                 new Dictionary<string, string?>
                 {
-                    ["Jwt:Key"] = "integration-test-signing-key-at-least-32-bytes-long",
+                    ["Jwt:JwksUri"] = "https://identity.test/.well-known/jwks.json",
                     // Irrelevant to this test (only /health is hit, which
                     // touches neither), but the outbox dispatcher polls in
                     // the background regardless of which endpoint a request
@@ -33,6 +36,13 @@ public sealed class CorrelationIdMiddlewareTests : IDisposable
                     ["RabbitMq:Username"] = "guest",
                     ["RabbitMq:Password"] = "guest",
                 }));
+
+            // The app's startup path does one blocking JWKS refresh before it accepts any
+            // requests, unrelated to what this test itself exercises -- it still needs
+            // somewhere to succeed against.
+            builder.ConfigureServices(services => services
+                .AddHttpClient<IJwksKeyCache, JwksKeyCache>()
+                .ConfigurePrimaryHttpMessageHandler(() => new FakeJwksHandler(TestJwks.JwksJson)));
         });
 
     [OneTimeTearDown]

@@ -5,6 +5,9 @@ using BuildingBlocks.Messaging;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using NotificationService.Auth;
+using NotificationService.Tests.Integration.Fixtures;
 using RabbitMQ.Client;
 using Testcontainers.RabbitMq;
 using Xunit;
@@ -56,12 +59,19 @@ public sealed class HealthReadyRabbitMqDownTests : IAsyncLifetime
             builder.ConfigureAppConfiguration((_, configBuilder) => configBuilder.AddInMemoryCollection(
                 new Dictionary<string, string?>
                 {
-                    ["Jwt:Key"] = "integration-test-signing-key-at-least-32-bytes-long",
+                    ["Jwt:JwksUri"] = "https://identity.test/.well-known/jwks.json",
                     ["RabbitMq:Host"] = _rabbitMq.Hostname,
                     ["RabbitMq:Port"] = _rabbitMq.GetMappedPublicPort(5672).ToString(CultureInfo.InvariantCulture),
                     ["RabbitMq:Username"] = "guest",
                     ["RabbitMq:Password"] = "guest",
                 }));
+
+            // The app's startup path does one blocking JWKS refresh before it accepts any
+            // requests, unrelated to what this test itself exercises -- it still needs
+            // somewhere to succeed against.
+            builder.ConfigureServices(services => services
+                .AddHttpClient<IJwksKeyCache, JwksKeyCache>()
+                .ConfigurePrimaryHttpMessageHandler(() => new FakeJwksHandler(TestJwks.JwksJson)));
         });
 
         using var warmupClient = _factory.CreateClient();

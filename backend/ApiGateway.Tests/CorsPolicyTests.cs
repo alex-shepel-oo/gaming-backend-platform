@@ -1,7 +1,10 @@
+using ApiGateway.Auth;
+using ApiGateway.Tests.Fixtures;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace ApiGateway.Tests;
@@ -22,10 +25,17 @@ public sealed class CorsPolicyTests : IDisposable
         builder.ConfigureAppConfiguration((_, configBuilder) => configBuilder.AddInMemoryCollection(
             new Dictionary<string, string?>
             {
-                ["Jwt:Key"] = "integration-test-signing-key-at-least-32-bytes-long",
+                ["Jwt:JwksUri"] = "https://identity.test/.well-known/jwks.json",
                 ["Cors:AllowedOrigins:0"] = AllowedOrigin,
                 ["AdminCors:AllowedOrigins:0"] = AllowedAdminOrigin,
             }));
+
+        // The app's startup path does one blocking JWKS refresh before it accepts any
+        // requests, unrelated to what this test itself exercises -- it still needs
+        // somewhere to succeed against.
+        builder.ConfigureServices(services => services
+            .AddHttpClient<IJwksKeyCache, JwksKeyCache>()
+            .ConfigurePrimaryHttpMessageHandler(() => new FakeJwksHandler(TestJwks.JwksJson)));
     });
 
     public void Dispose() => _factory.Dispose();

@@ -1,9 +1,11 @@
 using System.Globalization;
+using EconomyService.Auth;
 using EconomyService.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using EconomyService.Tests.Integration;
 using Npgsql;
 using Respawn;
@@ -13,7 +15,7 @@ namespace EconomyService.Tests.Integration.Fixtures;
 
 public sealed class EconomyApiFactory : WebApplicationFactory<Program>
 {
-    public const string SigningKey = "integration-test-signing-key-at-least-32-bytes-long";
+    public FakeJwksHandler JwksHandler { get; } = new(TestJwks.JwksJson);
 
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17-alpine")
         .WithDatabase("economy_db")
@@ -77,11 +79,17 @@ public sealed class EconomyApiFactory : WebApplicationFactory<Program>
             new Dictionary<string, string?>
             {
                 ["ConnectionStrings:EconomyDb"] = _container.GetConnectionString(),
-                ["Jwt:Key"] = SigningKey,
+                ["Jwt:JwksUri"] = "https://identity.test/.well-known/jwks.json",
                 ["RabbitMq:Host"] = RabbitMqTestBroker.Container.Hostname,
                 ["RabbitMq:Port"] = RabbitMqTestBroker.Container.GetMappedPublicPort(5672).ToString(CultureInfo.InvariantCulture),
                 ["RabbitMq:Username"] = "guest",
                 ["RabbitMq:Password"] = "guest",
             }));
+
+        // Real JwksKeyCache, real background refresher, just the HTTP call at the bottom
+        // replaced -- so these tests exercise the same key-resolution path production does.
+        builder.ConfigureServices(services => services
+            .AddHttpClient<IJwksKeyCache, JwksKeyCache>()
+            .ConfigurePrimaryHttpMessageHandler(() => JwksHandler));
     }
 }

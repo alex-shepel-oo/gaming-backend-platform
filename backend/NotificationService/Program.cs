@@ -1,4 +1,5 @@
 using System.Globalization;
+using NotificationService.Auth;
 using NotificationService.Endpoints;
 using NotificationService.Extensions;
 using NotificationService.Hubs;
@@ -23,6 +24,12 @@ builder.Services.AddNotificationAuthentication(builder.Configuration);
 builder.Services.AddNotificationSignalR();
 
 var app = builder.Build();
+
+// Blocking, one-time, before the app accepts any requests -- the same principle already
+// applied to ValidateOnStart for configuration: this service shouldn't finish starting if
+// it can't reach the one dependency (Identity's published keys) it needs to validate a
+// single incoming token.
+await app.Services.GetRequiredService<IJwksKeyCache>().RefreshAsync(CancellationToken.None);
 
 app.UseExceptionHandler();
 app.UseMiddleware<CorrelationIdMiddleware>();

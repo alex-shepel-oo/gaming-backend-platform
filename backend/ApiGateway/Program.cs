@@ -1,5 +1,5 @@
 using System.Globalization;
-using System.Text;
+using ApiGateway.Auth;
 using ApiGateway.Options;
 using ApiGateway.ServiceDiscovery;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -29,11 +29,15 @@ builder.Services.AddOptions<JwtOptions>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
+builder.Services.AddSingleton<JwksKeySnapshot>();
+builder.Services.AddHttpClient<IJwksKeyCache, JwksKeyCache>();
+builder.Services.AddHostedService<JwksRefreshHostedService>();
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer();
 
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
-    .Configure<IOptions<JwtOptions>>((bearerOptions, jwtOptions) =>
+    .Configure<IOptions<JwtOptions>, IJwksKeyCache>((bearerOptions, jwtOptions, jwksKeyCache) =>
     {
         var options = jwtOptions.Value;
 
@@ -42,7 +46,8 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
         {
             ValidIssuer = options.Issuer,
             ValidAudiences = options.Audiences,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.Key)),
+            IssuerSigningKeyResolver = (_, _, kid, _) => jwksKeyCache.CurrentKeys.Where(key => key.KeyId == kid),
+            ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
             ClockSkew = TimeSpan.FromSeconds(options.ClockSkewSeconds),
         };
     });
@@ -84,6 +89,12 @@ builder.Services.AddHealthChecks();
 builder.Services.AddOcelot(builder.Configuration).AddConsul<ServiceAddressConsulServiceBuilder>().AddPolly();
 
 var app = builder.Build();
+
+// Blocking, one-time, before the app accepts any requests -- the same principle already
+// applied to ValidateOnStart for configuration: this service shouldn't finish starting if
+// it can't reach the one dependency (Identity's published keys) it needs to validate a
+// single incoming token.
+await app.Services.GetRequiredService<IJwksKeyCache>().RefreshAsync(CancellationToken.None);
 
 // Ocelot has no per-route CORS of its own, so the admin/player split is done
 // with two explicit UseWhen branches instead of one blanket UseCors call.
