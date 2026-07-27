@@ -81,10 +81,10 @@ reachable from outside the machine it runs on, and every clone gets its own
 ## Running on Kubernetes
 
 Manifests live under `infra/kubernetes/` — `base/`, `identity/`, `economy/`,
-`rabbitmq/`, `worker/`, `player-client/`, `admin-client/`, `gateway/`,
-`mailpit/` — one namespace (`gaming-platform`) with the same services as the
-compose stack above. They target a local `kind` cluster or a sandbox
-namespace, not production — see
+`rabbitmq/`, `worker/`, `notification/`, `player-client/`, `admin-client/`,
+`gateway/`, `mailpit/` — one namespace (`gaming-platform`) with the same
+services as the compose stack above. They target a local `kind` cluster or
+a sandbox namespace, not production — see
 [docs/architecture.md](docs/architecture.md#local-vs-kubernetes) for the
 full local-vs-cluster breakdown, including why the environment is pinned to
 `Development` here.
@@ -193,6 +193,7 @@ policies underneath regardless of what the gateway already checked.
 | POST | `/api/identity/auth/refresh` | anonymous | Rotate a refresh token for a new pair (body or cookie, depending on mode) |
 | POST | `/api/identity/auth/logout` | anonymous at the gateway, bearer required by the service | Revoke the current session |
 | GET | `/api/identity/users/me` | bearer | Current user's profile |
+| PATCH | `/api/identity/users/me` | bearer | Update the caller's own `displayName` and/or `avatarUrl` |
 | GET | `/api/identity/games/public` | bearer, any player | List active games only, `id`/`slug`/`name` only - the catalog a player picks a game from |
 | GET | `/openapi/identity/v1.json` | anonymous | IdentityService's OpenAPI document, proxied through the gateway |
 | GET | `/scalar/identity` | anonymous | Interactive API reference (Scalar) |
@@ -229,7 +230,7 @@ they did before the move.
 | PUT | `/api/admin/identity/roles/{role}/permissions` | bearer; scope and ownership checked by the service | Replace a role's permission set |
 | GET | `/api/admin/identity/games` | bearer, `platform.games.manage` permission | List registered games, all fields |
 | POST | `/api/admin/identity/games` | bearer, `platform.games.manage` permission | Register a new game |
-| PATCH | `/api/admin/identity/games/{id}` | bearer, `platform.games.manage` permission | Update a game's name or active flag |
+| PATCH | `/api/admin/identity/games/{id}` | bearer; `platform.games.manage`, or `game.metadata.edit` scoped to that game (`IScopeAuthorityGuard` checks either) | Update a game; `name`/`isActive` require `platform.games.manage`, while `description`/`iconUrl` are also open to a game-scoped `game.metadata.edit` caller |
 
 ### Web auth (cookie mode)
 
@@ -560,8 +561,11 @@ instead, the same direct-proxy approach already in place for `/api`
 
 An Angular 22 workspace under `frontend/` (`shared` library + `player-client`
 app) — the first browser client for the platform, covering Login, Games,
-Wallet, Convert, and password reset (a "Forgot password?" link off the login
-screen, through to the emailed-link screen).
+Wallet, Convert, Profile, and password reset (a "Forgot password?" link off
+the login screen, through to the emailed-link screen). Profile shows real
+account data — member-since date, last login, avatar — rather than just
+mirroring the JWT's claims, and lets the player edit their display name
+and avatar.
 
 ### Running it
 
@@ -573,9 +577,10 @@ docker build -f projects/player-client/Dockerfile -t player-client .
 docker run -p 8080:8080 --network infra_platform-network player-client
 ```
 
-Reach it at `http://localhost:8080`. It isn't wired into
-`infra/docker-compose.yml` yet — that's Kubernetes/compose plumbing for a
-later group, not part of this one.
+Reach it at `http://localhost:8080`. It's also wired into
+`infra/docker-compose.yml` as the `player-client` service (port
+`PLAYER_CLIENT_PORT`, default `8080`), alongside `admin-client`
+(`ADMIN_CLIENT_PORT`, default `8081`).
 
 Local iteration:
 
@@ -696,7 +701,13 @@ being a genuinely separate frontend on a different host and port. See
 - **Users** (Moderator/Admin role tier) — search and look up users in the
   caller's own scope, assign roles, and revoke a user's sessions
   (session revocation itself is Admin-only, stricter than the tier that
-  gets into the screen at all).
+  gets into the screen at all); the roster also shows each user's last
+  login.
+- **My Game** (`game.metadata.edit`) — lets a game-scoped Game-Admin edit
+  their own game's `description`/`iconUrl`, nothing else. There's no
+  single-game lookup endpoint to back it, so it reuses the same
+  `GET /api/admin/identity/users/me/games` call the game picker makes and
+  takes the first result, which for this role is a one-element array.
 
 None of this re-implements the backend's anti-escalation rules client-side —
 the UI disables a role option it can't confirm the caller is actually
