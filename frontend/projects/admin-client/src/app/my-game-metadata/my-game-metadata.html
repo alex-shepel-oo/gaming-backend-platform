@@ -1,0 +1,51 @@
+<h1>My Game</h1>
+
+@if (loading()) {
+  <div class="state-panel">
+    <mat-spinner diameter="32" />
+    <p>Loading your game…</p>
+  </div>
+} @else if (loadError()) {
+  <div class="state-panel">
+    <p class="state-error" role="alert">We couldn't load your game. Please try again later.</p>
+  </div>
+} @else if (noGame()) {
+  <div class="state-panel">
+    <p>Your account isn't scoped to a single game, so there's nothing to edit here.</p>
+  </div>
+} @else if (game(); as game) {
+  <mat-card class="game-card">
+    <mat-card-header>
+      <mat-card-title>{{ game.name }}</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <form class="edit-form" [formGroup]="editForm" (ngSubmit)="submitEdit()">
+        <mat-form-field appearance="outline">
+          <mat-label>Description</mat-label>
+          <textarea matInput formControlName="description" rows="4"></textarea>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Icon URL</mat-label>
+          <input matInput formControlName="iconUrl" placeholder="https://…" />
+        </mat-form-field>
+
+        @if (saveError()) {
+          <p class="state-error" role="alert">We couldn't save that change.</p>
+        }
+
+        @if (saved()) {
+          <p class="state-success">Saved.</p>
+        }
+
+        <button type="submit" mat-flat-button color="primary" [disabled]="editForm.invalid || saving()">
+          @if (saving()) {
+            <mat-spinner diameter="20" />
+          } @else {
+            Save changes
+          }
+        </button>
+      </form>
+    </mat-card-content>
+  </mat-card>
+}

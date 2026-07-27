@@ -106,7 +106,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<ISessionService, SessionService>();
         services.AddScoped<IPermissionResolver, PermissionResolver>();
-        services.AddScoped<IRoleEscalationGuard, RoleEscalationGuard>();
+        services.AddScoped<IScopeAuthorityGuard, ScopeAuthorityGuard>();
 
         return services;
     }

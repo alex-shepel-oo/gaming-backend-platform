@@ -142,6 +142,8 @@ public sealed partial class AuthenticationService(
             throw new EmailNotConfirmedException();
         }
 
+        user.LastLoginAt = timeProvider.GetUtcNow();
+
         var role = await dbContext.UserGameRoles
             .SingleOrDefaultAsync(r => r.UserId == user.Id && r.GameId == gameId, cancellationToken);
 

@@ -9,6 +9,10 @@
     <a mat-button routerLink="/roles">Roles</a>
   }
 
+  @if (tokenStore.claims()?.gameId && tokenStore.claims()?.permissions?.includes('game.metadata.edit')) {
+    <a mat-button routerLink="/my-game">My Game</a>
+  }
+
   @if (tokenStore.claims()?.role === 'Moderator' || tokenStore.claims()?.role === 'Admin') {
     <a mat-button routerLink="/users">Users</a>
   }

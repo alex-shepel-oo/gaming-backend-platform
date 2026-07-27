@@ -14,12 +14,13 @@ public static class GameEndpoints
 {
     public static void MapGameEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/identity/games")
-            .RequireAuthorization(policy => policy.RequireClaim(IdentityClaims.Perms, Permissions.PlatformGamesManage));
+        var group = app.MapGroup("/api/identity/games");
 
-        group.MapGet("", ListGamesAsync);
-        group.MapPost("", CreateGameAsync);
-        group.MapPatch("/{id:guid}", UpdateGameAsync);
+        group.MapGet("", ListGamesAsync)
+            .RequireAuthorization(policy => policy.RequireClaim(IdentityClaims.Perms, Permissions.PlatformGamesManage));
+        group.MapPost("", CreateGameAsync)
+            .RequireAuthorization(policy => policy.RequireClaim(IdentityClaims.Perms, Permissions.PlatformGamesManage));
+        group.MapPatch("/{id:guid}", UpdateGameAsync).RequireAuthorization();
 
         app.MapGet("/api/identity/games/public", ListPublicGamesAsync).RequireAuthorization(Policies.Player);
     }
@@ -28,7 +29,7 @@ public static class GameEndpoints
     {
         var games = await dbContext.Games
             .OrderBy(g => g.Name)
-            .Select(g => new GameDto(g.Id, g.Slug, g.Name, g.IsActive, g.CreatedAt))
+            .Select(g => new GameDto(g.Id, g.Slug, g.Name, g.IsActive, g.CreatedAt, g.Description, g.IconUrl))
             .ToArrayAsync(cancellationToken);
 
         return TypedResults.Ok(games);
@@ -39,7 +40,7 @@ public static class GameEndpoints
         var games = await dbContext.Games
             .Where(g => g.IsActive)
             .OrderBy(g => g.Name)
-            .Select(g => new PublicGameDto(g.Id, g.Slug, g.Name))
+            .Select(g => new PublicGameDto(g.Id, g.Slug, g.Name, g.Description, g.IconUrl))
             .ToArrayAsync(cancellationToken);
 
         return TypedResults.Ok(games);
@@ -60,23 +61,39 @@ public static class GameEndpoints
             Name = request.Name,
             IsActive = true,
             CreatedAt = timeProvider.GetUtcNow(),
+            Description = request.Description,
+            IconUrl = request.IconUrl,
         };
 
         dbContext.Games.Add(game);
         dbContext.RolePermissions.AddRange(DefaultRolePermissions.ForGame(game.Id, timeProvider.GetUtcNow()));
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return TypedResults.Ok(new GameDto(game.Id, game.Slug, game.Name, game.IsActive, game.CreatedAt));
+        return TypedResults.Ok(new GameDto(game.Id, game.Slug, game.Name, game.IsActive, game.CreatedAt, game.Description, game.IconUrl));
     }
 
     private static async Task<Ok<GameDto>> UpdateGameAsync(
-        Guid id, UpdateGameRequest request, IdentityDbContext dbContext, CancellationToken cancellationToken)
+        Guid id,
+        UpdateGameRequest request,
+        IdentityDbContext dbContext,
+        ICurrentUser currentUser,
+        IScopeAuthorityGuard guard,
+        CancellationToken cancellationToken)
     {
         var game = await dbContext.Games.SingleOrDefaultAsync(g => g.Id == id, cancellationToken);
 
         if (game is null)
         {
             throw new GameNotFoundException();
+        }
+
+        guard.EnsureScopeAuthority(currentUser, id, Permissions.PlatformGamesManage, Permissions.GameMetadataEdit);
+
+        var hasPlatformAuthority = currentUser.Perms.Contains(Permissions.PlatformGamesManage);
+
+        if (!hasPlatformAuthority && (request.Name is not null || request.IsActive is not null))
+        {
+            throw new PermissionEscalationException();
         }
 
         if (request.Name is not null)
@@ -89,8 +106,23 @@ public static class GameEndpoints
             game.IsActive = request.IsActive.Value;
         }
 
+        if (request.Description is not null)
+        {
+            game.Description = request.Description == string.Empty ? null : request.Description;
+        }
+
+        if (request.IconUrl is not null)
+        {
+            if (!UrlValidation.TryNormalize(request.IconUrl, out var normalized))
+            {
+                throw new InvalidIconUrlException();
+            }
+
+            game.IconUrl = normalized;
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return TypedResults.Ok(new GameDto(game.Id, game.Slug, game.Name, game.IsActive, game.CreatedAt));
+        return TypedResults.Ok(new GameDto(game.Id, game.Slug, game.Name, game.IsActive, game.CreatedAt, game.Description, game.IconUrl));
     }
 }

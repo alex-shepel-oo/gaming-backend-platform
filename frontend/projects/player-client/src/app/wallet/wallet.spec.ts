@@ -21,7 +21,7 @@ describe('Wallet', () => {
 
     httpMock = TestBed.inject(HttpTestingController);
     gameSelection = TestBed.inject(GameSelectionService);
-    gameSelection.select({ id: 'game-1', slug: 'demo-shooter', name: 'Demo Shooter' });
+    gameSelection.select({ id: 'game-1', slug: 'demo-shooter', name: 'Demo Shooter', description: null, iconUrl: null });
   });
 
   afterEach(() => {

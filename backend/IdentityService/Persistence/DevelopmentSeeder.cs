@@ -41,6 +41,8 @@ public sealed class DevelopmentSeeder(IdentityDbContext dbContext, TimeProvider 
             Name = "Demo Shooter",
             IsActive = true,
             CreatedAt = now,
+            Description = "A fast-paced arena shooter used to exercise the platform's demo tenant.",
+            IconUrl = "https://placehold.co/128x128?text=Shooter",
         };
 
         var demoRacer = new Game
@@ -50,6 +52,8 @@ public sealed class DevelopmentSeeder(IdentityDbContext dbContext, TimeProvider 
             Name = "Demo Racer",
             IsActive = true,
             CreatedAt = now,
+            Description = "An arcade racing game used as the second demo tenant for isolation scenarios.",
+            IconUrl = "https://placehold.co/128x128?text=Racer",
         };
 
         var admin = CreateUser(SeedAdminUserId, "admin@demo-shooter.dev", "Demo Admin", now);

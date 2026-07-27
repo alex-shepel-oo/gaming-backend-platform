@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
@@ -229,6 +230,105 @@ public sealed class LoginEndpointTests(IdentityApiFactory factory) : IClassFixtu
         jwt.Claims.Where(c => c.Type == IdentityClaims.Perms).Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task NewlySeededUser_HasNullLastLoginAt_BeforeFirstLogin()
+    {
+        var game = await SeedGameAsync();
+        var user = await SeedUserAsync(game.Id, confirmed: true, active: true);
+
+        var lastLoginAt = await LastLoginAtAsync(user.Id);
+
+        lastLoginAt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Login_ValidCredentials_SetsLastLoginAt()
+    {
+        var game = await SeedGameAsync();
+        var user = await SeedUserAsync(game.Id, confirmed: true, active: true);
+        using var client = factory.CreateClient();
+
+        var response = await LoginAsync(client, game.Slug, user.Email, Password);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var lastLoginAt = await LastLoginAtAsync(user.Id);
+        lastLoginAt.Should().BeCloseTo(factory.TimeProvider.GetUtcNow(), TimeSpan.FromMilliseconds(1));
+    }
+
+    [Fact]
+    public async Task Login_AccountScopedSession_SetsLastLoginAt()
+    {
+        var game = await SeedGameAsync();
+        var user = await SeedUserAsync(game.Id, confirmed: true, active: true);
+        using var client = factory.CreateClient();
+
+        var response = await LoginAsync(client, gameSlug: null, user.Email, Password);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var lastLoginAt = await LastLoginAtAsync(user.Id);
+        lastLoginAt.Should().BeCloseTo(factory.TimeProvider.GetUtcNow(), TimeSpan.FromMilliseconds(1));
+    }
+
+    [Fact]
+    public async Task SelectGame_DoesNotChangeLastLoginAt()
+    {
+        var homeGame = await SeedGameAsync();
+        var targetGame = await SeedGameAsync();
+        var user = await SeedUserAsync(homeGame.Id, confirmed: true, active: true);
+        using var client = factory.CreateClient();
+
+        var login = await LoginAsync(client, gameSlug: null, user.Email, Password);
+        var loginTokens = await login.Content.ReadFromJsonAsync<TokenPairResponse>(JsonOptions, TestContext.Current.CancellationToken);
+        var lastLoginAtAfterLogin = await LastLoginAtAsync(user.Id);
+        lastLoginAtAfterLogin.Should().NotBeNull();
+
+        factory.TimeProvider.Advance(TimeSpan.FromSeconds(2));
+
+        var selectGame = await PostAuthorizedAsync(
+            client, "/api/identity/auth/select-game", loginTokens!.AccessToken, new SelectGameRequest(targetGame.Id));
+
+        selectGame.StatusCode.Should().Be(HttpStatusCode.OK);
+        var lastLoginAtAfterSelectGame = await LastLoginAtAsync(user.Id);
+        lastLoginAtAfterSelectGame.Should().Be(lastLoginAtAfterLogin);
+    }
+
+    [Fact]
+    public async Task Refresh_DoesNotChangeLastLoginAt()
+    {
+        var game = await SeedGameAsync();
+        var user = await SeedUserAsync(game.Id, confirmed: true, active: true);
+        using var client = factory.CreateClient();
+
+        var login = await LoginAsync(client, game.Slug, user.Email, Password);
+        var loginBody = await login.Content.ReadFromJsonAsync<TokenPairResponse>(JsonOptions, TestContext.Current.CancellationToken);
+        var lastLoginAtAfterLogin = await LastLoginAtAsync(user.Id);
+        lastLoginAtAfterLogin.Should().NotBeNull();
+
+        factory.TimeProvider.Advance(TimeSpan.FromSeconds(2));
+
+        var refresh = await client.PostAsJsonAsync(
+            "/api/identity/auth/refresh",
+            new RefreshRequest(loginBody!.RefreshToken),
+            JsonOptions,
+            TestContext.Current.CancellationToken);
+
+        refresh.StatusCode.Should().Be(HttpStatusCode.OK);
+        var lastLoginAtAfterRefresh = await LastLoginAtAsync(user.Id);
+        lastLoginAtAfterRefresh.Should().Be(lastLoginAtAfterLogin);
+    }
+
+    private static Task<HttpResponseMessage> PostAuthorizedAsync<TBody>(
+        HttpClient client, string url, string accessToken, TBody body)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = JsonContent.Create(body, options: JsonOptions),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        return client.SendAsync(request, TestContext.Current.CancellationToken);
+    }
+
     private static async Task<JsonWebToken> DecodeAccessTokenAsync(HttpResponseMessage response)
     {
         var body = await response.Content.ReadFromJsonAsync<TokenPairResponse>(JsonOptions, TestContext.Current.CancellationToken);
@@ -347,5 +447,13 @@ public sealed class LoginEndpointTests(IdentityApiFactory factory) : IClassFixtu
         var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
 
         return await dbContext.RefreshTokenFamilies.CountAsync(f => f.UserId == userId);
+    }
+
+    private async Task<DateTimeOffset?> LastLoginAtAsync(Guid userId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+
+        return await dbContext.Users.Where(u => u.Id == userId).Select(u => u.LastLoginAt).SingleAsync();
     }
 }

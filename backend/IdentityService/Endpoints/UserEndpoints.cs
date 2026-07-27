@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using IdentityService.Auth;
+using IdentityService.Contracts.Requests;
 using IdentityService.Contracts.Responses;
 using IdentityService.Domain.Enums;
 using IdentityService.Exceptions;
@@ -17,6 +18,7 @@ public static class UserEndpoints
         var group = app.MapGroup("/api/identity/users");
 
         group.MapGet("/me", GetMeAsync).RequireAuthorization();
+        group.MapPatch("/me", UpdateMeAsync).RequireAuthorization();
         group.MapGet("/me/games", GetMyGamesAsync).RequireAuthorization();
         group.MapGet("/{userId:guid}", GetUserAsync).RequireAuthorization(Policies.ModeratorOrAbove);
         group.MapGet("", ListUsersAsync).RequireAuthorization(Policies.ModeratorOrAbove);
@@ -31,7 +33,41 @@ public static class UserEndpoints
         var user = await dbContext.Users.SingleAsync(u => u.Id == currentUser.UserId, cancellationToken);
 
         return TypedResults.Ok(new UserDto(
-            user.Id, user.Email, user.DisplayName, currentUser.GameId, currentUser.Role, user.CreatedAt));
+            user.Id, user.Email, user.DisplayName, currentUser.GameId, currentUser.Role, user.CreatedAt,
+            user.AvatarUrl, user.LastLoginAt));
+    }
+
+    private static async Task<Ok<UserDto>> UpdateMeAsync(
+        UpdateProfileRequest request,
+        ICurrentUser currentUser,
+        IdentityDbContext dbContext,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        var user = await dbContext.Users.SingleAsync(u => u.Id == currentUser.UserId, cancellationToken);
+
+        if (request.DisplayName is not null)
+        {
+            user.DisplayName = request.DisplayName;
+        }
+
+        if (request.AvatarUrl is not null)
+        {
+            if (!UrlValidation.TryNormalize(request.AvatarUrl, out var normalized))
+            {
+                throw new InvalidAvatarUrlException();
+            }
+
+            user.AvatarUrl = normalized;
+        }
+
+        user.UpdatedAt = timeProvider.GetUtcNow();
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return TypedResults.Ok(new UserDto(
+            user.Id, user.Email, user.DisplayName, currentUser.GameId, currentUser.Role, user.CreatedAt,
+            user.AvatarUrl, user.LastLoginAt));
     }
 
     private static async Task<Ok<PublicGameDto[]>> GetMyGamesAsync(
@@ -42,7 +78,7 @@ public static class UserEndpoints
             .Select(r => r.Game!)
             .Distinct()
             .OrderBy(g => g.Name)
-            .Select(g => new PublicGameDto(g.Id, g.Slug, g.Name))
+            .Select(g => new PublicGameDto(g.Id, g.Slug, g.Name, g.Description, g.IconUrl))
             .ToArrayAsync(cancellationToken);
 
         return TypedResults.Ok(games);
@@ -61,7 +97,8 @@ public static class UserEndpoints
         }
 
         return TypedResults.Ok(new UserDto(
-            role.User!.Id, role.User.Email, role.User.DisplayName, role.GameId, role.Role, role.User.CreatedAt));
+            role.User!.Id, role.User.Email, role.User.DisplayName, role.GameId, role.Role, role.User.CreatedAt,
+            role.User.AvatarUrl, role.User.LastLoginAt));
     }
 
     private static async Task<Ok<PagedResult<UserSummaryDto>>> ListUsersAsync(
@@ -87,7 +124,7 @@ public static class UserEndpoints
             .OrderBy(r => r.User!.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(r => new UserSummaryDto(r.User!.Id, r.User.Email, r.User.DisplayName, r.Role, r.User.CreatedAt))
+            .Select(r => new UserSummaryDto(r.User!.Id, r.User.Email, r.User.DisplayName, r.Role, r.User.CreatedAt, r.User.LastLoginAt))
             .ToListAsync(cancellationToken);
 
         return TypedResults.Ok(new PagedResult<UserSummaryDto>(items, page, pageSize, totalCount));

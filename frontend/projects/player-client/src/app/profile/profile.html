@@ -1,12 +1,19 @@
 <h1>Profile</h1>
 
-@if (tokenStore.claims(); as claims) {
+@if (loading()) {
+  <div class="state-panel">
+    <mat-spinner diameter="32" />
+    <p>Loading profile…</p>
+  </div>
+} @else if (loadError() || !profileService.profile()) {
+  <p class="profile-error" role="alert">We couldn't read your account details. Try logging in again.</p>
+} @else if (profileService.profile(); as profile) {
   <mat-card class="profile-card">
     <mat-card-content class="profile-identity">
-      <app-avatar [name]="claims.displayName" style="--avatar-size: 72px" />
+      <app-avatar [name]="profile.displayName" [avatarUrl]="profile.avatarUrl" style="--avatar-size: 72px" />
       <div>
-        <h2 class="profile-name">{{ claims.displayName }}</h2>
-        <p class="profile-role">{{ claims.role }}</p>
+        <h2 class="profile-name">{{ profile.displayName }}</h2>
+        <p class="profile-role">{{ profile.role }}</p>
       </div>
     </mat-card-content>
   </mat-card>
@@ -18,13 +25,55 @@
     <mat-card-content>
       <dl class="profile-fields">
         <dt>Email</dt>
-        <dd>{{ claims.email }}</dd>
+        <dd>{{ profile.email }}</dd>
 
         <dt>Member since</dt>
-        <dd><app-not-available message="Join date isn't available yet" /></dd>
+        <dd>{{ profile.createdAt | date }}</dd>
+
+        <dt>Last login</dt>
+        <dd>
+          @if (profile.lastLoginAt) {
+            {{ profile.lastLoginAt | date }}
+          } @else {
+            <app-not-available message="No login recorded yet" />
+          }
+        </dd>
       </dl>
     </mat-card-content>
   </mat-card>
-} @else {
-  <p class="profile-error" role="alert">We couldn't read your account details. Try logging in again.</p>
+
+  <mat-card class="profile-card">
+    <mat-card-header>
+      <mat-card-title>Edit profile</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <form class="profile-edit-form" [formGroup]="editForm" (ngSubmit)="submitEdit()">
+        <mat-form-field appearance="outline">
+          <mat-label>Display name</mat-label>
+          <input matInput formControlName="displayName" required />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Avatar URL</mat-label>
+          <input matInput formControlName="avatarUrl" placeholder="https://…" />
+        </mat-form-field>
+
+        @if (saveError()) {
+          <p class="profile-error" role="alert">Something went wrong. Please try again.</p>
+        }
+
+        @if (saved()) {
+          <p class="profile-saved">Profile updated.</p>
+        }
+
+        <button type="submit" mat-flat-button color="primary" [disabled]="editForm.invalid || saving()">
+          @if (saving()) {
+            <mat-spinner diameter="20" />
+          } @else {
+            Save changes
+          }
+        </button>
+      </form>
+    </mat-card-content>
+  </mat-card>
 }

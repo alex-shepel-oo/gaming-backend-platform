@@ -8,7 +8,9 @@ describe('GamesService', () => {
   let httpMock: HttpTestingController;
   let service: GamesService;
 
-  const games = [{ id: 'game-1', slug: 'space-invaders', name: 'Space Invaders' }];
+  const games = [
+    { id: 'game-1', slug: 'space-invaders', name: 'Space Invaders', description: null, iconUrl: null },
+  ];
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -35,7 +37,15 @@ describe('GamesService', () => {
   });
 
   const allGames = [
-    { id: 'game-1', slug: 'space-invaders', name: 'Space Invaders', isActive: true, createdAt: '2026-01-01T00:00:00Z' },
+    {
+      id: 'game-1',
+      slug: 'space-invaders',
+      name: 'Space Invaders',
+      isActive: true,
+      createdAt: '2026-01-01T00:00:00Z',
+      description: 'Defend the earth.',
+      iconUrl: 'https://cdn.example.com/space-invaders.png',
+    },
   ];
 
   it('listAllGames requests the platform-admin games list', () => {
@@ -71,5 +81,20 @@ describe('GamesService', () => {
     request.flush({ ...allGames[0], isActive: false });
 
     expect(result).toEqual({ ...allGames[0], isActive: false });
+  });
+
+  it('updateGame patches description and iconUrl for a game-scoped caller', () => {
+    let result: unknown;
+    service.updateGame('game-1', { description: 'Updated blurb', iconUrl: 'https://cdn.example.com/icon.png' }).subscribe(
+      (game) => (result = game),
+    );
+
+    const request = httpMock.expectOne(IdentityGameEndpoints.game('game-1'));
+    expect(request.request.method).toBe('PATCH');
+    expect(request.request.body).toEqual({ description: 'Updated blurb', iconUrl: 'https://cdn.example.com/icon.png' });
+    const updated = { ...allGames[0], description: 'Updated blurb', iconUrl: 'https://cdn.example.com/icon.png' };
+    request.flush(updated);
+
+    expect(result).toEqual(updated);
   });
 });
