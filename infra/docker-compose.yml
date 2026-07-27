@@ -251,6 +251,7 @@ services:
       - "${PLAYER_CLIENT_PORT:-8080}:8080"
     depends_on:
       - api-gateway
+      - notification-service
     networks:
       - platform-network
 
