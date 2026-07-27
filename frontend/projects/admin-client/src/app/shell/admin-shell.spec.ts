@@ -6,8 +6,21 @@ import { provideRouter, Router } from '@angular/router';
 import { IdentityAuthEndpoints, TokenStore } from 'shared';
 import { AdminShell } from './admin-shell';
 
-function fakeAccessToken(scope: string, permissions: string[] = [], role: string | null = null): string {
-  const payload = { sub: 'user-1', email: 'admin@example.com', name: 'Admin One', scope, perms: permissions, role };
+function fakeAccessToken(
+  scope: string,
+  permissions: string[] = [],
+  role: string | null = null,
+  gameId: string | null = null,
+): string {
+  const payload = {
+    sub: 'user-1',
+    email: 'admin@example.com',
+    name: 'Admin One',
+    scope,
+    perms: permissions,
+    role,
+    game_id: gameId,
+  };
 
   return `header.${btoa(JSON.stringify(payload))}.signature`;
 }
@@ -98,6 +111,36 @@ describe('AdminShell', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Roles');
     expect(text).not.toContain('Games');
+  });
+
+  it('hides the My Game nav link for a game-scoped caller without game.metadata.edit', () => {
+    tokenStore.set(fakeAccessToken('game', [], null, 'game-1'));
+
+    const fixture = TestBed.createComponent(AdminShell);
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toContain('My Game');
+  });
+
+  it('hides the My Game nav link for a platform-wide caller who happens to hold game.metadata.edit', () => {
+    tokenStore.set(fakeAccessToken('platform', ['game.metadata.edit']));
+
+    const fixture = TestBed.createComponent(AdminShell);
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toContain('My Game');
+  });
+
+  it('shows the My Game nav link for a game-scoped caller holding game.metadata.edit', () => {
+    tokenStore.set(fakeAccessToken('game', ['game.metadata.edit'], null, 'game-1'));
+
+    const fixture = TestBed.createComponent(AdminShell);
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('My Game');
   });
 
   it('hides the Users nav link for a caller with no role claim', () => {

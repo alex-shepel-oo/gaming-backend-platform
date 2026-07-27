@@ -1,0 +1,33 @@
+:host {
+  display: block;
+  max-width: var(--app-shell-max-width);
+  margin: 0 auto;
+  padding: var(--app-space-lg);
+}
+
+.game-card {
+  margin-bottom: var(--app-space-lg);
+}
+
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--app-space-sm);
+}
+
+.state-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--app-space-sm);
+  padding: var(--app-space-lg) 0;
+}
+
+.state-error {
+  color: var(--mat-sys-error);
+}
+
+.state-success {
+  color: var(--mat-sys-primary);
+}

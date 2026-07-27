@@ -7,6 +7,8 @@ export interface PublicGame {
   id: string;
   slug: string;
   name: string;
+  description: string | null;
+  iconUrl: string | null;
 }
 
 // The platform-admin shape (GameDto on the backend) -- distinct from
@@ -19,6 +21,8 @@ export interface Game {
   name: string;
   isActive: boolean;
   createdAt: string;
+  description: string | null;
+  iconUrl: string | null;
 }
 
 export interface CreateGameRequest {
@@ -26,9 +30,13 @@ export interface CreateGameRequest {
   name: string;
 }
 
+// Empty string clears the field back to null; omitting a field leaves it
+// unchanged -- same PATCH convention as UpdateProfileRequest on the backend.
 export interface UpdateGameRequest {
   name?: string;
   isActive?: boolean;
+  description?: string;
+  iconUrl?: string;
 }
 
 @Injectable({ providedIn: 'root' })

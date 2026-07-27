@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -22,6 +23,7 @@ const PAGE_SIZE = 20;
 @Component({
   selector: 'admin-user-management',
   imports: [
+    DatePipe,
     MatButtonModule,
     MatCardModule,
     MatFormFieldModule,
@@ -40,7 +42,7 @@ export class UserManagement {
 
   protected readonly roles = ROLES;
   protected readonly pageSize = PAGE_SIZE;
-  protected readonly displayedColumns = ['email', 'displayName', 'role', 'createdAt'];
+  protected readonly displayedColumns = ['email', 'displayName', 'role', 'createdAt', 'lastLoginAt'];
 
   protected readonly scopeLabel = computed(() => (this.tokenStore.claims()?.gameId ? 'this game' : 'the platform'));
 

@@ -22,8 +22,22 @@ function fakeAccessToken(
 }
 
 const users = [
-  { id: 'user-1', email: 'one@example.com', displayName: 'User One', role: 'Player', createdAt: '2026-01-01T00:00:00Z' },
-  { id: 'user-2', email: 'two@example.com', displayName: 'User Two', role: 'Moderator', createdAt: '2026-01-02T00:00:00Z' },
+  {
+    id: 'user-1',
+    email: 'one@example.com',
+    displayName: 'User One',
+    role: 'Player',
+    createdAt: '2026-01-01T00:00:00Z',
+    lastLoginAt: '2026-07-20T08:00:00Z',
+  },
+  {
+    id: 'user-2',
+    email: 'two@example.com',
+    displayName: 'User Two',
+    role: 'Moderator',
+    createdAt: '2026-01-02T00:00:00Z',
+    lastLoginAt: null,
+  },
 ];
 
 const userDetail = {
@@ -75,6 +89,16 @@ describe('UserManagement', () => {
     expect(text).toContain('one@example.com');
     expect(text).toContain('two@example.com');
     expect(text).toContain('Users in the platform');
+  });
+
+  it('shows the last login date for a user who has logged in, and "Never" for one who has not', () => {
+    tokenStore.set(fakeAccessToken({ role: 'Admin' }));
+
+    const fixture = TestBed.createComponent(UserManagement);
+    flushList(fixture);
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Never');
   });
 
   it('searching re-queries the users list with the search term and resets to page 1', () => {

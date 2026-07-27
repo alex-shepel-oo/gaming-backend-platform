@@ -10,6 +10,7 @@ export interface UserSummary {
   displayName: string;
   role: string;
   createdAt: string;
+  lastLoginAt: string | null;
 }
 
 export interface UserDetail {

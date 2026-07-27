@@ -33,6 +33,25 @@ describe('UserManagementService', () => {
     expect(result).toEqual(page);
   });
 
+  it('listUsers carries lastLoginAt through for each returned user, including a never-logged-in null', () => {
+    const page = {
+      items: [
+        { id: 'user-1', email: 'one@example.com', displayName: 'User One', role: 'Player', createdAt: '2026-01-01T00:00:00Z', lastLoginAt: '2026-07-20T08:00:00Z' },
+        { id: 'user-2', email: 'two@example.com', displayName: 'User Two', role: 'Player', createdAt: '2026-01-02T00:00:00Z', lastLoginAt: null },
+      ],
+      page: 1,
+      pageSize: 20,
+      totalCount: 2,
+    };
+    let result: unknown;
+    service.listUsers(undefined, 1, 20).subscribe((value) => (result = value));
+
+    const request = httpMock.expectOne(IdentityUserEndpoints.list(undefined, 1, 20));
+    request.flush(page);
+
+    expect(result).toEqual(page);
+  });
+
   it('listUsers omits the search param when none is given', () => {
     service.listUsers(undefined, 1, 20).subscribe();
 
