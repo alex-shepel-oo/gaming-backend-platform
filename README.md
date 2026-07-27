@@ -73,10 +73,16 @@ hitting the API directly goes through the gateway at `http://localhost:5100`.
 Mailpit's UI (for reading verification emails without a real mailbox) is at
 `http://localhost:8025`.
 
-The values in `infra/.env.example` are committed on purpose and are not
-production secrets: the stack only binds to `localhost`, so nothing in it is
+Almost every value in `infra/.env.example` is committed on purpose and isn't a
+production secret: the stack only binds to `localhost`, so nothing in it is
 reachable from outside the machine it runs on, and every clone gets its own
-`.env` by copying the example rather than sharing one committed file.
+`.env` by copying the example rather than sharing one committed file. The one
+exception is `Jwt__PrivateKey` (the RSA key IdentityService signs tokens with,
+[ADR 0017](docs/adr/0017-rs256-and-jwks.md)) — that one is deliberately left as
+a placeholder, not a working key, since real RSA key material is worth
+committing even less than an arbitrary dummy string. Generate your own before
+the first `docker compose up`; the comment above that line in `.env.example`
+has the one-liner.
 
 ## Running on Kubernetes
 

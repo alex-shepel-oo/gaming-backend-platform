@@ -39,15 +39,6 @@ spec:
             - secretRef:
                 name: economy-secrets
           env:
-            # Same signing key identity-service uses (ADR-0008): economy-service
-            # validates the same HS256 tokens Identity issues, so both read
-            # from the one Secret rather than each holding its own copy that
-            # could drift apart on rotation.
-            - name: Jwt__Key
-              valueFrom:
-                secretKeyRef:
-                  name: identity-secrets
-                  key: Jwt__Key
             # Reuses the broker's own credentials Secret rather than copying
             # the values into economy-secrets -- one Secret, every consumer
             # of the broker (this Deployment, platform-worker later) reads it.

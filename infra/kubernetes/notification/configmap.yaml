@@ -6,5 +6,6 @@ metadata:
 data:
   ASPNETCORE_ENVIRONMENT: "Development"
   ASPNETCORE_URLS: "http://+:5003"
+  Jwt__JwksUri: "http://identity-service:5000/.well-known/jwks.json"
   RabbitMq__Host: "rabbitmq"
   RabbitMq__Port: "5672"

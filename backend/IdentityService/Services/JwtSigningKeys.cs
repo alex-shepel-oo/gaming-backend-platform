@@ -14,7 +14,14 @@ public sealed class JwtSigningKeys : IJwtSigningKeys
     public JwtSigningKeys(IOptions<JwtOptions> options)
     {
         var rsa = RSA.Create();
-        rsa.ImportFromPem(options.Value.PrivateKeyPem);
+
+        // A Kubernetes Secret's stringData carries the PEM as a native multi-line
+        // YAML block scalar -- real newlines already. A .env value is single-line
+        // by format, so the same PEM arrives with literal \n escape sequences
+        // instead. Normalizing here is a no-op for the former and required for the
+        // latter, so both delivery mechanisms import the same way.
+        var pemValue = options.Value.PrivateKeyPem.Replace("\\n", "\n");
+        rsa.ImportFromPem(pemValue);
 
         var kid = DeriveKeyId(rsa);
 

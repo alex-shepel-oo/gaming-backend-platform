@@ -20,5 +20,6 @@ configMapGenerator:
     literals:
       - ASPNETCORE_ENVIRONMENT=Kubernetes
       - ASPNETCORE_URLS=http://+:5100
+      - Jwt__JwksUri=http://identity-service:5000/.well-known/jwks.json
     files:
       - ocelot.Kubernetes.json=../../../backend/ApiGateway/ocelot.Kubernetes.json
