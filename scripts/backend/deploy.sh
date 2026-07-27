@@ -2,6 +2,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+bash "$REPO_ROOT/scripts/all/setup-env.sh"
 cd "$REPO_ROOT/infra"
 
 SERVICES=(
