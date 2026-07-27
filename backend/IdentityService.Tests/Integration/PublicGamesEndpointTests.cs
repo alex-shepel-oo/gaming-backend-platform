@@ -52,6 +52,28 @@ public sealed class PublicGamesEndpointTests(IdentityApiFactory factory) : IClas
     }
 
     [Fact]
+    public async Task ListPublicGames_ReturnsDescriptionAndIconUrlWhenSetAndNullWhenNot()
+    {
+        var gameWithMetadata = await SeedGameAsync(
+            isActive: true, description: "A great game", iconUrl: "https://cdn.example.com/icon.png");
+        var gameWithoutMetadata = await SeedGameAsync(isActive: true);
+        var player = await SeedUserAsync(gameWithMetadata.Id);
+        var (client, accessToken) = await LoginAsync(player.Id, gameWithMetadata.Id);
+
+        var response = await GetAuthorizedAsync(client, "/api/identity/games/public", accessToken);
+
+        var games = (await response.Content.ReadFromJsonAsync<PublicGameDto[]>(JsonOptions, TestContext.Current.CancellationToken))!;
+
+        var withMetadata = games.Single(g => g.Id == gameWithMetadata.Id);
+        withMetadata.Description.Should().Be("A great game");
+        withMetadata.IconUrl.Should().Be("https://cdn.example.com/icon.png");
+
+        var withoutMetadata = games.Single(g => g.Id == gameWithoutMetadata.Id);
+        withoutMetadata.Description.Should().BeNull();
+        withoutMetadata.IconUrl.Should().BeNull();
+    }
+
+    [Fact]
     public async Task ListPublicGames_Anonymous_Returns401()
     {
         using var client = factory.CreateClient();
@@ -116,7 +138,7 @@ public sealed class PublicGamesEndpointTests(IdentityApiFactory factory) : IClas
         return (client, tokens!.AccessToken);
     }
 
-    private async Task<Game> SeedGameAsync(bool isActive)
+    private async Task<Game> SeedGameAsync(bool isActive, string? description = null, string? iconUrl = null)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
@@ -129,6 +151,8 @@ public sealed class PublicGamesEndpointTests(IdentityApiFactory factory) : IClas
             Name = "Test Game",
             IsActive = isActive,
             CreatedAt = now,
+            Description = description,
+            IconUrl = iconUrl,
         };
 
         dbContext.Games.Add(game);

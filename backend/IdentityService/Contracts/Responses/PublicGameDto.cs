@@ -1,3 +1,3 @@
 namespace IdentityService.Contracts.Responses;
 
-public sealed record PublicGameDto(Guid Id, string Slug, string Name);
+public sealed record PublicGameDto(Guid Id, string Slug, string Name, string? Description, string? IconUrl);

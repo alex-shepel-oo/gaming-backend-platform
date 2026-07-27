@@ -53,19 +53,12 @@ public static class UserEndpoints
 
         if (request.AvatarUrl is not null)
         {
-            if (request.AvatarUrl == string.Empty)
-            {
-                user.AvatarUrl = null;
-            }
-            else if (Uri.TryCreate(request.AvatarUrl, UriKind.Absolute, out var uri)
-                && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
-            {
-                user.AvatarUrl = request.AvatarUrl;
-            }
-            else
+            if (!UrlValidation.TryNormalize(request.AvatarUrl, out var normalized))
             {
                 throw new InvalidAvatarUrlException();
             }
+
+            user.AvatarUrl = normalized;
         }
 
         user.UpdatedAt = timeProvider.GetUtcNow();
@@ -85,7 +78,7 @@ public static class UserEndpoints
             .Select(r => r.Game!)
             .Distinct()
             .OrderBy(g => g.Name)
-            .Select(g => new PublicGameDto(g.Id, g.Slug, g.Name))
+            .Select(g => new PublicGameDto(g.Id, g.Slug, g.Name, g.Description, g.IconUrl))
             .ToArrayAsync(cancellationToken);
 
         return TypedResults.Ok(games);

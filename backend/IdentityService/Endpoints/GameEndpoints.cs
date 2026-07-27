@@ -28,7 +28,7 @@ public static class GameEndpoints
     {
         var games = await dbContext.Games
             .OrderBy(g => g.Name)
-            .Select(g => new GameDto(g.Id, g.Slug, g.Name, g.IsActive, g.CreatedAt))
+            .Select(g => new GameDto(g.Id, g.Slug, g.Name, g.IsActive, g.CreatedAt, g.Description, g.IconUrl))
             .ToArrayAsync(cancellationToken);
 
         return TypedResults.Ok(games);
@@ -39,7 +39,7 @@ public static class GameEndpoints
         var games = await dbContext.Games
             .Where(g => g.IsActive)
             .OrderBy(g => g.Name)
-            .Select(g => new PublicGameDto(g.Id, g.Slug, g.Name))
+            .Select(g => new PublicGameDto(g.Id, g.Slug, g.Name, g.Description, g.IconUrl))
             .ToArrayAsync(cancellationToken);
 
         return TypedResults.Ok(games);
@@ -60,13 +60,15 @@ public static class GameEndpoints
             Name = request.Name,
             IsActive = true,
             CreatedAt = timeProvider.GetUtcNow(),
+            Description = request.Description,
+            IconUrl = request.IconUrl,
         };
 
         dbContext.Games.Add(game);
         dbContext.RolePermissions.AddRange(DefaultRolePermissions.ForGame(game.Id, timeProvider.GetUtcNow()));
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return TypedResults.Ok(new GameDto(game.Id, game.Slug, game.Name, game.IsActive, game.CreatedAt));
+        return TypedResults.Ok(new GameDto(game.Id, game.Slug, game.Name, game.IsActive, game.CreatedAt, game.Description, game.IconUrl));
     }
 
     private static async Task<Ok<GameDto>> UpdateGameAsync(
@@ -89,8 +91,23 @@ public static class GameEndpoints
             game.IsActive = request.IsActive.Value;
         }
 
+        if (request.Description is not null)
+        {
+            game.Description = request.Description == string.Empty ? null : request.Description;
+        }
+
+        if (request.IconUrl is not null)
+        {
+            if (!UrlValidation.TryNormalize(request.IconUrl, out var normalized))
+            {
+                throw new InvalidIconUrlException();
+            }
+
+            game.IconUrl = normalized;
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return TypedResults.Ok(new GameDto(game.Id, game.Slug, game.Name, game.IsActive, game.CreatedAt));
+        return TypedResults.Ok(new GameDto(game.Id, game.Slug, game.Name, game.IsActive, game.CreatedAt, game.Description, game.IconUrl));
     }
 }

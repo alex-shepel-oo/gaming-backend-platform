@@ -150,6 +150,109 @@ public sealed class GameEndpointsTests(IdentityApiFactory factory) : IClassFixtu
     }
 
     [Fact]
+    public async Task PostGame_WithDescriptionAndIconUrl_PersistsAndReturnsThem()
+    {
+        var platformAdmin = await SeedUserAsync(gameId: null, PlatformRole.Admin);
+        await SeedRolePermissionsAsync(PlatformRole.Admin, gameId: null, Permissions.PlatformGamesManage);
+        var (client, accessToken) = await LoginAsync(platformAdmin.Id, gameId: null);
+
+        var response = await PostAuthorizedAsync(
+            client,
+            "/api/identity/games",
+            new CreateGameRequest($"slug-{Guid.NewGuid():N}", "New Game", "A great game", "https://cdn.example.com/icon.png"),
+            accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var game = await response.Content.ReadFromJsonAsync<GameDto>(JsonOptions, TestContext.Current.CancellationToken);
+        game!.Description.Should().Be("A great game");
+        game.IconUrl.Should().Be("https://cdn.example.com/icon.png");
+    }
+
+    [Fact]
+    public async Task PostGame_WithoutDescriptionAndIconUrl_LeavesBothNull()
+    {
+        var platformAdmin = await SeedUserAsync(gameId: null, PlatformRole.Admin);
+        await SeedRolePermissionsAsync(PlatformRole.Admin, gameId: null, Permissions.PlatformGamesManage);
+        var (client, accessToken) = await LoginAsync(platformAdmin.Id, gameId: null);
+
+        var response = await PostAuthorizedAsync(
+            client, "/api/identity/games", new CreateGameRequest($"slug-{Guid.NewGuid():N}", "New Game"), accessToken);
+
+        var game = await response.Content.ReadFromJsonAsync<GameDto>(JsonOptions, TestContext.Current.CancellationToken);
+        game!.Description.Should().BeNull();
+        game.IconUrl.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task PatchGame_WithNewDescriptionAndIconUrl_UpdatesThem()
+    {
+        var platformAdmin = await SeedUserAsync(gameId: null, PlatformRole.Admin);
+        await SeedRolePermissionsAsync(PlatformRole.Admin, gameId: null, Permissions.PlatformGamesManage);
+        var game = await SeedGameAsync();
+        var (client, accessToken) = await LoginAsync(platformAdmin.Id, gameId: null);
+
+        var response = await PatchAuthorizedAsync(
+            client,
+            $"/api/identity/games/{game.Id}",
+            new UpdateGameRequest(null, null, "Updated description", "https://cdn.example.com/new-icon.png"),
+            accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<GameDto>(JsonOptions, TestContext.Current.CancellationToken);
+        body!.Description.Should().Be("Updated description");
+        body.IconUrl.Should().Be("https://cdn.example.com/new-icon.png");
+    }
+
+    [Fact]
+    public async Task PatchGame_WithEmptyStrings_ClearsPreviouslySetDescriptionAndIconUrl()
+    {
+        var platformAdmin = await SeedUserAsync(gameId: null, PlatformRole.Admin);
+        await SeedRolePermissionsAsync(PlatformRole.Admin, gameId: null, Permissions.PlatformGamesManage);
+        var game = await SeedGameAsync(description: "Existing description", iconUrl: "https://cdn.example.com/icon.png");
+        var (client, accessToken) = await LoginAsync(platformAdmin.Id, gameId: null);
+
+        var response = await PatchAuthorizedAsync(
+            client, $"/api/identity/games/{game.Id}", new UpdateGameRequest(null, null, "", ""), accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<GameDto>(JsonOptions, TestContext.Current.CancellationToken);
+        body!.Description.Should().BeNull();
+        body.IconUrl.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task PatchGame_WithFieldsOmitted_LeavesExistingDescriptionAndIconUrlUntouched()
+    {
+        var platformAdmin = await SeedUserAsync(gameId: null, PlatformRole.Admin);
+        await SeedRolePermissionsAsync(PlatformRole.Admin, gameId: null, Permissions.PlatformGamesManage);
+        var game = await SeedGameAsync(description: "Existing description", iconUrl: "https://cdn.example.com/icon.png");
+        var (client, accessToken) = await LoginAsync(platformAdmin.Id, gameId: null);
+
+        var response = await PatchAuthorizedAsync(
+            client, $"/api/identity/games/{game.Id}", new UpdateGameRequest("Renamed", null), accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<GameDto>(JsonOptions, TestContext.Current.CancellationToken);
+        body!.Name.Should().Be("Renamed");
+        body.Description.Should().Be("Existing description");
+        body.IconUrl.Should().Be("https://cdn.example.com/icon.png");
+    }
+
+    [Fact]
+    public async Task PatchGame_WithMalformedIconUrl_Returns400()
+    {
+        var platformAdmin = await SeedUserAsync(gameId: null, PlatformRole.Admin);
+        await SeedRolePermissionsAsync(PlatformRole.Admin, gameId: null, Permissions.PlatformGamesManage);
+        var game = await SeedGameAsync();
+        var (client, accessToken) = await LoginAsync(platformAdmin.Id, gameId: null);
+
+        var response = await PatchAuthorizedAsync(
+            client, $"/api/identity/games/{game.Id}", new UpdateGameRequest(null, null, null, "not-a-url"), accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task ListPublicGames_StillReturnsOnlyActiveGamesRegardlessOfPermissions()
     {
         var game = await SeedGameAsync();
@@ -211,7 +314,7 @@ public sealed class GameEndpointsTests(IdentityApiFactory factory) : IClassFixtu
         return (client, tokens!.AccessToken);
     }
 
-    private async Task<Game> SeedGameAsync()
+    private async Task<Game> SeedGameAsync(string? description = null, string? iconUrl = null)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
@@ -224,6 +327,8 @@ public sealed class GameEndpointsTests(IdentityApiFactory factory) : IClassFixtu
             Name = "Test Game",
             IsActive = true,
             CreatedAt = now,
+            Description = description,
+            IconUrl = iconUrl,
         };
 
         dbContext.Games.Add(game);
