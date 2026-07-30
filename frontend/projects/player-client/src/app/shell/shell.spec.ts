@@ -112,15 +112,23 @@ describe('Shell', () => {
     expect(text).toContain('Demo Shooter');
   });
 
-  it('shows the platform balance once it loads', () => {
+  it('shows the platform balance amount once it loads, without the redundant currency code text', () => {
     const fixture = createAndFlushBalances([
       { currencyId: 'platform-1', currencyCode: 'PLATFORM_CREDITS', scope: CurrencyScope.Platform, gameId: null, amount: 500 },
       { currencyId: 'game-1', currencyCode: 'SHOOTER_GOLD', scope: CurrencyScope.Game, gameId: 'game-1', amount: 10 },
     ]);
 
-    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('500 PLATFORM_CREDITS');
-    expect(text).not.toContain('10 SHOOTER_GOLD');
+    const element = fixture.nativeElement as HTMLElement;
+    const text = element.textContent ?? '';
+    expect(text).toContain('500');
+    expect(text).not.toContain('10');
+    expect(text).not.toContain('PLATFORM_CREDITS');
+    expect(text).not.toContain('SHOOTER_GOLD');
+
+    // The compact toolbar drops the visible code text, but keeps the
+    // existing title attribute for context.
+    const balanceSpan = element.querySelector('.shell-balance') as HTMLElement;
+    expect(balanceSpan.getAttribute('title')).toBe('Platform balance');
   });
 
   it('toggles the theme icon when the theme button is clicked', () => {
