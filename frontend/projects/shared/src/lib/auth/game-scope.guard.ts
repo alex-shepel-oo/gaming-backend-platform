@@ -6,5 +6,5 @@ export const gameScopeGuard: CanActivateFn = () => {
   const tokenStore = inject(TokenStore);
   const router = inject(Router);
 
-  return tokenStore.claims()?.scope === 'game' || router.createUrlTree(['/games']);
+  return tokenStore.claims()?.scope === 'Game' || router.createUrlTree(['/games']);
 };

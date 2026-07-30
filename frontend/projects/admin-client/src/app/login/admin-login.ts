@@ -80,7 +80,7 @@ export class AdminLogin {
     // latter shouldn't normally happen straight off a slug-less login, but
     // if it does, it's already scoped into something usable) both go
     // straight into the app.
-    if (scope === 'account') {
+    if (scope === 'Account') {
       this.router.navigateByUrl('/select-game');
 
       return;

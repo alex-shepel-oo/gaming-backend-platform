@@ -70,7 +70,7 @@ describe('AdminLogin', () => {
     const request = httpMock.expectOne(IdentityAuthEndpoints.login);
     expect(request.request.body).toEqual({ email: 'admin@example.com', password: 'correct-password' });
     expect(request.request.body).not.toHaveProperty('gameSlug');
-    request.flush({ accessToken: fakeAccessToken('platform') });
+    request.flush({ accessToken: fakeAccessToken('Platform') });
   });
 
   it('routes a platform-scoped login straight to the dashboard, no picker', () => {
@@ -78,7 +78,7 @@ describe('AdminLogin', () => {
 
     createAndSubmit();
 
-    httpMock.expectOne(IdentityAuthEndpoints.login).flush({ accessToken: fakeAccessToken('platform') });
+    httpMock.expectOne(IdentityAuthEndpoints.login).flush({ accessToken: fakeAccessToken('Platform') });
 
     expect(navigateSpy).toHaveBeenCalledWith('/dashboard');
   });
@@ -88,7 +88,7 @@ describe('AdminLogin', () => {
 
     createAndSubmit();
 
-    httpMock.expectOne(IdentityAuthEndpoints.login).flush({ accessToken: fakeAccessToken('account') });
+    httpMock.expectOne(IdentityAuthEndpoints.login).flush({ accessToken: fakeAccessToken('Account') });
 
     expect(navigateSpy).toHaveBeenCalledWith('/select-game');
   });
@@ -98,7 +98,7 @@ describe('AdminLogin', () => {
 
     createAndSubmit();
 
-    httpMock.expectOne(IdentityAuthEndpoints.login).flush({ accessToken: fakeAccessToken('game') });
+    httpMock.expectOne(IdentityAuthEndpoints.login).flush({ accessToken: fakeAccessToken('Game') });
 
     expect(navigateSpy).toHaveBeenCalledWith('/dashboard');
   });
