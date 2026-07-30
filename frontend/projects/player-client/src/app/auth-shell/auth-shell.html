@@ -21,9 +21,14 @@
       @if (notice(); as message) {
         <p class="auth-notice">{{ message }}</p>
       }
-    } @else if (pendingEmail(); as email) {
+    } @else if (pendingRegistration(); as pending) {
       <div class="auth-tab-content">
-        <app-confirm-email [email]="email" (confirmed)="onConfirmed()" (backToLogin)="onBackToLogin()" />
+        <app-confirm-email
+          [email]="pending.email"
+          [password]="pending.password"
+          (confirmed)="onConfirmed()"
+          (backToLogin)="onBackToLogin()"
+        />
       </div>
     }
   </mat-card>

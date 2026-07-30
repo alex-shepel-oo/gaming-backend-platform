@@ -63,10 +63,13 @@ describe('Register', () => {
     );
 
     expect(emitSpy).toHaveBeenCalledWith({
-      userId: 'user-1',
-      email: 'newplayer@example.com',
-      verificationRequired: true,
-      codeExpiresAt: '2026-07-23T00:20:00Z',
+      response: {
+        userId: 'user-1',
+        email: 'newplayer@example.com',
+        verificationRequired: true,
+        codeExpiresAt: '2026-07-23T00:20:00Z',
+      },
+      password: 'a-strong-password',
     });
   });
 

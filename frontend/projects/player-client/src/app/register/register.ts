@@ -7,6 +7,11 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService, DEFAULT_GAME_SLUG, RegistrationAcceptedResponse } from 'shared';
 
+export interface RegisteredEvent {
+  response: RegistrationAcceptedResponse;
+  password: string;
+}
+
 type RegisterError = 'validation' | 'game-not-found' | 'email-taken' | 'rate-limited' | 'unknown';
 
 function classifyRegisterError(error: unknown): RegisterError {
@@ -47,7 +52,7 @@ export class Register {
   protected readonly submitting = signal(false);
   protected readonly error = signal<RegisterError | null>(null);
 
-  readonly registered = output<RegistrationAcceptedResponse>();
+  readonly registered = output<RegisteredEvent>();
 
   protected submit(): void {
     if (this.form.invalid) {
@@ -57,11 +62,13 @@ export class Register {
     this.submitting.set(true);
     this.error.set(null);
 
+    const { password } = this.form.getRawValue();
+
     this.authService.register({ ...this.form.getRawValue(), gameSlug: DEFAULT_GAME_SLUG }).subscribe({
       next: (response) => {
         this.submitting.set(false);
         this.form.reset();
-        this.registered.emit(response);
+        this.registered.emit({ response, password });
       },
       error: (error: unknown) => {
         this.submitting.set(false);

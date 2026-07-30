@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import { IdentityAuthEndpoints } from 'shared';
 import { ResetPassword } from './reset-password';
 
@@ -19,6 +19,7 @@ describe('ResetPassword', () => {
         providers: [
           provideHttpClient(),
           provideHttpClientTesting(),
+          provideRouter([]),
           { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({}) } } },
         ],
       });
@@ -51,12 +52,15 @@ describe('ResetPassword', () => {
   });
 
   describe('with a token in the URL', () => {
+    let router: Router;
+
     beforeEach(() => {
       TestBed.configureTestingModule({
         imports: [ResetPassword],
         providers: [
           provideHttpClient(),
           provideHttpClientTesting(),
+          provideRouter([]),
           {
             provide: ActivatedRoute,
             useValue: { snapshot: { queryParamMap: convertToParamMap({ token: 'the-reset-token' }) } },
@@ -65,6 +69,7 @@ describe('ResetPassword', () => {
       });
 
       httpMock = TestBed.inject(HttpTestingController);
+      router = TestBed.inject(Router);
     });
 
     function createAndSubmit(password: string, confirmPassword: string): ComponentFixture<ResetPassword> {
@@ -89,12 +94,28 @@ describe('ResetPassword', () => {
       return fixture;
     }
 
-    it('submits the token and new password and shows success on 204', () => {
+    it('logs in and redirects to /games after a successful reset', () => {
+      const navigateSpy = vi.spyOn(router, 'navigateByUrl');
+      createAndSubmit('a-new-strong-password', 'a-new-strong-password');
+
+      const resetRequest = httpMock.expectOne(IdentityAuthEndpoints.resetPassword);
+      expect(resetRequest.request.body).toEqual({ token: 'the-reset-token', newPassword: 'a-new-strong-password' });
+      resetRequest.flush({ email: 'player@example.com' });
+
+      const loginRequest = httpMock.expectOne(IdentityAuthEndpoints.login);
+      expect(loginRequest.request.body).toEqual({ email: 'player@example.com', password: 'a-new-strong-password' });
+      loginRequest.flush({ accessToken: 'the-access-token' });
+
+      expect(navigateSpy).toHaveBeenCalledWith('/games');
+    });
+
+    it('falls back to a success notice if the auto-login itself fails', () => {
       const fixture = createAndSubmit('a-new-strong-password', 'a-new-strong-password');
 
-      const request = httpMock.expectOne(IdentityAuthEndpoints.resetPassword);
-      expect(request.request.body).toEqual({ token: 'the-reset-token', newPassword: 'a-new-strong-password' });
-      request.flush(null, { status: 204, statusText: 'No Content' });
+      httpMock.expectOne(IdentityAuthEndpoints.resetPassword).flush({ email: 'player@example.com' });
+      httpMock
+        .expectOne(IdentityAuthEndpoints.login)
+        .flush({ status: 401, title: 'Invalid credentials' }, { status: 401, statusText: 'Unauthorized' });
       fixture.detectChanges();
 
       const text = (fixture.nativeElement as HTMLElement).textContent ?? '';

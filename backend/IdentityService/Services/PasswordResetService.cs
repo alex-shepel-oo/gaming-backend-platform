@@ -99,7 +99,7 @@ public sealed partial class PasswordResetService(
         }
     }
 
-    public async Task CompleteResetAsync(string rawToken, string newPassword, CancellationToken cancellationToken = default)
+    public async Task<string> CompleteResetAsync(string rawToken, string newPassword, CancellationToken cancellationToken = default)
     {
         var hash = tokenGenerator.Hash(rawToken);
 
@@ -131,6 +131,8 @@ public sealed partial class PasswordResetService(
             token.UserId, gameId: null, RevocationReason.PasswordChange, cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
+
+        return token.User.Email;
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Failed to send password reset email for user {UserId}")]
