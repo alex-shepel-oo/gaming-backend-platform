@@ -22,7 +22,7 @@ public static class GameEndpoints
             .RequireAuthorization(policy => policy.RequireClaim(IdentityClaims.Perms, Permissions.PlatformGamesManage));
         group.MapPatch("/{id:guid}", UpdateGameAsync).RequireAuthorization();
 
-        app.MapGet("/api/identity/games/public", ListPublicGamesAsync).RequireAuthorization(Policies.Player);
+        app.MapGet("/api/identity/games/public", ListPublicGamesAsync).RequireAuthorization();
     }
 
     private static async Task<Ok<GameDto[]>> ListGamesAsync(IdentityDbContext dbContext, CancellationToken cancellationToken)

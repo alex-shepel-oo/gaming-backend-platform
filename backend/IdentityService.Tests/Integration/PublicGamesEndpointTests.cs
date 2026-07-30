@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
+using IdentityService.Auth;
 using IdentityService.Contracts.Requests;
 using IdentityService.Contracts.Responses;
 using IdentityService.Domain;
@@ -12,6 +13,7 @@ using IdentityService.Services;
 using IdentityService.Tests.Integration.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Xunit;
 
 namespace IdentityService.Tests.Integration;
@@ -22,6 +24,8 @@ public sealed class PublicGamesEndpointTests(IdentityApiFactory factory) : IClas
     private const string Password = "correct-horse-battery";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    private static readonly JsonWebTokenHandler TokenHandler = new();
 
     public ValueTask InitializeAsync() => new(factory.ResetAsync());
 
@@ -84,6 +88,22 @@ public sealed class PublicGamesEndpointTests(IdentityApiFactory factory) : IClas
     }
 
     [Fact]
+    public async Task ListPublicGames_AccountScopedSession_Returns200()
+    {
+        var game = await SeedGameAsync(isActive: true);
+        var player = await SeedUserAsync(game.Id);
+        var (client, accessToken) = await LoginAccountScopedAsync(player.Email);
+
+        var jwt = TokenHandler.ReadJsonWebToken(accessToken);
+        jwt.GetClaim(IdentityClaims.Scope).Value.Should().Be(nameof(TokenScope.Account));
+        jwt.TryGetClaim(IdentityClaims.Role, out _).Should().BeFalse();
+
+        var response = await GetAuthorizedAsync(client, "/api/identity/games/public", accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
     public async Task ListPublicGames_IsNotFilteredByCallersGame()
     {
         var gameA = await SeedGameAsync(isActive: true);
@@ -130,6 +150,20 @@ public sealed class PublicGamesEndpointTests(IdentityApiFactory factory) : IClas
         var response = await client.PostAsJsonAsync(
             "/api/identity/auth/login",
             new LoginRequest(game.Slug, user.Email, Password),
+            JsonOptions,
+            TestContext.Current.CancellationToken);
+
+        var tokens = await response.Content.ReadFromJsonAsync<TokenPairResponse>(JsonOptions, TestContext.Current.CancellationToken);
+
+        return (client, tokens!.AccessToken);
+    }
+
+    private async Task<(HttpClient Client, string AccessToken)> LoginAccountScopedAsync(string email)
+    {
+        var client = factory.CreateClient();
+        var response = await client.PostAsJsonAsync(
+            "/api/identity/auth/login",
+            new LoginRequest(null, email, Password),
             JsonOptions,
             TestContext.Current.CancellationToken);
 
