@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AwesomeAssertions;
 using IdentityService.Auth;
 using IdentityService.Contracts.Requests;
@@ -22,7 +23,10 @@ public sealed class UserEndpointsTests(IdentityApiFactory factory) : IClassFixtu
 {
     private const string Password = "correct-horse-battery";
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter() },
+    };
 
     public ValueTask InitializeAsync() => new(factory.ResetAsync());
 
@@ -261,6 +265,23 @@ public sealed class UserEndpointsTests(IdentityApiFactory factory) : IClassFixtu
         var body = await response.Content.ReadFromJsonAsync<PagedResult<UserSummaryDto>>(
             JsonOptions, TestContext.Current.CancellationToken);
         body!.Items.Should().ContainSingle(u => u.Id == match.Id);
+    }
+
+    [Fact]
+    public async Task ListUsers_ReturnsRoleAsJsonStringNotRawNumber()
+    {
+        var game = await SeedGameAsync();
+        await SeedUserAsync(game.Id, PlatformRole.Admin, displayName: "Grace Hopper");
+        var (client, accessToken) = await LoginAsync((await SeedUserAsync(game.Id, PlatformRole.Moderator)).Id, game.Id);
+
+        var response = await GetAuthorizedAsync(client, "/api/identity/users?search=grace", accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var raw = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        using var document = JsonDocument.Parse(raw);
+        var role = document.RootElement.GetProperty("items")[0].GetProperty("role");
+        role.ValueKind.Should().Be(JsonValueKind.String);
+        role.GetString().Should().Be("Admin");
     }
 
     [Fact]

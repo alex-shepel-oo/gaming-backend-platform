@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json.Serialization;
 using BuildingBlocks.Messaging.Extensions;
 using IdentityService.Endpoints;
 using IdentityService.Extensions;
@@ -14,6 +15,8 @@ builder.Host.UseSerilog((context, configuration) => configuration
     .Enrich.WithEnvironmentName()
     .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture));
 
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
 builder.Services.AddValidation();
 builder.Services.AddIdentityExceptionHandling();

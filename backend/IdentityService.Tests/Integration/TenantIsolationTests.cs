@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AwesomeAssertions;
 using IdentityService.Contracts.Requests;
 using IdentityService.Contracts.Responses;
@@ -21,7 +22,10 @@ public sealed class TenantIsolationTests(IdentityApiFactory factory) : IClassFix
 {
     private const string Password = "correct-horse-battery";
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter() },
+    };
 
     public ValueTask InitializeAsync() => new(factory.ResetAsync());
 

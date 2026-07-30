@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AwesomeAssertions;
 using IdentityService.Auth;
 using IdentityService.Contracts.Requests;
@@ -22,7 +23,10 @@ public sealed class RolePermissionEndpointsTests(IdentityApiFactory factory) : I
 {
     private const string Password = "correct-horse-battery";
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter() },
+    };
 
     public ValueTask InitializeAsync() => new(factory.ResetAsync());
 
@@ -178,6 +182,50 @@ public sealed class RolePermissionEndpointsTests(IdentityApiFactory factory) : I
         var getResponse = await GetAuthorizedAsync(client, $"/api/identity/users/{target.Id}/roles?gameId={gameA.Id}", accessToken);
         var body = await getResponse.Content.ReadFromJsonAsync<UserRoleDto>(JsonOptions, TestContext.Current.CancellationToken);
         body!.Role.Should().Be(PlatformRole.Moderator);
+    }
+
+    [Fact]
+    public async Task PatchUserRole_WithLiteralRoleNameInRequestBody_Returns200NotServerError()
+    {
+        var gameA = await SeedGameAsync();
+        var caller = await SeedUserAsync(gameA.Id, PlatformRole.Admin);
+        var target = await SeedUserAsync(gameA.Id, PlatformRole.Player);
+
+        await SeedRolePermissionsAsync(PlatformRole.Admin, gameA.Id, Permissions.GameRolesManage, Permissions.GameCurrencyManage);
+
+        var (client, accessToken) = await LoginAsync(caller.Id, gameA.Id);
+
+        using var request = new HttpRequestMessage(HttpMethod.Patch, $"/api/identity/users/{target.Id}/roles")
+        {
+            Content = new StringContent(
+                $$"""{"gameId":"{{gameA.Id}}","role":"Admin"}""",
+                System.Text.Encoding.UTF8,
+                "application/json"),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task GetUserRole_ReturnsRoleAsJsonStringNotRawNumber()
+    {
+        var gameA = await SeedGameAsync();
+        var caller = await SeedUserAsync(gameA.Id, PlatformRole.Admin);
+        await SeedRolePermissionsAsync(PlatformRole.Admin, gameA.Id, Permissions.GameRolesManage);
+
+        var (client, accessToken) = await LoginAsync(caller.Id, gameA.Id);
+
+        var response = await GetAuthorizedAsync(client, $"/api/identity/users/{caller.Id}/roles?gameId={gameA.Id}", accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var raw = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        using var document = JsonDocument.Parse(raw);
+        var roleElement = document.RootElement.GetProperty("role");
+        roleElement.ValueKind.Should().Be(JsonValueKind.String);
+        roleElement.GetString().Should().Be("Admin");
     }
 
     [Fact]
