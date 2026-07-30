@@ -23,6 +23,19 @@ export interface Balance {
   amount: number;
 }
 
+// Mirrors EconomyService.Contracts.Responses.CurrencyDto -- the read-only
+// currency catalog (every currency across every game, plus platform), not a
+// per-user balance. Same numeric-enum-over-the-wire caveat as CurrencyScope
+// above: scope comes through as a number, not a name.
+export interface Currency {
+  id: string;
+  code: string;
+  displayName: string;
+  scope: CurrencyScope;
+  gameId: string | null;
+  decimals: number;
+}
+
 export interface TransactionHistoryEntry {
   id: string;
   currencyId: string;

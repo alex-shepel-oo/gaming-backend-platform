@@ -63,4 +63,26 @@ describe('WalletService balances snapshot', () => {
       twoBalances[1],
     ]);
   });
+
+  it('getBalances requests the balances endpoint with no game-scoping params', () => {
+    service.getBalances().subscribe();
+
+    const request = httpMock.expectOne((req) => req.url === EconomyEndpoints.balances);
+    expect(request.request.params.keys().length).toBe(0);
+    request.flush(balances);
+  });
+
+  it('getCurrencies fetches the full currency catalog', () => {
+    const currencies = [
+      { id: 'platform-1', code: 'PLATFORM_CREDITS', displayName: 'Platform Credits', scope: CurrencyScope.Platform, gameId: null, decimals: 2 },
+      { id: 'game-1', code: 'GEMS', displayName: 'Gems', scope: CurrencyScope.Game, gameId: 'game-a', decimals: 2 },
+    ];
+
+    let result: unknown;
+    service.getCurrencies().subscribe((response) => (result = response));
+
+    httpMock.expectOne((req) => req.url === EconomyEndpoints.currencies).flush(currencies);
+
+    expect(result).toEqual(currencies);
+  });
 });

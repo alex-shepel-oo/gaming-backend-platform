@@ -16,10 +16,10 @@ public sealed class BalanceService(EconomyDbContext dbContext) : IBalanceService
     }
 
     public async Task<IReadOnlyList<Balance>> GetBalancesForUserAsync(
-        Guid userId, Guid? gameId, CancellationToken cancellationToken = default) =>
+        Guid userId, CancellationToken cancellationToken = default) =>
         await dbContext.Balances
             .AsNoTracking()
             .Include(b => b.Currency)
-            .Where(b => b.UserId == userId && (b.Currency!.GameId == null || b.Currency.GameId == gameId))
+            .Where(b => b.UserId == userId)
             .ToListAsync(cancellationToken);
 }

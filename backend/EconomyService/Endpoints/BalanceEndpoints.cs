@@ -20,21 +20,12 @@ public static class BalanceEndpoints
             EconomyClaims.Perms, Permissions.GameBalanceAdjust, Permissions.PlatformBalanceAdjust));
     }
 
-    private static async Task<Results<Ok<BalanceDto[]>, ForbidHttpResult>> GetMyBalancesAsync(
-        Guid? gameId,
+    private static async Task<Ok<BalanceDto[]>> GetMyBalancesAsync(
         ICurrentUser currentUser,
         IBalanceService balanceService,
         CancellationToken cancellationToken)
     {
-        // gameId is an optional cross-check, not a filter switch: a caller can only
-        // ever ask about the game their own token is scoped to. A mismatch here is
-        // a tenant-isolation violation, not a "no results" case.
-        if (gameId is not null && gameId != currentUser.GameId)
-        {
-            return TypedResults.Forbid();
-        }
-
-        var balances = await balanceService.GetBalancesForUserAsync(currentUser.UserId, currentUser.GameId, cancellationToken);
+        var balances = await balanceService.GetBalancesForUserAsync(currentUser.UserId, cancellationToken);
 
         var response = balances
             .OrderBy(b => b.Currency!.Code)

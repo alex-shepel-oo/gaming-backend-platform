@@ -40,7 +40,7 @@ public sealed class CurrencyEndpointsTests : IAsyncDisposable
     }
 
     [Test]
-    public async Task GetCurrencies_ReturnsPlatformCurrenciesAndOwnGameCurrency_NotOtherGamesCurrency()
+    public async Task GetCurrencies_ReturnsEveryGamesCurrency_RegardlessOfCallerScope()
     {
         var gameA = Guid.CreateVersion7();
         var gameB = Guid.CreateVersion7();
@@ -48,6 +48,9 @@ public sealed class CurrencyEndpointsTests : IAsyncDisposable
         var gameACurrency = await SeedCurrencyAsync("GAME_A_GOLD", CurrencyScope.Game, gameA);
         var gameBCurrency = await SeedCurrencyAsync("GAME_B_GOLD", CurrencyScope.Game, gameB);
 
+        // Caller's token is scoped to gameA only, yet gameB's currency -- one the
+        // caller has never entered -- must still appear: this is the read-only
+        // catalog, not a per-user balance, so there is nothing to scope it by.
         var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), gameA);
         using var client = _factory.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Get, "/currencies");
@@ -60,8 +63,7 @@ public sealed class CurrencyEndpointsTests : IAsyncDisposable
             JsonOptions, TestContext.CurrentContext.CancellationToken);
 
         var ids = body!.Select(c => c.Id).ToArray();
-        ids.Should().Contain([platform.Id, gameACurrency.Id]);
-        ids.Should().NotContain(gameBCurrency.Id);
+        ids.Should().Contain([platform.Id, gameACurrency.Id, gameBCurrency.Id]);
         body!.Should().OnlyContain(c => c.Decimals == 2);
     }
 

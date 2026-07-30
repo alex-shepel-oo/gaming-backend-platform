@@ -5,15 +5,16 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { Subscription, timer } from 'rxjs';
+import { combineLatest, Subscription, timer } from 'rxjs';
 import { switchMap, takeWhile, tap } from 'rxjs/operators';
 import {
   Balance,
   Conversion,
   ConversionService,
   ConversionStatus,
-  GameSelectionService,
+  Currency,
   GamesService,
+  PublicGame,
   WalletService,
   isTerminalConversionStatus,
 } from 'shared';
@@ -65,15 +66,25 @@ export class Convert {
   private readonly conversionService = inject(ConversionService);
   private readonly walletService = inject(WalletService);
   private readonly gamesService = inject(GamesService);
-  private readonly gameSelection = inject(GameSelectionService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly ConversionStatus = ConversionStatus;
 
+  // Currencies the player actually holds -- you can only convert money you
+  // have, so "from" stays scoped to balances.
   protected readonly currencies = signal<Balance[]>([]);
   protected readonly currenciesLoading = signal(true);
   protected readonly currenciesError = signal(false);
-  protected readonly gameNames = signal<Map<string, string>>(new Map());
+
+  // The full currency catalog, independent of held balances -- a currency the
+  // player has never transacted in (zero balance) must still be reachable as
+  // a conversion target, which is exactly what "from" balances alone cannot
+  // offer.
+  protected readonly currencyCatalog = signal<Currency[]>([]);
+
+  // Games ordered with the player's own games (listMyGames) first, followed
+  // by any other public game (listPublicGames) not already in that set.
+  protected readonly orderedGames = signal<PublicGame[]>([]);
 
   private readonly insufficientBalanceValidator: ValidatorFn = (control) => {
     const fromCurrencyId = control.parent?.get('fromCurrencyId')?.value as string | undefined;
@@ -96,33 +107,35 @@ export class Convert {
   private readonly rawToCurrencyOptions = computed(() => {
     const fromCurrencyId = this.form.controls.fromCurrencyId.value;
 
-    return this.currencies().filter((currency) => currency.currencyId !== fromCurrencyId);
+    return this.currencyCatalog().filter((currency) => currency.id !== fromCurrencyId);
   });
 
-  // Grouping is real and data-driven (currency.gameId), not fabricated -- with
-  // today's single-game demo data it always collapses to "no choice needed"
-  // and the picker stays hidden. It activates on its own once a second game's
-  // currency exists in the player's balances.
+  // Only games that actually have a reachable currency (i.e. survive the
+  // fromCurrencyId exclusion above) are offered, ordered per orderedGames.
   protected readonly toGameOptions = computed(() => {
-    const gameIds = new Set(
+    const gameIdsWithCurrency = new Set(
       this.rawToCurrencyOptions()
         .filter((currency) => currency.gameId !== null)
         .map((currency) => currency.gameId as string),
     );
 
-    return Array.from(gameIds);
+    return this.orderedGames().filter((game) => gameIdsWithCurrency.has(game.id));
   });
 
   protected readonly showGamePicker = computed(() => this.toGameOptions().length > 1);
 
   protected readonly toCurrencyOptions = computed(() => {
-    if (!this.showGamePicker()) {
-      return this.rawToCurrencyOptions();
-    }
-
     const targetGameId = this.form.controls.targetGameId.value;
 
-    return this.rawToCurrencyOptions().filter((currency) => currency.gameId === targetGameId);
+    return this.rawToCurrencyOptions().filter((currency) => {
+      // Platform stays reachable regardless of which game is picked --
+      // widening reachable game currencies must not narrow this out.
+      if (currency.gameId === null) {
+        return true;
+      }
+
+      return !this.showGamePicker() || currency.gameId === targetGameId;
+    });
   });
 
   private pollSubscription: Subscription | null = null;
@@ -130,7 +143,7 @@ export class Convert {
   constructor() {
     this.destroyRef.onDestroy(() => this.pollSubscription?.unsubscribe());
 
-    this.walletService.getBalances(this.gameSelection.selected()?.id).subscribe({
+    this.walletService.getBalances().subscribe({
       next: (balances) => {
         this.currencies.set(balances);
         this.currenciesLoading.set(false);
@@ -142,17 +155,22 @@ export class Convert {
       },
     });
 
-    this.gamesService.listPublicGames().subscribe((games) => {
-      this.gameNames.set(new Map(games.map((game) => [game.id, game.name])));
+    this.walletService.getCurrencies().subscribe((currencies) => {
+      this.currencyCatalog.set(currencies);
     });
+
+    combineLatest([this.gamesService.listMyGames(), this.gamesService.listPublicGames()]).subscribe(
+      ([myGames, publicGames]) => {
+        const myGameIds = new Set(myGames.map((game) => game.id));
+        const otherGames = publicGames.filter((game) => !myGameIds.has(game.id));
+
+        this.orderedGames.set([...myGames, ...otherGames]);
+      },
+    );
 
     this.form.controls.fromCurrencyId.valueChanges.subscribe(() => {
       this.form.controls.fromAmount.updateValueAndValidity();
     });
-  }
-
-  protected gameNameFor(gameId: string): string {
-    return this.gameNames().get(gameId) ?? gameId;
   }
 
   protected statusLabel(status: ConversionStatus): string {
@@ -202,7 +220,7 @@ export class Convert {
 
           if (conversion.status === ConversionStatus.Completed) {
             this.walletService
-              .refreshBalances(this.gameSelection.selected()?.id)
+              .refreshBalances()
               .subscribe((balances) => this.currencies.set(balances));
           }
         }),
