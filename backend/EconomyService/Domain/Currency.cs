@@ -11,4 +11,5 @@ public sealed class Currency
     public Guid? GameId { get; init; }
     public required short Decimals { get; init; }
     public required DateTimeOffset CreatedAt { get; init; }
+    public string? IconUrl { get; set; }
 }

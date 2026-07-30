@@ -10,7 +10,12 @@
   <span class="shell-spacer"></span>
 
   @for (balance of platformBalances(); track balance.currencyId) {
-    <span class="shell-balance" title="Platform balance">{{ balance.amount }} {{ balance.currencyCode }}</span>
+    <span class="shell-balance" title="Platform balance">
+      @if (balance.iconUrl) {
+        <img class="shell-balance-icon" [src]="balance.iconUrl" [alt]="balance.currencyCode" />
+      }
+      {{ balance.amount }} {{ balance.currencyCode }}
+    </span>
   }
 
   @if (gameSelection.selected(); as game) {

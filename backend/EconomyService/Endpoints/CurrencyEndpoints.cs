@@ -18,7 +18,7 @@ public static class CurrencyEndpoints
         var currencies = await dbContext.Currencies
             .AsNoTracking()
             .OrderBy(c => c.Code)
-            .Select(c => new CurrencyDto(c.Id, c.Code, c.DisplayName, c.Scope, c.GameId, c.Decimals))
+            .Select(c => new CurrencyDto(c.Id, c.Code, c.DisplayName, c.Scope, c.GameId, c.Decimals, c.IconUrl))
             .ToArrayAsync(cancellationToken);
 
         return TypedResults.Ok(currencies);

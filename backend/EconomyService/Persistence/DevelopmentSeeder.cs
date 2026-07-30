@@ -41,6 +41,7 @@ public sealed class DevelopmentSeeder(EconomyDbContext dbContext, TimeProvider t
             GameId = null,
             Decimals = 2,
             CreatedAt = now,
+            IconUrl = "https://placehold.co/64x64?text=Credits",
         };
 
         var shooterGold = new Currency
@@ -52,6 +53,7 @@ public sealed class DevelopmentSeeder(EconomyDbContext dbContext, TimeProvider t
             GameId = DemoShooterGameId,
             Decimals = 2,
             CreatedAt = now,
+            IconUrl = "https://placehold.co/64x64?text=Gold",
         };
 
         var racerTokens = new Currency
@@ -63,6 +65,7 @@ public sealed class DevelopmentSeeder(EconomyDbContext dbContext, TimeProvider t
             GameId = DemoRacerGameId,
             Decimals = 2,
             CreatedAt = now,
+            IconUrl = "https://placehold.co/64x64?text=Tokens",
         };
 
         dbContext.Currencies.AddRange(platformCredits, shooterGold, racerTokens);
