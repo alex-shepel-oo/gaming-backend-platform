@@ -203,6 +203,70 @@ public sealed class ConversionEndpointsTests : IAsyncDisposable
     }
 
     [Test]
+    public async Task Create_ShooterGoldToPlatformUsingSeededReverseRate_Returns202AndSagaRunsToCompleted()
+    {
+        var (fromCurrencyId, toCurrencyId, rate) = await SeedAndReadReverseRateAsync("SHOOTER_GOLD", 0.01m);
+        var userId = Guid.NewGuid();
+        var token = TestTokenFactory.IssueAccessToken(userId);
+        await SeedPlatformBalanceAsync(userId, fromCurrencyId, 1000m, "conversion-reverse-seed-shooter-1");
+
+        var response = await PostAsync(
+            new ConvertRequest(fromCurrencyId, toCurrencyId, 500m), token, Guid.NewGuid().ToString());
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var body = await response.Content.ReadFromJsonAsync<ConversionDto>(JsonOptions, TestContext.CurrentContext.CancellationToken);
+        body!.Status.Should().Be(ConversionStatus.Started);
+        body.ToAmount.Should().Be(Math.Round(500m * rate, 2, MidpointRounding.ToEven));
+
+        var finalStatus = await PollUntilTerminalAsync(body.ConversionId, token);
+        finalStatus.Should().Be(ConversionStatus.Completed);
+    }
+
+    [Test]
+    public async Task Create_RacerTokensToPlatformUsingSeededReverseRate_Returns202AndSagaRunsToCompleted()
+    {
+        var (fromCurrencyId, toCurrencyId, rate) = await SeedAndReadReverseRateAsync("RACER_TOKENS", 0.025m);
+        var userId = Guid.NewGuid();
+        var token = TestTokenFactory.IssueAccessToken(userId);
+        await SeedPlatformBalanceAsync(userId, fromCurrencyId, 1000m, "conversion-reverse-seed-racer-1");
+
+        var response = await PostAsync(
+            new ConvertRequest(fromCurrencyId, toCurrencyId, 400m), token, Guid.NewGuid().ToString());
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var body = await response.Content.ReadFromJsonAsync<ConversionDto>(JsonOptions, TestContext.CurrentContext.CancellationToken);
+        body!.Status.Should().Be(ConversionStatus.Started);
+        body.ToAmount.Should().Be(Math.Round(400m * rate, 2, MidpointRounding.ToEven));
+
+        var finalStatus = await PollUntilTerminalAsync(body.ConversionId, token);
+        finalStatus.Should().Be(ConversionStatus.Completed);
+    }
+
+    // Seeds via the real DevelopmentSeeder (not the ad-hoc pair below) so this
+    // exercises the actual reverse ConversionRate rows it adds for game ->
+    // platform conversions, not a lookalike pair built just for the test.
+    private async Task<(Guid FromCurrencyId, Guid ToCurrencyId, decimal Rate)> SeedAndReadReverseRateAsync(
+        string fromCurrencyCode, decimal expectedRate)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var seeder = scope.ServiceProvider.GetRequiredService<DevelopmentSeeder>();
+        await seeder.SeedAsync(TestContext.CurrentContext.CancellationToken);
+
+        var dbContext = scope.ServiceProvider.GetRequiredService<EconomyDbContext>();
+        var fromCurrency = await dbContext.Currencies.SingleAsync(
+            c => c.Code == fromCurrencyCode, TestContext.CurrentContext.CancellationToken);
+        var platformCredits = await dbContext.Currencies.SingleAsync(
+            c => c.Code == "PLATFORM_CREDITS", TestContext.CurrentContext.CancellationToken);
+
+        var reverseRate = await dbContext.ConversionRates.SingleAsync(
+            r => r.FromCurrencyId == fromCurrency.Id && r.ToCurrencyId == platformCredits.Id,
+            TestContext.CurrentContext.CancellationToken);
+        reverseRate.Rate.Should().Be(expectedRate);
+
+        return (fromCurrency.Id, platformCredits.Id, reverseRate.Rate);
+    }
+
+    [Test]
     public async Task Cancel_Started_Returns200WithFailedStatus()
     {
         var (fromCurrencyId, toCurrencyId, _) = await SeedCurrencyPairAsync();

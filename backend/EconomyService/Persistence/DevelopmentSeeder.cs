@@ -86,6 +86,22 @@ public sealed class DevelopmentSeeder(EconomyDbContext dbContext, TimeProvider t
                 ToCurrencyId = racerTokens.Id,
                 Rate = 40m,
                 CreatedAt = now,
+            },
+            new ConversionRate
+            {
+                Id = Guid.CreateVersion7(),
+                FromCurrencyId = shooterGold.Id,
+                ToCurrencyId = platformCredits.Id,
+                Rate = 0.01m,
+                CreatedAt = now,
+            },
+            new ConversionRate
+            {
+                Id = Guid.CreateVersion7(),
+                FromCurrencyId = racerTokens.Id,
+                ToCurrencyId = platformCredits.Id,
+                Rate = 0.025m,
+                CreatedAt = now,
             });
 
         await dbContext.SaveChangesAsync(cancellationToken);
