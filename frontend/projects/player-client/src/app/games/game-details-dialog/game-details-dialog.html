@@ -1,10 +1,18 @@
 <h2 mat-dialog-title>{{ data.game.name }}</h2>
 
 <mat-dialog-content class="game-details-content">
+  @if (data.game.iconUrl) {
+    <img class="game-details-icon" [src]="data.game.iconUrl" [alt]="data.game.name" />
+  }
+
   <p class="game-details-slug">{{ data.game.slug }}</p>
 
   <h3>About this game</h3>
-  <app-not-available message="Game description isn't available yet" />
+  @if (data.game.description) {
+    <p class="game-details-description">{{ data.game.description }}</p>
+  } @else {
+    <app-not-available message="Game description isn't available yet" />
+  }
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">
