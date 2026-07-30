@@ -29,7 +29,7 @@ public static class BalanceEndpoints
 
         var response = balances
             .OrderBy(b => b.Currency!.Code)
-            .Select(b => new BalanceDto(b.CurrencyId, b.Currency!.Code, b.Currency.Scope, b.Currency.GameId, b.Amount))
+            .Select(b => new BalanceDto(b.CurrencyId, b.Currency!.Code, b.Currency.Scope, b.Currency.GameId, b.Amount, b.Currency.IconUrl))
             .ToArray();
 
         return TypedResults.Ok(response);

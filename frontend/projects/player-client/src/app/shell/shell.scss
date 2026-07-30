@@ -35,9 +35,19 @@
 }
 
 .shell-balance {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-xs);
   font: var(--mat-sys-label-large);
   font-weight: 600;
   white-space: nowrap;
+}
+
+.shell-balance-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .shell-game {

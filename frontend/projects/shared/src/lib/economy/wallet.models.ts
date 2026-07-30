@@ -21,6 +21,7 @@ export interface Balance {
   scope: CurrencyScope;
   gameId: string | null;
   amount: number;
+  iconUrl: string | null;
 }
 
 // Mirrors EconomyService.Contracts.Responses.CurrencyDto -- the read-only
@@ -34,6 +35,7 @@ export interface Currency {
   scope: CurrencyScope;
   gameId: string | null;
   decimals: number;
+  iconUrl: string | null;
 }
 
 export interface TransactionHistoryEntry {

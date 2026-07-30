@@ -110,6 +110,49 @@ public sealed class BalanceEndpointsTests : IAsyncDisposable
     }
 
     [Test]
+    public async Task GetMyBalances_CurrencyHasIconUrl_ReturnsIt()
+    {
+        var currency = await SeedCurrencyAsync(
+            "ICON_CURRENCY", CurrencyScope.Platform, null, iconUrl: "https://placehold.co/64x64?text=Icon");
+        var userId = Guid.NewGuid();
+        await SeedBalanceAsync(userId, currency.Id, 10m);
+
+        var token = TestTokenFactory.IssueAccessToken(userId);
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/balances/me");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.SendAsync(request, TestContext.CurrentContext.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<BalanceDto[]>(
+            JsonOptions, TestContext.CurrentContext.CancellationToken);
+
+        body!.Single(b => b.CurrencyId == currency.Id).IconUrl.Should().Be("https://placehold.co/64x64?text=Icon");
+    }
+
+    [Test]
+    public async Task GetMyBalances_CurrencyHasNoIconUrl_ReturnsNullNotAnError()
+    {
+        var currency = await SeedCurrencyAsync("NO_ICON_CURRENCY", CurrencyScope.Platform, null);
+        var userId = Guid.NewGuid();
+        await SeedBalanceAsync(userId, currency.Id, 10m);
+
+        var token = TestTokenFactory.IssueAccessToken(userId);
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/balances/me");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.SendAsync(request, TestContext.CurrentContext.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<BalanceDto[]>(
+            JsonOptions, TestContext.CurrentContext.CancellationToken);
+
+        body!.Single(b => b.CurrencyId == currency.Id).IconUrl.Should().BeNull();
+    }
+
+    [Test]
     public async Task GetMyBalances_NoAuthorizationHeader_Returns401()
     {
         using var client = _factory.CreateClient();
@@ -243,7 +286,7 @@ public sealed class BalanceEndpointsTests : IAsyncDisposable
         return await client.SendAsync(request, TestContext.CurrentContext.CancellationToken);
     }
 
-    private async Task<Currency> SeedCurrencyAsync(string code, CurrencyScope scope, Guid? gameId)
+    private async Task<Currency> SeedCurrencyAsync(string code, CurrencyScope scope, Guid? gameId, string? iconUrl = null)
     {
         await using var scope1 = _factory.Services.CreateAsyncScope();
         var dbContext = scope1.ServiceProvider.GetRequiredService<EconomyDbContext>();
@@ -257,6 +300,7 @@ public sealed class BalanceEndpointsTests : IAsyncDisposable
             GameId = gameId,
             Decimals = 2,
             CreatedAt = DateTimeOffset.UtcNow,
+            IconUrl = iconUrl,
         };
 
         dbContext.Currencies.Add(currency);

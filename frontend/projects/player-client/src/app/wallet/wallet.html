@@ -27,7 +27,12 @@
             <ul class="balance-list">
               @for (balance of platformBalances(); track balance.currencyId) {
                 <li>
-                  <span class="balance-code">{{ balance.currencyCode }}</span>
+                  <span class="balance-label">
+                    @if (balance.iconUrl) {
+                      <img class="currency-icon" [src]="balance.iconUrl" [alt]="balance.currencyCode" />
+                    }
+                    <span class="balance-code">{{ balance.currencyCode }}</span>
+                  </span>
                   <span class="balance-amount">{{ balance.amount }}</span>
                 </li>
               }
@@ -45,7 +50,12 @@
             <ul class="balance-list">
               @for (balance of group.balances; track balance.currencyId) {
                 <li>
-                  <span class="balance-code">{{ balance.currencyCode }}</span>
+                  <span class="balance-label">
+                    @if (balance.iconUrl) {
+                      <img class="currency-icon" [src]="balance.iconUrl" [alt]="balance.currencyCode" />
+                    }
+                    <span class="balance-code">{{ balance.currencyCode }}</span>
+                  </span>
                   <span class="balance-amount">{{ balance.amount }}</span>
                 </li>
               }

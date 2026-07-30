@@ -8,15 +8,36 @@ describe('Wallet', () => {
   let httpMock: HttpTestingController;
 
   const balances = [
-    { currencyId: 'platform-1', currencyCode: 'PLATFORM_CREDITS', scope: CurrencyScope.Platform, gameId: null, amount: 500 },
-    { currencyId: 'game-1-currency', currencyCode: 'SHOOTER_GOLD', scope: CurrencyScope.Game, gameId: 'game-1', amount: 10 },
-    { currencyId: 'game-2-currency', currencyCode: 'PUZZLE_GEMS', scope: CurrencyScope.Game, gameId: 'game-2', amount: 3 },
+    {
+      currencyId: 'platform-1',
+      currencyCode: 'PLATFORM_CREDITS',
+      scope: CurrencyScope.Platform,
+      gameId: null,
+      amount: 500,
+      iconUrl: 'https://placehold.co/64x64?text=Credits',
+    },
+    {
+      currencyId: 'game-1-currency',
+      currencyCode: 'SHOOTER_GOLD',
+      scope: CurrencyScope.Game,
+      gameId: 'game-1',
+      amount: 10,
+      iconUrl: null,
+    },
+    {
+      currencyId: 'game-2-currency',
+      currencyCode: 'PUZZLE_GEMS',
+      scope: CurrencyScope.Game,
+      gameId: 'game-2',
+      amount: 3,
+      iconUrl: null,
+    },
   ];
 
   const currencyCatalog = [
-    { id: 'platform-1', code: 'PLATFORM_CREDITS', displayName: 'Platform Credits', scope: CurrencyScope.Platform, gameId: null, decimals: 2 },
-    { id: 'game-1-currency', code: 'SHOOTER_GOLD', displayName: 'Shooter Gold', scope: CurrencyScope.Game, gameId: 'game-1', decimals: 2 },
-    { id: 'game-2-currency', code: 'PUZZLE_GEMS', displayName: 'Puzzle Gems', scope: CurrencyScope.Game, gameId: 'game-2', decimals: 2 },
+    { id: 'platform-1', code: 'PLATFORM_CREDITS', displayName: 'Platform Credits', scope: CurrencyScope.Platform, gameId: null, decimals: 2, iconUrl: null },
+    { id: 'game-1-currency', code: 'SHOOTER_GOLD', displayName: 'Shooter Gold', scope: CurrencyScope.Game, gameId: 'game-1', decimals: 2, iconUrl: null },
+    { id: 'game-2-currency', code: 'PUZZLE_GEMS', displayName: 'Puzzle Gems', scope: CurrencyScope.Game, gameId: 'game-2', decimals: 2, iconUrl: null },
   ];
 
   const publicGames = [
@@ -93,6 +114,15 @@ describe('Wallet', () => {
     expect(text).toContain('Demo Puzzle');
     expect(text).not.toContain('platform-1');
     expect(text).toContain('Grant');
+  });
+
+  it('shows a currency icon when iconUrl is present, and no image at all when it is null', () => {
+    const fixture = createWallet(balances, { items: [], page: 1, pageSize: 20, totalCount: 0 });
+
+    const images = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('img.currency-icon'));
+    expect(images).toHaveLength(1);
+    expect(images[0].getAttribute('src')).toBe('https://placehold.co/64x64?text=Credits');
+    expect(images[0].getAttribute('alt')).toBe('PLATFORM_CREDITS');
   });
 
   it('shows an empty state when there are no balances or transactions yet', () => {

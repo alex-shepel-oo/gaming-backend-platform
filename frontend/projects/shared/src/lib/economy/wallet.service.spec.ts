@@ -10,7 +10,14 @@ describe('WalletService balances snapshot', () => {
   let service: WalletService;
 
   const balances = [
-    { currencyId: 'platform-1', currencyCode: 'PLATFORM_CREDITS', scope: CurrencyScope.Platform, gameId: null, amount: 500 },
+    {
+      currencyId: 'platform-1',
+      currencyCode: 'PLATFORM_CREDITS',
+      scope: CurrencyScope.Platform,
+      gameId: null,
+      amount: 500,
+      iconUrl: 'https://placehold.co/64x64?text=Credits',
+    },
   ];
 
   beforeEach(() => {
@@ -50,7 +57,7 @@ describe('WalletService balances snapshot', () => {
   it('applyBalanceChange updates the matching currency and leaves others untouched', () => {
     const twoBalances = [
       ...balances,
-      { currencyId: 'game-1', currencyCode: 'GEMS', scope: CurrencyScope.Game, gameId: 'game-a', amount: 10 },
+      { currencyId: 'game-1', currencyCode: 'GEMS', scope: CurrencyScope.Game, gameId: 'game-a', amount: 10, iconUrl: null },
     ];
 
     service.refreshBalances().subscribe();
@@ -74,8 +81,8 @@ describe('WalletService balances snapshot', () => {
 
   it('getCurrencies fetches the full currency catalog', () => {
     const currencies = [
-      { id: 'platform-1', code: 'PLATFORM_CREDITS', displayName: 'Platform Credits', scope: CurrencyScope.Platform, gameId: null, decimals: 2 },
-      { id: 'game-1', code: 'GEMS', displayName: 'Gems', scope: CurrencyScope.Game, gameId: 'game-a', decimals: 2 },
+      { id: 'platform-1', code: 'PLATFORM_CREDITS', displayName: 'Platform Credits', scope: CurrencyScope.Platform, gameId: null, decimals: 2, iconUrl: null },
+      { id: 'game-1', code: 'GEMS', displayName: 'Gems', scope: CurrencyScope.Game, gameId: 'game-a', decimals: 2, iconUrl: null },
     ];
 
     let result: unknown;
