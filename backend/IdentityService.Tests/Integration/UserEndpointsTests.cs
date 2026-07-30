@@ -242,12 +242,30 @@ public sealed class UserEndpointsTests(IdentityApiFactory factory) : IClassFixtu
     {
         var game = await SeedGameAsync();
         var moderator = await SeedUserAsync(game.Id, PlatformRole.Moderator);
+        await SeedRolePermissionsAsync(PlatformRole.Moderator, game.Id, Permissions.GamePlayersModerate);
         var (client, accessToken) = await LoginAsync(moderator.Id, game.Id);
 
         var response = await GetAuthorizedAsync(
-            client, $"/api/identity/users/{Guid.NewGuid()}", accessToken);
+            client, $"/api/identity/users/{Guid.NewGuid()}?gameId={game.Id}", accessToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GetUserById_PlatformScopedCaller_CanFetchUserInAnyGame()
+    {
+        var game = await SeedGameAsync();
+        var platformAdmin = await SeedUserAsync(gameId: null, PlatformRole.Admin);
+        var gamePlayer = await SeedUserAsync(game.Id, PlatformRole.Player, displayName: "Grace Hopper");
+        await SeedRolePermissionsAsync(PlatformRole.Admin, gameId: null, Permissions.PlatformUsersRead);
+        var (client, accessToken) = await LoginAsync(platformAdmin.Id, gameId: null);
+
+        var response = await GetAuthorizedAsync(client, $"/api/identity/users/{gamePlayer.Id}?gameId={game.Id}", accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<UserDto>(JsonOptions, TestContext.Current.CancellationToken);
+        body!.Id.Should().Be(gamePlayer.Id);
+        body.GameId.Should().Be(game.Id);
     }
 
     [Fact]
@@ -257,6 +275,7 @@ public sealed class UserEndpointsTests(IdentityApiFactory factory) : IClassFixtu
         var moderator = await SeedUserAsync(game.Id, PlatformRole.Moderator);
         var match = await SeedUserAsync(game.Id, PlatformRole.Player, displayName: "Grace Hopper");
         await SeedUserAsync(game.Id, PlatformRole.Player, displayName: "Someone Else");
+        await SeedRolePermissionsAsync(PlatformRole.Moderator, game.Id, Permissions.GamePlayersModerate);
         var (client, accessToken) = await LoginAsync(moderator.Id, game.Id);
 
         var response = await GetAuthorizedAsync(client, "/api/identity/users?search=grace", accessToken);
@@ -272,7 +291,9 @@ public sealed class UserEndpointsTests(IdentityApiFactory factory) : IClassFixtu
     {
         var game = await SeedGameAsync();
         await SeedUserAsync(game.Id, PlatformRole.Admin, displayName: "Grace Hopper");
-        var (client, accessToken) = await LoginAsync((await SeedUserAsync(game.Id, PlatformRole.Moderator)).Id, game.Id);
+        var moderator = await SeedUserAsync(game.Id, PlatformRole.Moderator);
+        await SeedRolePermissionsAsync(PlatformRole.Moderator, game.Id, Permissions.GamePlayersModerate);
+        var (client, accessToken) = await LoginAsync(moderator.Id, game.Id);
 
         var response = await GetAuthorizedAsync(client, "/api/identity/users?search=grace", accessToken);
 
@@ -294,6 +315,7 @@ public sealed class UserEndpointsTests(IdentityApiFactory factory) : IClassFixtu
             await SeedUserAsync(game.Id, PlatformRole.Player);
         }
 
+        await SeedRolePermissionsAsync(PlatformRole.Moderator, game.Id, Permissions.GamePlayersModerate);
         var (client, accessToken) = await LoginAsync(moderator.Id, game.Id);
 
         var response = await GetAuthorizedAsync(client, "/api/identity/users?page=1&pageSize=2", accessToken);
@@ -304,6 +326,25 @@ public sealed class UserEndpointsTests(IdentityApiFactory factory) : IClassFixtu
         body.Page.Should().Be(1);
         body.PageSize.Should().Be(2);
         body.TotalCount.Should().Be(4);
+    }
+
+    [Fact]
+    public async Task ListUsers_PlatformScopedCaller_SeesUsersAcrossGames()
+    {
+        var gameA = await SeedGameAsync();
+        var gameB = await SeedGameAsync();
+        var platformAdmin = await SeedUserAsync(gameId: null, PlatformRole.Admin);
+        var playerA = await SeedUserAsync(gameA.Id, PlatformRole.Player, displayName: "Player From Game A");
+        var playerB = await SeedUserAsync(gameB.Id, PlatformRole.Player, displayName: "Player From Game B");
+        await SeedRolePermissionsAsync(PlatformRole.Admin, gameId: null, Permissions.PlatformUsersRead);
+        var (client, accessToken) = await LoginAsync(platformAdmin.Id, gameId: null);
+
+        var response = await GetAuthorizedAsync(client, "/api/identity/users?pageSize=100", accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<PagedResult<UserSummaryDto>>(
+            JsonOptions, TestContext.Current.CancellationToken);
+        body!.Items.Select(u => u.Id).Should().Contain([playerA.Id, playerB.Id]);
     }
 
     [Fact]

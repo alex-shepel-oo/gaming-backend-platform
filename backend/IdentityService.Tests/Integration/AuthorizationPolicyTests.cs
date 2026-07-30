@@ -58,9 +58,10 @@ public sealed class AuthorizationPolicyTests(IdentityApiFactory factory) : IClas
     {
         var game = await SeedGameAsync();
         var moderator = await SeedUserAsync(game.Id, PlatformRole.Moderator);
+        await SeedRolePermissionsAsync(PlatformRole.Moderator, game.Id, Permissions.GamePlayersModerate);
         var (client, accessToken) = await LoginAsync(moderator.Id, game.Id);
 
-        var response = await GetAuthorizedAsync(client, $"/api/identity/users/{moderator.Id}", accessToken);
+        var response = await GetAuthorizedAsync(client, $"/api/identity/users/{moderator.Id}?gameId={game.Id}", accessToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -174,5 +175,23 @@ public sealed class AuthorizationPolicyTests(IdentityApiFactory factory) : IClas
         await dbContext.SaveChangesAsync();
 
         return user;
+    }
+
+    private async Task SeedRolePermissionsAsync(PlatformRole role, Guid? gameId, params string[] permissions)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var now = factory.TimeProvider.GetUtcNow();
+
+        dbContext.RolePermissions.AddRange(permissions.Select(permission => new RolePermission
+        {
+            Id = Guid.CreateVersion7(),
+            Role = role,
+            GameId = gameId,
+            Permission = permission,
+            GrantedAt = now,
+        }));
+
+        await dbContext.SaveChangesAsync();
     }
 }

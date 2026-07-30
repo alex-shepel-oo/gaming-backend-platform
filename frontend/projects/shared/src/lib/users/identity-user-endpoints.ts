@@ -4,7 +4,8 @@ export const IdentityUserEndpoints = {
     if (search) params.set('search', search);
     return `/api/admin/identity/users?${params.toString()}`;
   },
-  detail: (userId: string) => `/api/admin/identity/users/${userId}`,
+  detail: (userId: string, gameId?: string | null) =>
+    `/api/admin/identity/users/${userId}${gameId ? `?gameId=${gameId}` : ''}`,
   role: (userId: string) => `/api/admin/identity/users/${userId}/roles`,
   revokeSessions: (userId: string, gameId?: string) =>
     `/api/admin/identity/users/${userId}/revoke-sessions${gameId ? `?gameId=${gameId}` : ''}`,

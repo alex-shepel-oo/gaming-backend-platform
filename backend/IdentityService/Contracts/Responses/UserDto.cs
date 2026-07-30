@@ -7,6 +7,7 @@ public sealed record UserDto(
     string Email,
     string DisplayName,
     Guid? GameId,
+    string? GameSlug,
     PlatformRole? Role,
     DateTimeOffset CreatedAt,
     string? AvatarUrl,

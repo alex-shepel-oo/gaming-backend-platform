@@ -16,10 +16,11 @@ type Role = (typeof ROLES)[number];
 const PAGE_SIZE = 20;
 
 // The users list/detail endpoints are scoped server-side to the caller's own
-// session -- platform-wide when scope=platform, one game's roster when
-// scope=game (UserEndpoints filters by currentUser.GameId, never a
-// caller-supplied one). This is not a cross-game directory, so the UI frames
-// itself around "your current scope" rather than a global search.
+// session: one game's roster when scope=game, every game's roster when
+// scope=platform. A platform-scoped caller therefore sees rows spanning many
+// games in the same paginated list, which is why each row carries its own
+// gameId/gameSlug -- selecting a row, assigning its role, or revoking its
+// sessions must all act on that row's game, not the caller's own.
 @Component({
   selector: 'admin-user-management',
   imports: [
@@ -42,7 +43,7 @@ export class UserManagement {
 
   protected readonly roles = ROLES;
   protected readonly pageSize = PAGE_SIZE;
-  protected readonly displayedColumns = ['email', 'displayName', 'role', 'createdAt', 'lastLoginAt'];
+  protected readonly displayedColumns = ['email', 'displayName', 'role', 'game', 'createdAt', 'lastLoginAt'];
 
   protected readonly scopeLabel = computed(() => (this.tokenStore.claims()?.gameId ? 'this game' : 'the platform'));
 
@@ -114,7 +115,7 @@ export class UserManagement {
     this.assignError.set(false);
     this.revokeError.set(false);
     this.revoked.set(false);
-    this.loadDetail(user.id);
+    this.loadDetail(user.id, user.gameId);
   }
 
   protected onRoleChange(change: MatSelectChange): void {
@@ -131,14 +132,14 @@ export class UserManagement {
     this.assigning.set(true);
     this.assignError.set(false);
 
-    const gameId = this.tokenStore.claims()?.gameId ?? undefined;
+    const gameId = this.selectedUser()?.gameId ?? undefined;
 
     this.userManagementService.assignRole(userId, gameId, this.selectedRole()).subscribe({
       next: () => {
         this.assigning.set(false);
         // The assign response is UserRoleDto (no email/displayName) -- refetch
         // the full record so the detail view doesn't go stale or lose fields.
-        this.loadDetail(userId);
+        this.loadDetail(userId, gameId);
       },
       error: () => {
         this.assigning.set(false);
@@ -158,7 +159,7 @@ export class UserManagement {
     this.revokeError.set(false);
     this.revoked.set(false);
 
-    this.userManagementService.revokeSessions(userId, this.tokenStore.claims()?.gameId ?? undefined).subscribe({
+    this.userManagementService.revokeSessions(userId, this.selectedUser()?.gameId ?? undefined).subscribe({
       next: () => {
         this.revoking.set(false);
         this.revoked.set(true);
@@ -187,11 +188,11 @@ export class UserManagement {
     });
   }
 
-  private loadDetail(userId: string): void {
+  private loadDetail(userId: string, gameId?: string | null): void {
     this.detailLoading.set(true);
     this.detailError.set(false);
 
-    this.userManagementService.getUser(userId).subscribe({
+    this.userManagementService.getUser(userId, gameId).subscribe({
       next: (user) => {
         this.selectedUser.set(user);
         this.selectedRole.set((user.role as Role) ?? 'Player');
