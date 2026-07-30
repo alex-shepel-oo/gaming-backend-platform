@@ -31,63 +31,90 @@
   </mat-card-content>
 </mat-card>
 
-@if (loading()) {
-  <div class="state-panel">
-    <mat-spinner diameter="32" />
-    <p>Loading games…</p>
-  </div>
-} @else if (loadError()) {
-  <div class="state-panel">
-    <p class="state-error" role="alert">We couldn't load the games list. Please try again later.</p>
-  </div>
-} @else {
-  @if (saveError()) {
-    <p class="state-error" role="alert">We couldn't save that change.</p>
-  }
+<mat-sidenav-container class="page-container" autosize>
+  <mat-sidenav
+    class="edit-sidenav"
+    mode="over"
+    position="end"
+    [autoFocus]="false"
+    [opened]="editingId() !== null"
+    (closedStart)="cancelEdit()"
+  >
+    @if (editingGame(); as game) {
+      <div class="detail-header">
+        <h2>Edit {{ game.slug }}</h2>
+        <button type="button" mat-icon-button aria-label="Close" (click)="cancelEdit()">
+          <mat-icon aria-hidden="true">close</mat-icon>
+        </button>
+      </div>
 
-  <table mat-table [dataSource]="games()" class="games-table">
-    <ng-container matColumnDef="slug">
-      <th mat-header-cell *matHeaderCellDef>Slug</th>
-      <td mat-cell *matCellDef="let game">{{ game.slug }}</td>
-    </ng-container>
+      <form class="edit-form" [formGroup]="editForm" (ngSubmit)="saveEdit(game.id)">
+        <mat-form-field appearance="outline">
+          <mat-label>Name</mat-label>
+          <input matInput formControlName="name" required />
+        </mat-form-field>
 
-    <ng-container matColumnDef="name">
-      <th mat-header-cell *matHeaderCellDef>Name</th>
-      <td mat-cell *matCellDef="let game">
-        @if (editingId() === game.id) {
-          <mat-form-field appearance="outline" class="inline-field">
-            <input matInput [formControl]="editForm.controls.name" />
-          </mat-form-field>
-        } @else {
-          {{ game.name }}
+        <mat-checkbox formControlName="isActive">Active</mat-checkbox>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Description</mat-label>
+          <textarea matInput formControlName="description" rows="4"></textarea>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Icon URL</mat-label>
+          <input matInput formControlName="iconUrl" placeholder="https://…" />
+        </mat-form-field>
+
+        @if (saveError()) {
+          <p class="state-error" role="alert">We couldn't save that change.</p>
         }
-      </td>
-    </ng-container>
 
-    <ng-container matColumnDef="isActive">
-      <th mat-header-cell *matHeaderCellDef>Active</th>
-      <td mat-cell *matCellDef="let game">
-        @if (editingId() === game.id) {
-          <mat-checkbox [formControl]="editForm.controls.isActive">Active</mat-checkbox>
-        } @else {
-          {{ game.isActive ? 'Yes' : 'No' }}
-        }
-      </td>
-    </ng-container>
-
-    <ng-container matColumnDef="actions">
-      <th mat-header-cell *matHeaderCellDef>Actions</th>
-      <td mat-cell *matCellDef="let game">
-        @if (editingId() === game.id) {
-          <button type="button" mat-button (click)="saveEdit(game.id)">Save</button>
+        <div class="edit-actions">
+          <button type="submit" mat-flat-button color="primary" [disabled]="editForm.invalid">Save</button>
           <button type="button" mat-button (click)="cancelEdit()">Cancel</button>
-        } @else {
-          <button type="button" mat-button (click)="startEdit(game)">Edit</button>
-        }
-      </td>
-    </ng-container>
+        </div>
+      </form>
+    }
+  </mat-sidenav>
 
-    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-    <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
-  </table>
-}
+  <mat-sidenav-content>
+    @if (loading()) {
+      <div class="state-panel">
+        <mat-spinner diameter="32" />
+        <p>Loading games…</p>
+      </div>
+    } @else if (loadError()) {
+      <div class="state-panel">
+        <p class="state-error" role="alert">We couldn't load the games list. Please try again later.</p>
+      </div>
+    } @else {
+      <table mat-table [dataSource]="games()" class="games-table">
+        <ng-container matColumnDef="slug">
+          <th mat-header-cell *matHeaderCellDef>Slug</th>
+          <td mat-cell *matCellDef="let game">{{ game.slug }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="name">
+          <th mat-header-cell *matHeaderCellDef>Name</th>
+          <td mat-cell *matCellDef="let game">{{ game.name }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="isActive">
+          <th mat-header-cell *matHeaderCellDef>Active</th>
+          <td mat-cell *matCellDef="let game">{{ game.isActive ? 'Yes' : 'No' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef>Actions</th>
+          <td mat-cell *matCellDef="let game">
+            <button type="button" mat-button (click)="startEdit(game)">Edit</button>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+      </table>
+    }
+  </mat-sidenav-content>
+</mat-sidenav-container>

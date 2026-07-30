@@ -1,11 +1,13 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatTableModule } from '@angular/material/table';
 import { Game, GamesService } from 'shared';
 
@@ -22,8 +24,10 @@ import { Game, GamesService } from 'shared';
     MatCardModule,
     MatCheckboxModule,
     MatFormFieldModule,
+    MatIconModule,
     MatInputModule,
     MatProgressSpinnerModule,
+    MatSidenavModule,
     MatTableModule,
   ],
   templateUrl: './games-management.html',
@@ -47,9 +51,12 @@ export class GamesManagement {
   protected readonly createError = signal(false);
 
   protected readonly editingId = signal<string | null>(null);
+  protected readonly editingGame = computed(() => this.games().find((game) => game.id === this.editingId()) ?? null);
   protected readonly editForm = this.formBuilder.nonNullable.group({
     name: ['', Validators.required],
     isActive: [true],
+    description: [''],
+    iconUrl: [''],
   });
   protected readonly saveError = signal(false);
 
@@ -97,7 +104,12 @@ export class GamesManagement {
   protected startEdit(game: Game): void {
     this.editingId.set(game.id);
     this.saveError.set(false);
-    this.editForm.setValue({ name: game.name, isActive: game.isActive });
+    this.editForm.setValue({
+      name: game.name,
+      isActive: game.isActive,
+      description: game.description ?? '',
+      iconUrl: game.iconUrl ?? '',
+    });
   }
 
   protected cancelEdit(): void {

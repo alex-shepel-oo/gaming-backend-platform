@@ -78,7 +78,56 @@ describe('GamesManagement', () => {
 
     const request = httpMock.expectOne(IdentityGameEndpoints.game('game-1'));
     expect(request.request.method).toBe('PATCH');
-    expect(request.request.body).toEqual({ name: 'Space Invaders', isActive: true });
+    expect(request.request.body).toEqual({ name: 'Space Invaders', isActive: true, description: '', iconUrl: '' });
     request.flush({ ...games[0], isActive: true });
+  });
+
+  it('editing a game round-trips description and iconUrl through the save endpoint', () => {
+    const fixture = TestBed.createComponent(GamesManagement);
+    httpMock.expectOne(IdentityGameEndpoints.allGames).flush(games);
+    fixture.detectChanges();
+
+    const editButton = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Edit'),
+    ) as HTMLButtonElement;
+    editButton.click();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    component['editForm'].controls.description.setValue('Classic arcade shooter');
+    component['editForm'].controls.iconUrl.setValue('https://example.com/icon.png');
+
+    const saveButton = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Save'),
+    ) as HTMLButtonElement;
+    saveButton.click();
+
+    const request = httpMock.expectOne(IdentityGameEndpoints.game('game-1'));
+    expect(request.request.method).toBe('PATCH');
+    expect(request.request.body).toEqual({
+      name: 'Space Invaders',
+      isActive: true,
+      description: 'Classic arcade shooter',
+      iconUrl: 'https://example.com/icon.png',
+    });
+
+    request.flush({
+      ...games[0],
+      description: 'Classic arcade shooter',
+      iconUrl: 'https://example.com/icon.png',
+    });
+    fixture.detectChanges();
+
+    // The panel closes on save; reopening it re-populates the form from the
+    // updated game in the list, which proves the new values actually stuck
+    // rather than just having been sent on the wire.
+    const reopenButton = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Edit'),
+    ) as HTMLButtonElement;
+    reopenButton.click();
+    fixture.detectChanges();
+
+    expect(component['editForm'].controls.description.value).toBe('Classic arcade shooter');
+    expect(component['editForm'].controls.iconUrl.value).toBe('https://example.com/icon.png');
   });
 });

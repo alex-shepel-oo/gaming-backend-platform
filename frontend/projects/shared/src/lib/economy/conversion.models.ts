@@ -31,3 +31,10 @@ export interface ConvertRequest {
   toCurrencyId: string;
   fromAmount: number;
 }
+
+// Mirrors EconomyService.Contracts.Responses.ConversionRateDto.
+export interface ConversionRateDto {
+  fromCurrencyId: string;
+  toCurrencyId: string;
+  rate: number;
+}

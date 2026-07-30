@@ -1,8 +1,13 @@
 :host {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
   max-width: var(--app-shell-max-width);
+  width: 100%;
   margin: 0 auto;
   padding: var(--app-space-lg);
+  box-sizing: border-box;
 }
 
 .create-card {
@@ -16,11 +21,38 @@
   flex-wrap: wrap;
 }
 
-.games-table {
-  width: 100%;
+.page-container {
+  flex: 1;
+  min-height: 0;
+  background: transparent;
 }
 
-.inline-field {
+.edit-sidenav {
+  width: 100%;
+  max-width: 400px;
+  padding: var(--app-space-lg);
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--app-space-md);
+}
+
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--app-space-sm);
+}
+
+.edit-actions {
+  display: flex;
+  gap: var(--app-space-sm);
+}
+
+.games-table {
   width: 100%;
 }
 

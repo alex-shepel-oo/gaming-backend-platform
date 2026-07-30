@@ -1,81 +1,20 @@
-<h1>Users in {{ scopeLabel() }}</h1>
+<mat-sidenav-container class="page-container" autosize>
+  <mat-sidenav
+    class="detail-sidenav"
+    mode="over"
+    position="end"
+    [autoFocus]="false"
+    [opened]="selectedUserId() !== null"
+    (closedStart)="closeDetail()"
+  >
+    @if (selectedUserId()) {
+      <div class="detail-header">
+        <h2>User detail</h2>
+        <button type="button" mat-icon-button aria-label="Close" (click)="closeDetail()">
+          <mat-icon aria-hidden="true">close</mat-icon>
+        </button>
+      </div>
 
-<mat-form-field appearance="outline" class="search-field">
-  <mat-label>Search</mat-label>
-  <input
-    matInput
-    [value]="search()"
-    (input)="onSearch($any($event.target).value)"
-    placeholder="Email or display name"
-  />
-</mat-form-field>
-
-@if (loading()) {
-  <div class="state-panel">
-    <mat-spinner diameter="32" />
-    <p>Loading users…</p>
-  </div>
-} @else if (loadError()) {
-  <div class="state-panel">
-    <p class="state-error" role="alert">We couldn't load the users list. Please try again later.</p>
-  </div>
-} @else {
-  <table mat-table [dataSource]="users()" class="users-table">
-    <ng-container matColumnDef="email">
-      <th mat-header-cell *matHeaderCellDef>Email</th>
-      <td mat-cell *matCellDef="let user">
-        <button type="button" mat-button (click)="selectUser(user)">{{ user.email }}</button>
-      </td>
-    </ng-container>
-
-    <ng-container matColumnDef="displayName">
-      <th mat-header-cell *matHeaderCellDef>Display name</th>
-      <td mat-cell *matCellDef="let user">{{ user.displayName }}</td>
-    </ng-container>
-
-    <ng-container matColumnDef="role">
-      <th mat-header-cell *matHeaderCellDef>Role</th>
-      <td mat-cell *matCellDef="let user">{{ user.role }}</td>
-    </ng-container>
-
-    <ng-container matColumnDef="game">
-      <th mat-header-cell *matHeaderCellDef>Game</th>
-      <td mat-cell *matCellDef="let user">{{ user.gameSlug ?? 'platform-wide' }}</td>
-    </ng-container>
-
-    <ng-container matColumnDef="createdAt">
-      <th mat-header-cell *matHeaderCellDef>Created</th>
-      <td mat-cell *matCellDef="let user">{{ user.createdAt }}</td>
-    </ng-container>
-
-    <ng-container matColumnDef="lastLoginAt">
-      <th mat-header-cell *matHeaderCellDef>Last login</th>
-      <td mat-cell *matCellDef="let user">
-        @if (user.lastLoginAt) {
-          {{ user.lastLoginAt | date }}
-        } @else {
-          Never
-        }
-      </td>
-    </ng-container>
-
-    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-    <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
-  </table>
-
-  <div class="pagination">
-    <button type="button" mat-button [disabled]="page() === 1" (click)="previousPage()">Previous</button>
-    <span>Page {{ page() }}</span>
-    <button type="button" mat-button [disabled]="page() * pageSize >= totalCount()" (click)="nextPage()">Next</button>
-  </div>
-}
-
-@if (selectedUserId()) {
-  <mat-card class="detail-card">
-    <mat-card-header>
-      <mat-card-title>User detail</mat-card-title>
-    </mat-card-header>
-    <mat-card-content>
       @if (detailLoading()) {
         <div class="state-panel">
           <mat-spinner diameter="24" />
@@ -128,6 +67,80 @@
           }
         }
       }
-    </mat-card-content>
-  </mat-card>
-}
+    }
+  </mat-sidenav>
+
+  <mat-sidenav-content>
+    <h1>Users in {{ scopeLabel() }}</h1>
+
+    <mat-form-field appearance="outline" class="search-field">
+      <mat-label>Search</mat-label>
+      <input
+        matInput
+        [value]="search()"
+        (input)="onSearch($any($event.target).value)"
+        placeholder="Email or display name"
+      />
+    </mat-form-field>
+
+    @if (loading()) {
+      <div class="state-panel">
+        <mat-spinner diameter="32" />
+        <p>Loading users…</p>
+      </div>
+    } @else if (loadError()) {
+      <div class="state-panel">
+        <p class="state-error" role="alert">We couldn't load the users list. Please try again later.</p>
+      </div>
+    } @else {
+      <table mat-table [dataSource]="users()" class="users-table">
+        <ng-container matColumnDef="email">
+          <th mat-header-cell *matHeaderCellDef>Email</th>
+          <td mat-cell *matCellDef="let user">
+            <button type="button" mat-button (click)="selectUser(user)">{{ user.email }}</button>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="displayName">
+          <th mat-header-cell *matHeaderCellDef>Display name</th>
+          <td mat-cell *matCellDef="let user">{{ user.displayName }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="role">
+          <th mat-header-cell *matHeaderCellDef>Role</th>
+          <td mat-cell *matCellDef="let user">{{ user.role }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="game">
+          <th mat-header-cell *matHeaderCellDef>Game</th>
+          <td mat-cell *matCellDef="let user">{{ user.gameSlug ?? 'platform-wide' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="createdAt">
+          <th mat-header-cell *matHeaderCellDef>Created</th>
+          <td mat-cell *matCellDef="let user">{{ user.createdAt }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="lastLoginAt">
+          <th mat-header-cell *matHeaderCellDef>Last login</th>
+          <td mat-cell *matCellDef="let user">
+            @if (user.lastLoginAt) {
+              {{ user.lastLoginAt | date }}
+            } @else {
+              Never
+            }
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+      </table>
+
+      <div class="pagination">
+        <button type="button" mat-button [disabled]="page() === 1" (click)="previousPage()">Previous</button>
+        <span>Page {{ page() }}</span>
+        <button type="button" mat-button [disabled]="page() * pageSize >= totalCount()" (click)="nextPage()">Next</button>
+      </div>
+    }
+  </mat-sidenav-content>
+</mat-sidenav-container>

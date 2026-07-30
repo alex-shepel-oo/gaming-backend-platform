@@ -1,5 +1,30 @@
 :host {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.page-container {
+  flex: 1;
+  min-height: 0;
+  background: transparent;
+}
+
+.detail-sidenav {
+  width: 100%;
+  max-width: 400px;
+  padding: var(--app-space-lg);
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--app-space-md);
+}
+
+mat-sidenav-content {
   max-width: var(--app-shell-max-width);
   margin: 0 auto;
   padding: var(--app-space-lg);
@@ -20,10 +45,6 @@
   align-items: center;
   gap: var(--app-space-sm);
   margin-top: var(--app-space-sm);
-}
-
-.detail-card {
-  margin-top: var(--app-space-lg);
 }
 
 .assign-row {
