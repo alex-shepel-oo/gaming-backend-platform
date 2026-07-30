@@ -172,4 +172,15 @@ describe('AdminShell', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Users');
   });
+
+  it('wraps the nav links in their own nav element, so the toolbar can wrap it as one unit', () => {
+    tokenStore.set(fakeAccessToken('platform', ['platform.games.manage', 'platform.roles.manage']));
+
+    const fixture = TestBed.createComponent(AdminShell);
+    fixture.detectChanges();
+
+    const nav = (fixture.nativeElement as HTMLElement).querySelector('nav.shell-nav');
+    expect(nav).not.toBeNull();
+    expect(nav?.querySelectorAll('a').length).toBeGreaterThan(0);
+  });
 });

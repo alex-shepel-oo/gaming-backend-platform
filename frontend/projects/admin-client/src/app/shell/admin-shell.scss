@@ -6,11 +6,39 @@
 
 .shell-toolbar {
   display: flex;
+  position: sticky;
+  top: 0;
+  z-index: 10;
   gap: var(--app-space-md);
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+
+  // Below ~1100px the brand + nav + identity + logout no longer fit on one
+  // row. Wrap onto multiple full-width rows below that point instead of
+  // forcing horizontal page scroll -- and instead of letting .shell-nav
+  // (the only item with room to give, via its own internal wrap) silently
+  // take the hit and stack its links into an ugly vertical pile.
+  @media (max-width: 1099px) {
+    flex-wrap: wrap;
+    height: auto;
+    padding-block: var(--app-space-sm);
+  }
 }
 
 .shell-brand {
   font-weight: 500;
+  white-space: nowrap;
+}
+
+.shell-nav {
+  display: flex;
+  gap: var(--app-space-xs);
+  flex-wrap: wrap;
+
+  // Never let the toolbar's flexbox shrink this below its natural width to
+  // satisfy a tight row -- that's what would let Games/Roles/My Game/Users
+  // collapse into their own internal wrap (stacked on top of each other)
+  // instead of the toolbar just wrapping the whole nav onto its own row.
+  flex-shrink: 0;
 }
 
 .shell-spacer {
@@ -19,6 +47,7 @@
 
 .shell-identity {
   font: var(--mat-sys-body-medium);
+  white-space: nowrap;
 }
 
 .shell-content {
