@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule, ValidatorFn, Validators } from '@angu
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -25,6 +26,7 @@ function classifyResetError(error: unknown): ResetError {
     ReactiveFormsModule,
     MatCardModule,
     MatFormFieldModule,
+    MatIconModule,
     MatInputModule,
     MatButtonModule,
     MatProgressSpinnerModule,
@@ -61,6 +63,17 @@ export class ResetPassword {
   protected readonly resetSubmitting = signal(false);
   protected readonly resetSucceeded = signal(false);
   protected readonly resetError = signal<ResetError | null>(null);
+
+  protected readonly hideNewPassword = signal(true);
+  protected readonly hideConfirmPassword = signal(true);
+
+  protected toggleNewPasswordVisibility(): void {
+    this.hideNewPassword.set(!this.hideNewPassword());
+  }
+
+  protected toggleConfirmPasswordVisibility(): void {
+    this.hideConfirmPassword.set(!this.hideConfirmPassword());
+  }
 
   constructor() {
     this.resetForm.controls.newPassword.valueChanges.subscribe(() =>

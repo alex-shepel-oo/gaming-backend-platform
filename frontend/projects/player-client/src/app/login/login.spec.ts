@@ -90,4 +90,27 @@ describe('Login', () => {
     expect(text).toContain('confirm your email');
     expect(text).not.toContain('Invalid email or password.');
   });
+
+  it('toggles the password field between hidden and visible', () => {
+    const fixture = TestBed.createComponent(Login);
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    const passwordInput = element.querySelector('input[autocomplete="current-password"]') as HTMLInputElement;
+    const toggleButton = element.querySelector('button[aria-label="Show password"]') as HTMLButtonElement;
+
+    expect(passwordInput.type).toBe('password');
+
+    toggleButton.click();
+    fixture.detectChanges();
+
+    expect(passwordInput.type).toBe('text');
+    expect(element.querySelector('button[aria-label="Hide password"]')).toBe(toggleButton);
+
+    toggleButton.click();
+    fixture.detectChanges();
+
+    expect(passwordInput.type).toBe('password');
+    expect(element.querySelector('button[aria-label="Show password"]')).toBe(toggleButton);
+  });
 });

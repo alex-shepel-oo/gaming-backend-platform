@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Router } from '@angular/router';
@@ -34,6 +35,7 @@ function classifyLoginError(error: unknown): LoginError {
     ReactiveFormsModule,
     MatCardModule,
     MatFormFieldModule,
+    MatIconModule,
     MatInputModule,
     MatButtonModule,
     MatProgressSpinnerModule,
@@ -54,6 +56,11 @@ export class AdminLogin {
 
   protected readonly submitting = signal(false);
   protected readonly error = signal<LoginError | null>(null);
+  protected readonly hidePassword = signal(true);
+
+  protected togglePasswordVisibility(): void {
+    this.hidePassword.set(!this.hidePassword());
+  }
 
   protected submit(): void {
     if (this.form.invalid) {

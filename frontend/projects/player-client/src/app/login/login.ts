@@ -3,6 +3,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Router, RouterLink } from '@angular/router';
@@ -27,6 +28,7 @@ function classifyLoginError(error: unknown): LoginError {
   imports: [
     ReactiveFormsModule,
     MatFormFieldModule,
+    MatIconModule,
     MatInputModule,
     MatButtonModule,
     MatProgressSpinnerModule,
@@ -47,6 +49,11 @@ export class Login {
 
   protected readonly submitting = signal(false);
   protected readonly error = signal<LoginError | null>(null);
+  protected readonly hidePassword = signal(true);
+
+  protected togglePasswordVisibility(): void {
+    this.hidePassword.set(!this.hidePassword());
+  }
 
   protected submit(): void {
     if (this.form.invalid) {
