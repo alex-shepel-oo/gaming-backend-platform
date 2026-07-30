@@ -104,8 +104,15 @@ export class Convert {
   protected readonly error = signal<ConvertError | null>(null);
   protected readonly conversion = signal<Conversion | null>(null);
 
+  // computed() only tracks signal reads -- reading a FormControl's plain
+  // .value here would never invalidate the cache when the user picks a new
+  // value, so the currency/game pickers below must react off these signals
+  // (kept in sync via valueChanges in the constructor), not the form directly.
+  private readonly fromCurrencyIdValue = signal('');
+  private readonly targetGameIdValue = signal('');
+
   private readonly rawToCurrencyOptions = computed(() => {
-    const fromCurrencyId = this.form.controls.fromCurrencyId.value;
+    const fromCurrencyId = this.fromCurrencyIdValue();
 
     return this.currencyCatalog().filter((currency) => currency.id !== fromCurrencyId);
   });
@@ -125,7 +132,7 @@ export class Convert {
   protected readonly showGamePicker = computed(() => this.toGameOptions().length > 1);
 
   protected readonly toCurrencyOptions = computed(() => {
-    const targetGameId = this.form.controls.targetGameId.value;
+    const targetGameId = this.targetGameIdValue();
 
     return this.rawToCurrencyOptions().filter((currency) => {
       // Platform stays reachable regardless of which game is picked --
@@ -168,9 +175,12 @@ export class Convert {
       },
     );
 
-    this.form.controls.fromCurrencyId.valueChanges.subscribe(() => {
+    this.form.controls.fromCurrencyId.valueChanges.subscribe((value) => {
+      this.fromCurrencyIdValue.set(value);
       this.form.controls.fromAmount.updateValueAndValidity();
     });
+
+    this.form.controls.targetGameId.valueChanges.subscribe((value) => this.targetGameIdValue.set(value));
   }
 
   protected statusLabel(status: ConversionStatus): string {
