@@ -57,7 +57,11 @@
 
     <p class="convert-receive-preview">
       You'll receive:
-      <app-not-available message="shown after you confirm the conversion" />
+      @if (preview(); as currentPreview) {
+        <strong>{{ currentPreview.amount }} {{ currentPreview.code }}</strong>
+      } @else {
+        <app-not-available message="shown after you confirm the conversion" />
+      }
     </p>
 
     @if (error() === 'insufficient-funds') {
