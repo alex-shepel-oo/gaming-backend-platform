@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 import { EconomyEndpoints } from './economy-endpoints';
-import { Balance, PagedResult, TransactionHistoryEntry } from './wallet.models';
+import { Balance, Currency, PagedResult, TransactionHistoryEntry } from './wallet.models';
 
 export interface TransactionHistoryQuery {
   page: number;
@@ -21,8 +21,8 @@ export class WalletService {
   private readonly balancesSignal = signal<Balance[] | null>(null);
   readonly balances = this.balancesSignal.asReadonly();
 
-  refreshBalances(gameId?: string): Observable<Balance[]> {
-    return this.getBalances(gameId).pipe(tap((balances) => this.balancesSignal.set(balances)));
+  refreshBalances(): Observable<Balance[]> {
+    return this.getBalances().pipe(tap((balances) => this.balancesSignal.set(balances)));
   }
 
   clearBalances(): void {
@@ -35,10 +35,12 @@ export class WalletService {
     );
   }
 
-  getBalances(gameId?: string): Observable<Balance[]> {
-    const params = gameId ? new HttpParams().set('gameId', gameId) : undefined;
+  getBalances(): Observable<Balance[]> {
+    return this.http.get<Balance[]>(EconomyEndpoints.balances);
+  }
 
-    return this.http.get<Balance[]>(EconomyEndpoints.balances, { params });
+  getCurrencies(): Observable<Currency[]> {
+    return this.http.get<Currency[]>(EconomyEndpoints.currencies);
   }
 
   getTransactionHistory(query: TransactionHistoryQuery): Observable<PagedResult<TransactionHistoryEntry>> {

@@ -30,3 +30,7 @@ export interface ResetPasswordRequest {
   token: string;
   newPassword: string;
 }
+
+export interface ResetPasswordResponse {
+  email: string;
+}

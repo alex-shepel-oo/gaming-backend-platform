@@ -28,13 +28,21 @@ describe('gameScopeGuard', () => {
   }
 
   it('allows navigation for a game-scoped session', () => {
-    tokenStore.set(fakeAccessToken('game'));
+    tokenStore.set(fakeAccessToken('Game'));
 
     expect(run()).toBe(true);
   });
 
   it('redirects an account-scoped session to /games', () => {
-    tokenStore.set(fakeAccessToken('account'));
+    tokenStore.set(fakeAccessToken('Account'));
+
+    const result = run();
+
+    expect(result).toEqual(router.createUrlTree(['/games']));
+  });
+
+  it('redirects a platform-scoped session to /games', () => {
+    tokenStore.set(fakeAccessToken('Platform'));
 
     const result = run();
 

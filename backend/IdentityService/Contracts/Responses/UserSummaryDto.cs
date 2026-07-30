@@ -8,4 +8,6 @@ public sealed record UserSummaryDto(
     string DisplayName,
     PlatformRole Role,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? LastLoginAt);
+    DateTimeOffset? LastLoginAt,
+    Guid? GameId,
+    string? GameSlug);

@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
+using IdentityService.Auth;
 using IdentityService.Contracts.Requests;
 using IdentityService.Contracts.Responses;
 using IdentityService.Domain;
@@ -136,6 +137,21 @@ public sealed class LogoutAndRevokeTests(IdentityApiFactory factory) : IClassFix
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    [Fact]
+    public async Task RevokeSessions_GameScopedAdminTargetsAnotherGame_Returns403()
+    {
+        var (playerId, gameA, _) = await SeedUserWithTwoGamesAsync();
+        var (gameAdminId, gameAdminGameId) = await SeedUserAsync(PlatformRole.Admin);
+        await SeedRolePermissionsAsync(PlatformRole.Admin, gameAdminGameId, Permissions.GameRolesManage);
+        var client = factory.CreateClient();
+        var adminTokens = await LoginAsAsync(client, gameAdminId, gameAdminGameId);
+
+        var response = await PostAuthorizedAsync(
+            client, $"/api/identity/users/{playerId}/revoke-sessions?gameId={gameA}", adminTokens.AccessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
     private static Task<HttpResponseMessage> LogoutAsync(HttpClient client, string accessToken, string refreshToken) =>
         PostAuthorizedAsync(
             client,
@@ -165,19 +181,19 @@ public sealed class LogoutAndRevokeTests(IdentityApiFactory factory) : IClassFix
         return (client, tokens, userId, gameId);
     }
 
-    private Task<TokenPairResponse> LoginAsAsync(Guid userId, Guid gameId) =>
+    private Task<TokenPairResponse> LoginAsAsync(Guid userId, Guid? gameId) =>
         LoginAsAsync(factory.CreateClient(), userId, gameId);
 
-    private async Task<TokenPairResponse> LoginAsAsync(HttpClient client, Guid userId, Guid gameId)
+    private async Task<TokenPairResponse> LoginAsAsync(HttpClient client, Guid userId, Guid? gameId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var user = await dbContext.Users.SingleAsync(u => u.Id == userId);
-        var game = await dbContext.Games.SingleAsync(g => g.Id == gameId);
+        var gameSlug = gameId is null ? null : (await dbContext.Games.SingleAsync(g => g.Id == gameId)).Slug;
 
         var response = await client.PostAsJsonAsync(
             "/api/identity/auth/login",
-            new LoginRequest(game.Slug, user.Email, Password),
+            new LoginRequest(gameSlug, user.Email, Password),
             JsonOptions,
             TestContext.Current.CancellationToken);
 
@@ -187,9 +203,10 @@ public sealed class LogoutAndRevokeTests(IdentityApiFactory factory) : IClassFix
 
     private async Task<(HttpClient Client, string AccessToken)> LoginAsAdminAsync()
     {
-        var (adminId, gameId) = await SeedUserAsync(PlatformRole.Admin);
+        var adminId = await SeedPlatformAdminAsync();
+        await SeedRolePermissionsAsync(PlatformRole.Admin, gameId: null, Permissions.PlatformRolesManage);
         var client = factory.CreateClient();
-        var tokens = await LoginAsAsync(client, adminId, gameId);
+        var tokens = await LoginAsAsync(client, adminId, gameId: null);
 
         return (client, tokens.AccessToken);
     }
@@ -287,5 +304,58 @@ public sealed class LogoutAndRevokeTests(IdentityApiFactory factory) : IClassFix
         var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
 
         return await dbContext.RevokedAccessTokens.CountAsync(t => t.UserId == userId);
+    }
+
+    private async Task<Guid> SeedPlatformAdminAsync()
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+        var now = factory.TimeProvider.GetUtcNow();
+
+        var user = new User
+        {
+            Id = Guid.CreateVersion7(),
+            Email = $"{Guid.NewGuid():N}@example.com",
+            DisplayName = "Test Platform Admin",
+            PasswordHash = passwordHasher.Hash(Password),
+            IsActive = true,
+            EmailConfirmed = true,
+            EmailConfirmedAt = now,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+
+        dbContext.Users.Add(user);
+        dbContext.UserGameRoles.Add(new UserGameRole
+        {
+            Id = Guid.CreateVersion7(),
+            UserId = user.Id,
+            GameId = null,
+            Role = PlatformRole.Admin,
+            GrantedAt = now,
+        });
+
+        await dbContext.SaveChangesAsync();
+
+        return user.Id;
+    }
+
+    private async Task SeedRolePermissionsAsync(PlatformRole role, Guid? gameId, params string[] permissions)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var now = factory.TimeProvider.GetUtcNow();
+
+        dbContext.RolePermissions.AddRange(permissions.Select(permission => new RolePermission
+        {
+            Id = Guid.CreateVersion7(),
+            Role = role,
+            GameId = gameId,
+            Permission = permission,
+            GrantedAt = now,
+        }));
+
+        await dbContext.SaveChangesAsync();
     }
 }

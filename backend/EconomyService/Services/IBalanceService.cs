@@ -6,9 +6,9 @@ public interface IBalanceService
 {
     Task<decimal> GetBalanceAsync(Guid userId, Guid currencyId, CancellationToken cancellationToken = default);
 
-    // Scoped by gameId at the query level (platform currencies plus, when gameId
-    // is supplied, that game's currencies) so a caller's own leftover balances
-    // from a different game session can never surface in the result.
+    // Every balance row for this user, across every game they hold one in, plus
+    // platform balances -- the query is already anchored on UserId, so there is
+    // no cross-user leak here, only the full footprint of the caller's own games.
     Task<IReadOnlyList<Balance>> GetBalancesForUserAsync(
-        Guid userId, Guid? gameId, CancellationToken cancellationToken = default);
+        Guid userId, CancellationToken cancellationToken = default);
 }

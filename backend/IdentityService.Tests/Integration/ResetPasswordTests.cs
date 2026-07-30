@@ -28,14 +28,17 @@ public sealed class ResetPasswordTests(IdentityApiFactory factory) : IClassFixtu
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task Reset_ValidToken_Returns204AndChangesPassword()
+    public async Task Reset_ValidToken_Returns200WithEmailAndChangesPassword()
     {
         using var client = factory.CreateClient();
         var (user, game) = await SeedUserAsync();
         var rawToken = await RequestTokenAsync(client, user.Email);
 
         var response = await ResetAsync(client, rawToken, NewPassword);
-        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadFromJsonAsync<ResetPasswordResponse>(JsonOptions, TestContext.Current.CancellationToken);
+        body!.Email.Should().Be(user.Email);
 
         var oldLogin = await LoginAsync(client, game.Slug, user.Email, OldPassword);
         oldLogin.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -70,7 +73,7 @@ public sealed class ResetPasswordTests(IdentityApiFactory factory) : IClassFixtu
 
         var rawToken = await RequestTokenAsync(client, user.Email);
         var reset = await ResetAsync(client, rawToken, NewPassword);
-        reset.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        reset.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var familyA = await FindFamilyAsync(user.Id, gameA.Id);
         var familyB = await FindFamilyAsync(user.Id, gameB.Id);
@@ -94,7 +97,7 @@ public sealed class ResetPasswordTests(IdentityApiFactory factory) : IClassFixtu
         var rawToken = await RequestTokenAsync(client, user.Email);
 
         var first = await ResetAsync(client, rawToken, NewPassword);
-        first.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        first.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var reused = await ResetAsync(client, rawToken, "another-long-enough-password");
         var unknown = await ResetAsync(client, "unknown-raw-token-value", "another-long-enough-password");

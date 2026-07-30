@@ -4,9 +4,10 @@ import { FormBuilder, ReactiveFormsModule, ValidatorFn, Validators } from '@angu
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from 'shared';
 
 type ResetError = 'invalid-token' | 'unknown';
@@ -25,6 +26,7 @@ function classifyResetError(error: unknown): ResetError {
     ReactiveFormsModule,
     MatCardModule,
     MatFormFieldModule,
+    MatIconModule,
     MatInputModule,
     MatButtonModule,
     MatProgressSpinnerModule,
@@ -36,6 +38,7 @@ function classifyResetError(error: unknown): ResetError {
 export class ResetPassword {
   private readonly formBuilder = inject(FormBuilder);
   private readonly authService = inject(AuthService);
+  private readonly router = inject(Router);
 
   protected readonly token = inject(ActivatedRoute).snapshot.queryParamMap.get('token');
 
@@ -61,6 +64,17 @@ export class ResetPassword {
   protected readonly resetSubmitting = signal(false);
   protected readonly resetSucceeded = signal(false);
   protected readonly resetError = signal<ResetError | null>(null);
+
+  protected readonly hideNewPassword = signal(true);
+  protected readonly hideConfirmPassword = signal(true);
+
+  protected toggleNewPasswordVisibility(): void {
+    this.hideNewPassword.set(!this.hideNewPassword());
+  }
+
+  protected toggleConfirmPasswordVisibility(): void {
+    this.hideConfirmPassword.set(!this.hideConfirmPassword());
+  }
 
   constructor() {
     this.resetForm.controls.newPassword.valueChanges.subscribe(() =>
@@ -96,17 +110,27 @@ export class ResetPassword {
     this.resetSubmitting.set(true);
     this.resetError.set(null);
 
-    this.authService
-      .resetPassword({ token: this.token, newPassword: this.resetForm.getRawValue().newPassword })
-      .subscribe({
-        next: () => {
-          this.resetSubmitting.set(false);
-          this.resetSucceeded.set(true);
-        },
-        error: (error: unknown) => {
-          this.resetSubmitting.set(false);
-          this.resetError.set(classifyResetError(error));
-        },
-      });
+    const newPassword = this.resetForm.getRawValue().newPassword;
+
+    this.authService.resetPassword({ token: this.token, newPassword }).subscribe({
+      next: (response) => this.autoLogin(response.email, newPassword),
+      error: (error: unknown) => {
+        this.resetSubmitting.set(false);
+        this.resetError.set(classifyResetError(error));
+      },
+    });
+  }
+
+  private autoLogin(email: string, password: string): void {
+    this.authService.login({ email, password }).subscribe({
+      next: () => {
+        this.resetSubmitting.set(false);
+        this.router.navigateByUrl('/games');
+      },
+      error: () => {
+        this.resetSubmitting.set(false);
+        this.resetSucceeded.set(true);
+      },
+    });
   }
 }

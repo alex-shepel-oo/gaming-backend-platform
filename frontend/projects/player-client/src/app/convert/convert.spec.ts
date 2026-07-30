@@ -11,6 +11,14 @@ const balances = [
   { currencyId: 'currency-b', currencyCode: 'GEMS', scope: CurrencyScope.Game, gameId: 'game-1', amount: 50 },
 ];
 
+const currencyCatalog = [
+  { id: 'currency-a', code: 'GOLD', displayName: 'Gold', scope: CurrencyScope.Platform, gameId: null, decimals: 2 },
+  { id: 'currency-b', code: 'GEMS', displayName: 'Gems', scope: CurrencyScope.Game, gameId: 'game-1', decimals: 2 },
+];
+
+const myGames = [{ id: 'game-1', slug: 'demo-shooter', name: 'Demo Shooter', description: null, iconUrl: null }];
+const publicGames = myGames;
+
 function conversionResponse(conversionId: string, status: ConversionStatus, overrides: Partial<Conversion> = {}): Conversion {
   return {
     conversionId,
@@ -49,16 +57,25 @@ describe('Convert', () => {
     vi.useRealTimers();
   });
 
-  function flushGamesList(): void {
-    httpMock
-      .expectOne((req) => req.url === IdentityGameEndpoints.publicGames)
-      .flush([{ id: 'game-1', slug: 'demo-shooter', name: 'Demo Shooter' }]);
+  function flushCurrencyCatalog(catalog: unknown[] = currencyCatalog): void {
+    httpMock.expectOne((req) => req.url === EconomyEndpoints.currencies).flush(catalog);
   }
 
-  function createWithCurrencies(balancesResponse: unknown[] = balances): ComponentFixture<Convert> {
+  function flushGamesLists(myGamesResponse: unknown[] = myGames, publicGamesResponse: unknown[] = publicGames): void {
+    httpMock.expectOne((req) => req.url === IdentityGameEndpoints.myGames).flush(myGamesResponse);
+    httpMock.expectOne((req) => req.url === IdentityGameEndpoints.publicGames).flush(publicGamesResponse);
+  }
+
+  function createWithCurrencies(
+    balancesResponse: unknown[] = balances,
+    catalog: unknown[] = currencyCatalog,
+    myGamesResponse: unknown[] = myGames,
+    publicGamesResponse: unknown[] = publicGames,
+  ): ComponentFixture<Convert> {
     const currentFixture = TestBed.createComponent(Convert);
     httpMock.expectOne((req) => req.url === EconomyEndpoints.balances).flush(balancesResponse);
-    flushGamesList();
+    flushCurrencyCatalog(catalog);
+    flushGamesLists(myGamesResponse, publicGamesResponse);
     currentFixture.detectChanges();
 
     return currentFixture;
@@ -88,7 +105,8 @@ describe('Convert', () => {
   it('shows an empty state when the player has no currencies to convert', () => {
     fixture = TestBed.createComponent(Convert);
     httpMock.expectOne((req) => req.url === EconomyEndpoints.balances).flush([]);
-    flushGamesList();
+    flushCurrencyCatalog();
+    flushGamesLists();
     fixture.detectChanges();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
@@ -138,6 +156,50 @@ describe('Convert', () => {
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).not.toContain('Convert into game');
+  });
+
+  it('includes a game currency the player has zero balance in among the To currency options', () => {
+    // The reported bug: the player holds only platform currency and has never
+    // transacted in Demo Shooter's currency, yet it must still be offered as
+    // a conversion target because it now comes from the full catalog, not
+    // from held balances.
+    const onlyPlatformBalance = [balances[0]];
+
+    fixture = createWithCurrencies(onlyPlatformBalance, currencyCatalog, myGames, publicGames);
+
+    const element = fixture.nativeElement as HTMLElement;
+    const fromSelect = element.querySelector('select[formcontrolname="fromCurrencyId"]') as HTMLSelectElement;
+    fromSelect.value = 'currency-a';
+    fromSelect.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    const toSelect = element.querySelector('select[formcontrolname="toCurrencyId"]') as HTMLSelectElement;
+    const toOptionValues = Array.from(toSelect.options).map((option) => option.value);
+
+    expect(toOptionValues).toContain('currency-b');
+  });
+
+  it("orders the game picker with the player's own games first, then other public games", () => {
+    const secondGame = { id: 'game-2', slug: 'demo-puzzle', name: 'Demo Puzzle', description: null, iconUrl: null };
+    const catalogWithTwoGames = [
+      ...currencyCatalog,
+      { id: 'currency-c', code: 'PUZZLE_GEMS', displayName: 'Puzzle Gems', scope: CurrencyScope.Game, gameId: 'game-2', decimals: 2 },
+    ];
+
+    fixture = createWithCurrencies(balances, catalogWithTwoGames, myGames, [...publicGames, secondGame]);
+
+    const element = fixture.nativeElement as HTMLElement;
+    const fromSelect = element.querySelector('select[formcontrolname="fromCurrencyId"]') as HTMLSelectElement;
+    fromSelect.value = 'currency-a';
+    fromSelect.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    const gameSelect = element.querySelector('select[formcontrolname="targetGameId"]') as HTMLSelectElement;
+    const gameOptionLabels = Array.from(gameSelect.options)
+      .filter((option) => option.value !== '')
+      .map((option) => option.textContent?.trim());
+
+    expect(gameOptionLabels).toEqual(['Demo Shooter', 'Demo Puzzle']);
   });
 
   it('polls the conversion status until it reaches Completed, refreshing balances, then stops', () => {

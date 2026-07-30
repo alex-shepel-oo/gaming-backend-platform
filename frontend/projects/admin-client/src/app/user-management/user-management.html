@@ -38,6 +38,11 @@
       <td mat-cell *matCellDef="let user">{{ user.role }}</td>
     </ng-container>
 
+    <ng-container matColumnDef="game">
+      <th mat-header-cell *matHeaderCellDef>Game</th>
+      <td mat-cell *matCellDef="let user">{{ user.gameSlug ?? 'platform-wide' }}</td>
+    </ng-container>
+
     <ng-container matColumnDef="createdAt">
       <th mat-header-cell *matHeaderCellDef>Created</th>
       <td mat-cell *matCellDef="let user">{{ user.createdAt }}</td>
@@ -80,6 +85,7 @@
       } @else if (selectedUser(); as user) {
         <p><strong>{{ user.email }}</strong> — {{ user.displayName }}</p>
         <p>Current role: {{ user.role ?? 'none' }}</p>
+        <p>Game: {{ user.gameSlug ?? 'platform-wide' }}</p>
 
         <div class="assign-row">
           <mat-form-field appearance="outline">

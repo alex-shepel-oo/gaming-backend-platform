@@ -36,8 +36,26 @@ describe('UserManagementService', () => {
   it('listUsers carries lastLoginAt through for each returned user, including a never-logged-in null', () => {
     const page = {
       items: [
-        { id: 'user-1', email: 'one@example.com', displayName: 'User One', role: 'Player', createdAt: '2026-01-01T00:00:00Z', lastLoginAt: '2026-07-20T08:00:00Z' },
-        { id: 'user-2', email: 'two@example.com', displayName: 'User Two', role: 'Player', createdAt: '2026-01-02T00:00:00Z', lastLoginAt: null },
+        {
+          id: 'user-1',
+          email: 'one@example.com',
+          displayName: 'User One',
+          role: 'Player',
+          createdAt: '2026-01-01T00:00:00Z',
+          lastLoginAt: '2026-07-20T08:00:00Z',
+          gameId: 'game-1',
+          gameSlug: 'demo-shooter',
+        },
+        {
+          id: 'user-2',
+          email: 'two@example.com',
+          displayName: 'User Two',
+          role: 'Player',
+          createdAt: '2026-01-02T00:00:00Z',
+          lastLoginAt: null,
+          gameId: null,
+          gameSlug: null,
+        },
       ],
       page: 1,
       pageSize: 20,
@@ -66,6 +84,7 @@ describe('UserManagementService', () => {
       email: 'player@example.com',
       displayName: 'Player One',
       gameId: null,
+      gameSlug: null,
       role: 'Moderator',
       createdAt: '2026-01-01T00:00:00Z',
     };
@@ -73,6 +92,26 @@ describe('UserManagementService', () => {
     service.getUser('user-1').subscribe((value) => (result = value));
 
     const request = httpMock.expectOne(IdentityUserEndpoints.detail('user-1'));
+    expect(request.request.method).toBe('GET');
+    request.flush(detail);
+
+    expect(result).toEqual(detail);
+  });
+
+  it('getUser forwards a gameId so a cross-game row resolves against its own game', () => {
+    const detail = {
+      id: 'user-1',
+      email: 'player@example.com',
+      displayName: 'Player One',
+      gameId: 'game-1',
+      gameSlug: 'demo-shooter',
+      role: 'Player',
+      createdAt: '2026-01-01T00:00:00Z',
+    };
+    let result: unknown;
+    service.getUser('user-1', 'game-1').subscribe((value) => (result = value));
+
+    const request = httpMock.expectOne(IdentityUserEndpoints.detail('user-1', 'game-1'));
     expect(request.request.method).toBe('GET');
     request.flush(detail);
 

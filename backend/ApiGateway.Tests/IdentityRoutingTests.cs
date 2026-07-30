@@ -183,8 +183,13 @@ public sealed class IdentityRoutingTests : IDisposable
         response.StatusCode.Should().NotBe(HttpStatusCode.Forbidden);
     }
 
+    // Specifically the admin-prefixed upstream path -- a separate,
+    // player-accepting route to the same downstream endpoint exists at
+    // /api/identity/users/me/games (see Get_MyGamesUnderPlayerPrefix_
+    // WithPlayerAudienceToken_IsNotBlockedAtGateway below). This route stays
+    // admin-only on purpose.
     [Fact]
-    public async Task Get_MyGames_WithPlayerAudienceToken_IsRejectedAtGateway()
+    public async Task Get_MyGamesUnderAdminPrefix_WithPlayerAudienceToken_IsRejectedAtGateway()
     {
         using var client = _factory.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/identity/users/me/games");
@@ -193,6 +198,24 @@ public sealed class IdentityRoutingTests : IDisposable
         var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    // /api/identity/users/me/games mirrors /api/identity/users/me: no
+    // RouteClaimsRequirement, so any authenticated caller (player or admin
+    // audience) clears the gateway. This is what lets a player-client screen
+    // (e.g. Convert's game picker) ask "which games am I actually in" without
+    // routing through the admin-only prefix above.
+    [Fact]
+    public async Task Get_MyGamesUnderPlayerPrefix_WithPlayerAudienceToken_IsNotBlockedAtGateway()
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/identity/users/me/games");
+        request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: null, audience: "gbp-player"));
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
+        response.StatusCode.Should().NotBe(HttpStatusCode.Forbidden);
     }
 
     private static string IssueAccessToken(string? scope, string audience = Audience)

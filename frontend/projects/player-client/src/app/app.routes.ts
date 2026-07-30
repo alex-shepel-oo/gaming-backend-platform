@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, gameScopeGuard, guestGuard } from 'shared';
+import { authGuard, guestGuard } from 'shared';
 import { AuthShell } from './auth-shell/auth-shell';
 import { Convert } from './convert/convert';
 import { Games } from './games/games';
@@ -18,9 +18,9 @@ export const routes: Routes = [
     canActivate: [authGuard],
     children: [
       { path: 'games', component: Games },
-      { path: 'wallet', component: Wallet, canActivate: [gameScopeGuard] },
-      { path: 'convert', component: Convert, canActivate: [gameScopeGuard] },
-      { path: 'profile', component: Profile, canActivate: [gameScopeGuard] },
+      { path: 'wallet', component: Wallet },
+      { path: 'convert', component: Convert },
+      { path: 'profile', component: Profile },
     ],
   },
   { path: '**', redirectTo: '' },

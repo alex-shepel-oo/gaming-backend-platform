@@ -69,14 +69,14 @@ public static class AuthEndpoints
         return TypedResults.Accepted((string?)null);
     }
 
-    private static async Task<NoContent> ResetPasswordAsync(
+    private static async Task<Ok<ResetPasswordResponse>> ResetPasswordAsync(
         ResetPasswordRequest request,
         IPasswordResetService passwordResetService,
         CancellationToken cancellationToken)
     {
-        await passwordResetService.CompleteResetAsync(request.Token, request.NewPassword, cancellationToken);
+        var email = await passwordResetService.CompleteResetAsync(request.Token, request.NewPassword, cancellationToken);
 
-        return TypedResults.NoContent();
+        return TypedResults.Ok(new ResetPasswordResponse(email));
     }
 
     private static async Task<Results<Ok<TokenPairResponse>, Ok<AccessTokenResponse>>> LoginAsync(

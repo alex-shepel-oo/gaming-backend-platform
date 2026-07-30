@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { Router } from '@angular/router';
 import { Subscription, interval } from 'rxjs';
 import { take } from 'rxjs/operators';
 import { AuthService, DEFAULT_GAME_SLUG } from 'shared';
@@ -31,8 +32,10 @@ export class ConfirmEmail {
   private readonly formBuilder = inject(FormBuilder);
   private readonly authService = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly router = inject(Router);
 
   readonly email = input.required<string>();
+  readonly password = input.required<string>();
   readonly confirmed = output<void>();
   readonly backToLogin = output<void>();
 
@@ -61,13 +64,23 @@ export class ConfirmEmail {
     this.error.set(null);
 
     this.authService.confirmEmail({ email: this.email(), code: this.form.getRawValue().code }).subscribe({
-      next: () => {
-        this.submitting.set(false);
-        this.confirmed.emit();
-      },
+      next: () => this.autoLogin(),
       error: (error: unknown) => {
         this.submitting.set(false);
         this.error.set(classifyConfirmError(error));
+      },
+    });
+  }
+
+  private autoLogin(): void {
+    this.authService.login({ email: this.email(), password: this.password() }).subscribe({
+      next: () => {
+        this.submitting.set(false);
+        this.router.navigateByUrl('/games');
+      },
+      error: () => {
+        this.submitting.set(false);
+        this.confirmed.emit();
       },
     });
   }

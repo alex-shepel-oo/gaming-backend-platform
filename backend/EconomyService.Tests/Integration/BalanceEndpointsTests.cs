@@ -43,7 +43,7 @@ public sealed class BalanceEndpointsTests : IAsyncDisposable
     }
 
     [Test]
-    public async Task GetMyBalances_ReturnsPlatformAndOwnGameBalances_NotOtherGameOrOtherUsersBalances()
+    public async Task GetMyBalances_ReturnsBalancesAcrossEveryGame_RegardlessOfCurrentTokenScope_ButNotOtherUsersBalances()
     {
         var gameA = Guid.CreateVersion7();
         var gameB = Guid.CreateVersion7();
@@ -55,8 +55,9 @@ public sealed class BalanceEndpointsTests : IAsyncDisposable
         await SeedBalanceAsync(userId, platformCurrency.Id, 100m);
         await SeedBalanceAsync(userId, gameACurrency.Id, 50m);
 
-        // A balance left over from a session in a different game must never
-        // surface, no matter which game the caller is currently scoped to.
+        // A balance held in a game the caller isn't currently scoped into must
+        // still come back -- the player's whole cross-game footprint, not just
+        // whichever single game their token happens to be scoped to right now.
         await SeedBalanceAsync(userId, gameBCurrency.Id, 999m);
 
         var otherUserId = Guid.NewGuid();
@@ -73,11 +74,82 @@ public sealed class BalanceEndpointsTests : IAsyncDisposable
         var body = await response.Content.ReadFromJsonAsync<BalanceDto[]>(
             JsonOptions, TestContext.CurrentContext.CancellationToken);
 
-        body!.Should().HaveCount(2);
-        body.Select(b => b.CurrencyId).Should().Contain([platformCurrency.Id, gameACurrency.Id]);
-        body.Select(b => b.CurrencyId).Should().NotContain(gameBCurrency.Id);
+        body!.Should().HaveCount(3);
+        body.Select(b => b.CurrencyId).Should().Contain([platformCurrency.Id, gameACurrency.Id, gameBCurrency.Id]);
         body.Single(b => b.CurrencyId == platformCurrency.Id).Amount.Should().Be(100m);
         body.Single(b => b.CurrencyId == gameACurrency.Id).Amount.Should().Be(50m);
+        body.Single(b => b.CurrencyId == gameBCurrency.Id).Amount.Should().Be(999m);
+    }
+
+    [Test]
+    public async Task GetMyBalances_CallerHasNoGameScopeInToken_StillReturnsAllOwnGameBalances()
+    {
+        var gameA = Guid.CreateVersion7();
+        var platformCurrency = await SeedCurrencyAsync("PLATFORM_CREDITS", CurrencyScope.Platform, null);
+        var gameACurrency = await SeedCurrencyAsync("GAME_A_GOLD", CurrencyScope.Game, gameA);
+
+        var userId = Guid.NewGuid();
+        await SeedBalanceAsync(userId, platformCurrency.Id, 25m);
+        await SeedBalanceAsync(userId, gameACurrency.Id, 10m);
+
+        // No gameId at all on the token (account-scoped session) -- balances
+        // are keyed off the caller's own userId, not the token's game scope.
+        var token = TestTokenFactory.IssueAccessToken(userId);
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/balances/me");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.SendAsync(request, TestContext.CurrentContext.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<BalanceDto[]>(
+            JsonOptions, TestContext.CurrentContext.CancellationToken);
+
+        body!.Should().HaveCount(2);
+        body.Select(b => b.CurrencyId).Should().Contain([platformCurrency.Id, gameACurrency.Id]);
+    }
+
+    [Test]
+    public async Task GetMyBalances_CurrencyHasIconUrl_ReturnsIt()
+    {
+        var currency = await SeedCurrencyAsync(
+            "ICON_CURRENCY", CurrencyScope.Platform, null, iconUrl: "https://placehold.co/64x64?text=Icon");
+        var userId = Guid.NewGuid();
+        await SeedBalanceAsync(userId, currency.Id, 10m);
+
+        var token = TestTokenFactory.IssueAccessToken(userId);
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/balances/me");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.SendAsync(request, TestContext.CurrentContext.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<BalanceDto[]>(
+            JsonOptions, TestContext.CurrentContext.CancellationToken);
+
+        body!.Single(b => b.CurrencyId == currency.Id).IconUrl.Should().Be("https://placehold.co/64x64?text=Icon");
+    }
+
+    [Test]
+    public async Task GetMyBalances_CurrencyHasNoIconUrl_ReturnsNullNotAnError()
+    {
+        var currency = await SeedCurrencyAsync("NO_ICON_CURRENCY", CurrencyScope.Platform, null);
+        var userId = Guid.NewGuid();
+        await SeedBalanceAsync(userId, currency.Id, 10m);
+
+        var token = TestTokenFactory.IssueAccessToken(userId);
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/balances/me");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.SendAsync(request, TestContext.CurrentContext.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<BalanceDto[]>(
+            JsonOptions, TestContext.CurrentContext.CancellationToken);
+
+        body!.Single(b => b.CurrencyId == currency.Id).IconUrl.Should().BeNull();
     }
 
     [Test]
@@ -214,7 +286,7 @@ public sealed class BalanceEndpointsTests : IAsyncDisposable
         return await client.SendAsync(request, TestContext.CurrentContext.CancellationToken);
     }
 
-    private async Task<Currency> SeedCurrencyAsync(string code, CurrencyScope scope, Guid? gameId)
+    private async Task<Currency> SeedCurrencyAsync(string code, CurrencyScope scope, Guid? gameId, string? iconUrl = null)
     {
         await using var scope1 = _factory.Services.CreateAsyncScope();
         var dbContext = scope1.ServiceProvider.GetRequiredService<EconomyDbContext>();
@@ -228,6 +300,7 @@ public sealed class BalanceEndpointsTests : IAsyncDisposable
             GameId = gameId,
             Decimals = 2,
             CreatedAt = DateTimeOffset.UtcNow,
+            IconUrl = iconUrl,
         };
 
         dbContext.Currencies.Add(currency);

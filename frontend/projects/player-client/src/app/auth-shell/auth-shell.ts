@@ -1,12 +1,16 @@
 import { Component, signal } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatTabsModule } from '@angular/material/tabs';
-import { RegistrationAcceptedResponse } from 'shared';
 import { ConfirmEmail } from '../confirm-email/confirm-email';
 import { Login } from '../login/login';
-import { Register } from '../register/register';
+import { Register, RegisteredEvent } from '../register/register';
 
 type AuthShellState = 'auth' | 'confirm';
+
+interface PendingRegistration {
+  email: string;
+  password: string;
+}
 
 @Component({
   selector: 'app-auth-shell',
@@ -18,12 +22,12 @@ export class AuthShell {
   protected readonly state = signal<AuthShellState>('auth');
   protected readonly selectedTabIndex = signal(0);
   protected readonly notice = signal<string | null>(null);
-  protected readonly pendingEmail = signal<string | null>(null);
+  protected readonly pendingRegistration = signal<PendingRegistration | null>(null);
 
-  protected onRegistered(response: RegistrationAcceptedResponse): void {
-    if (response.verificationRequired) {
+  protected onRegistered(event: RegisteredEvent): void {
+    if (event.response.verificationRequired) {
       this.notice.set(null);
-      this.pendingEmail.set(response.email);
+      this.pendingRegistration.set({ email: event.response.email, password: event.password });
       this.state.set('confirm');
 
       return;
@@ -34,14 +38,14 @@ export class AuthShell {
   }
 
   protected onConfirmed(): void {
-    this.pendingEmail.set(null);
+    this.pendingRegistration.set(null);
     this.state.set('auth');
     this.selectedTabIndex.set(0);
     this.notice.set('Email confirmed. You can log in now.');
   }
 
   protected onBackToLogin(): void {
-    this.pendingEmail.set(null);
+    this.pendingRegistration.set(null);
     this.state.set('auth');
     this.selectedTabIndex.set(0);
   }

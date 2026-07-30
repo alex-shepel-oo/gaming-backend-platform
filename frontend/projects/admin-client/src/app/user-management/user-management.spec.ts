@@ -29,6 +29,8 @@ const users = [
     role: 'Player',
     createdAt: '2026-01-01T00:00:00Z',
     lastLoginAt: '2026-07-20T08:00:00Z',
+    gameId: null,
+    gameSlug: null,
   },
   {
     id: 'user-2',
@@ -37,6 +39,8 @@ const users = [
     role: 'Moderator',
     createdAt: '2026-01-02T00:00:00Z',
     lastLoginAt: null,
+    gameId: 'game-2',
+    gameSlug: 'demo-racer',
   },
 ];
 
@@ -45,6 +49,7 @@ const userDetail = {
   email: 'one@example.com',
   displayName: 'User One',
   gameId: null,
+  gameSlug: null,
   role: 'Player',
   createdAt: '2026-01-01T00:00:00Z',
 };
@@ -192,5 +197,41 @@ describe('UserManagement', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Current role: Moderator');
     expect(text).toContain('one@example.com');
+  });
+
+  it('selecting a cross-game row resolves detail, assigns a role, and revokes sessions against that row\'s own game', () => {
+    tokenStore.set(fakeAccessToken({ role: 'Admin', permissions: ['platform.roles.manage'] }));
+
+    const fixture = TestBed.createComponent(UserManagement);
+    flushList(fixture);
+
+    const crossGameDetail = {
+      id: 'user-2',
+      email: 'two@example.com',
+      displayName: 'User Two',
+      gameId: 'game-2',
+      gameSlug: 'demo-racer',
+      role: 'Moderator',
+      createdAt: '2026-01-02T00:00:00Z',
+    };
+
+    fixture.componentInstance['selectUser'](users[1]);
+    httpMock.expectOne(IdentityUserEndpoints.detail('user-2', 'game-2')).flush(crossGameDetail);
+    fixture.detectChanges();
+
+    fixture.componentInstance['onRoleChange']({ value: 'Admin' } as never);
+    fixture.componentInstance['assignRole']();
+
+    const assignRequest = httpMock.expectOne(IdentityUserEndpoints.role('user-2'));
+    expect(assignRequest.request.body).toEqual({ gameId: 'game-2', role: 'Admin' });
+    assignRequest.flush({ userId: 'user-2', gameId: 'game-2', role: 'Admin', grantedAt: '2026-01-05T00:00:00Z' });
+
+    httpMock.expectOne(IdentityUserEndpoints.detail('user-2', 'game-2')).flush({ ...crossGameDetail, role: 'Admin' });
+    fixture.detectChanges();
+
+    fixture.componentInstance['revokeSessions']();
+    const revokeRequest = httpMock.expectOne(IdentityUserEndpoints.revokeSessions('user-2', 'game-2'));
+    expect(revokeRequest.request.method).toBe('POST');
+    revokeRequest.flush(null);
   });
 });

@@ -11,6 +11,8 @@ export interface UserSummary {
   role: string;
   createdAt: string;
   lastLoginAt: string | null;
+  gameId: string | null;
+  gameSlug: string | null;
 }
 
 export interface UserDetail {
@@ -18,6 +20,7 @@ export interface UserDetail {
   email: string;
   displayName: string;
   gameId: string | null;
+  gameSlug: string | null;
   role: string | null;
   createdAt: string;
 }
@@ -39,8 +42,8 @@ export class UserManagementService {
     return this.http.get<PagedResult<UserSummary>>(IdentityUserEndpoints.list(search, page, pageSize));
   }
 
-  getUser(userId: string): Observable<UserDetail> {
-    return this.http.get<UserDetail>(IdentityUserEndpoints.detail(userId));
+  getUser(userId: string, gameId?: string | null): Observable<UserDetail> {
+    return this.http.get<UserDetail>(IdentityUserEndpoints.detail(userId, gameId));
   }
 
   assignRole(userId: string, gameId: string | undefined, role: string): Observable<UserRoleAssignment> {
