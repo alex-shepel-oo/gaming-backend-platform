@@ -3,6 +3,7 @@ import { Component, inject, output, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService, DEFAULT_GAME_SLUG, RegistrationAcceptedResponse } from 'shared';
@@ -35,7 +36,14 @@ function classifyRegisterError(error: unknown): RegisterError {
 
 @Component({
   selector: 'app-register',
-  imports: [ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatButtonModule, MatProgressSpinnerModule],
+  imports: [
+    ReactiveFormsModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatButtonModule,
+    MatProgressSpinnerModule,
+  ],
   templateUrl: './register.html',
   styleUrl: './register.scss',
 })
@@ -51,8 +59,13 @@ export class Register {
 
   protected readonly submitting = signal(false);
   protected readonly error = signal<RegisterError | null>(null);
+  protected readonly hidePassword = signal(true);
 
   readonly registered = output<RegisteredEvent>();
+
+  protected togglePasswordVisibility(): void {
+    this.hidePassword.set(!this.hidePassword());
+  }
 
   protected submit(): void {
     if (this.form.invalid) {

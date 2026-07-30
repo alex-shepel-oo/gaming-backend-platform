@@ -11,7 +11,22 @@
 
   <mat-form-field appearance="outline">
     <mat-label>Password</mat-label>
-    <input matInput type="password" formControlName="password" autocomplete="new-password" required />
+    <input
+      matInput
+      [type]="hidePassword() ? 'password' : 'text'"
+      formControlName="password"
+      autocomplete="new-password"
+      required
+    />
+    <button
+      type="button"
+      mat-icon-button
+      matSuffix
+      (click)="togglePasswordVisibility()"
+      [attr.aria-label]="hidePassword() ? 'Show password' : 'Hide password'"
+    >
+      <mat-icon aria-hidden="true">{{ hidePassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
+    </button>
     <mat-hint>At least 12 characters.</mat-hint>
   </mat-form-field>
 

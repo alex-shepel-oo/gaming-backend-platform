@@ -139,5 +139,43 @@ describe('ResetPassword', () => {
 
       httpMock.expectNone(IdentityAuthEndpoints.resetPassword);
     });
+
+    it('toggles the new and confirm password fields independently', () => {
+      const fixture = TestBed.createComponent(ResetPassword);
+      fixture.detectChanges();
+
+      const element = fixture.nativeElement as HTMLElement;
+      const passwordInputs = element.querySelectorAll('input[type="password"]');
+      const newPasswordInput = passwordInputs[0] as HTMLInputElement;
+      const confirmPasswordInput = passwordInputs[1] as HTMLInputElement;
+
+      const toggleButtons = element.querySelectorAll('button[aria-label="Show password"]');
+      expect(toggleButtons.length).toBe(2);
+
+      const newPasswordToggle = toggleButtons[0] as HTMLButtonElement;
+      const confirmPasswordToggle = toggleButtons[1] as HTMLButtonElement;
+
+      newPasswordToggle.click();
+      fixture.detectChanges();
+
+      expect(newPasswordInput.type).toBe('text');
+      expect(confirmPasswordInput.type).toBe('password');
+      expect(newPasswordToggle.getAttribute('aria-label')).toBe('Hide password');
+      expect(confirmPasswordToggle.getAttribute('aria-label')).toBe('Show password');
+
+      confirmPasswordToggle.click();
+      fixture.detectChanges();
+
+      expect(newPasswordInput.type).toBe('text');
+      expect(confirmPasswordInput.type).toBe('text');
+      expect(confirmPasswordToggle.getAttribute('aria-label')).toBe('Hide password');
+
+      newPasswordToggle.click();
+      fixture.detectChanges();
+
+      expect(newPasswordInput.type).toBe('password');
+      expect(confirmPasswordInput.type).toBe('text');
+      expect(newPasswordToggle.getAttribute('aria-label')).toBe('Show password');
+    });
   });
 });
