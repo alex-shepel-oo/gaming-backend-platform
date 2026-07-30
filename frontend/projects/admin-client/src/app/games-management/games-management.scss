@@ -16,11 +16,36 @@
   flex-wrap: wrap;
 }
 
-.games-table {
-  width: 100%;
+.page-container {
+  background: transparent;
 }
 
-.inline-field {
+.edit-sidenav {
+  width: 100%;
+  max-width: 400px;
+  padding: var(--app-space-lg);
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--app-space-md);
+}
+
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--app-space-sm);
+}
+
+.edit-actions {
+  display: flex;
+  gap: var(--app-space-sm);
+}
+
+.games-table {
   width: 100%;
 }
 

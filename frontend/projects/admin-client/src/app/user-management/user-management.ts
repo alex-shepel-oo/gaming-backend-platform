@@ -3,9 +3,11 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule, MatSelectChange } from '@angular/material/select';
+import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatTableModule } from '@angular/material/table';
 import { RolePermissionsService, TokenStore, UserDetail, UserManagementService, UserSummary } from 'shared';
 
@@ -28,9 +30,11 @@ const PAGE_SIZE = 20;
     MatButtonModule,
     MatCardModule,
     MatFormFieldModule,
+    MatIconModule,
     MatInputModule,
     MatProgressSpinnerModule,
     MatSelectModule,
+    MatSidenavModule,
     MatTableModule,
   ],
   templateUrl: './user-management.html',
@@ -116,6 +120,14 @@ export class UserManagement {
     this.revokeError.set(false);
     this.revoked.set(false);
     this.loadDetail(user.id, user.gameId);
+  }
+
+  protected closeDetail(): void {
+    this.selectedUserId.set(null);
+    this.selectedUser.set(null);
+    this.assignError.set(false);
+    this.revokeError.set(false);
+    this.revoked.set(false);
   }
 
   protected onRoleChange(change: MatSelectChange): void {
