@@ -28,7 +28,7 @@
     @if (showGamePicker()) {
       <mat-form-field appearance="outline">
         <mat-label>Convert into game</mat-label>
-        <select matNativeControl formControlName="targetGameId" required>
+        <select matNativeControl formControlName="targetGameId">
           <option value="" disabled>Select a game</option>
           @for (game of toGameOptions(); track game.id) {
             <option [value]="game.id">{{ game.name }}</option>

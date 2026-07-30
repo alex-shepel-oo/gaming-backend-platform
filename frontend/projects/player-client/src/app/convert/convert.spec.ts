@@ -393,6 +393,34 @@ describe('Convert', () => {
     expect(fixture.componentInstance['form'].value.toCurrencyId).toBe('currency-a');
   });
 
+  it('re-enables submit after the game picker is hidden by a from-is-game-currency switch, once an amount is entered', () => {
+    // Regression case: the game picker's native `required` attribute gets
+    // picked up by Angular's RequiredValidator directive, which composes
+    // Validators.required onto targetGameId's control -- and that stays
+    // attached even after the picker's element is removed from the DOM,
+    // since Angular doesn't clear directive-contributed validators on
+    // destroy. Resetting targetGameId back to '' in that state used to
+    // permanently fail that orphaned validator, leaving the form invalid
+    // forever even though targetGameId is never required by the component
+    // (it has no Validators.required of its own) and is no longer shown.
+    fixture = createWithCurrencies(balancesWithTwoGames, catalogWithTwoGames, myGames, [...publicGames, secondGame]);
+
+    selectFrom(fixture, 'currency-a');
+    selectTargetGame(fixture, 'game-2');
+    selectFrom(fixture, 'currency-b');
+
+    const element = fixture.nativeElement as HTMLElement;
+    const amountInput = element.querySelector('input[type="number"]') as HTMLInputElement;
+    amountInput.value = '10';
+    amountInput.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    drainPendingRateRequests();
+
+    const submitButton = element.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(submitButton.disabled).toBe(false);
+  });
+
   it('disables submit when toCurrencyId no longer matches a live option even though the control still has a value', () => {
     fixture = createWithCurrencies();
     fillAndSubmitPrep(fixture);
