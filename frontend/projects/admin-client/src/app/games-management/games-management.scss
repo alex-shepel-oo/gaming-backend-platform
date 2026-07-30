@@ -1,8 +1,13 @@
 :host {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
   max-width: var(--app-shell-max-width);
+  width: 100%;
   margin: 0 auto;
   padding: var(--app-space-lg);
+  box-sizing: border-box;
 }
 
 .create-card {
@@ -17,6 +22,8 @@
 }
 
 .page-container {
+  flex: 1;
+  min-height: 0;
   background: transparent;
 }
 

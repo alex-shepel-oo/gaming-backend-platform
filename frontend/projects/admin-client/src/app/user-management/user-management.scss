@@ -1,8 +1,13 @@
 :host {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .page-container {
+  flex: 1;
+  min-height: 0;
   background: transparent;
 }
 
