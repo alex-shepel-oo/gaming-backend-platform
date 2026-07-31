@@ -31,6 +31,7 @@ export * from './lib/profile/identity-profile-endpoints';
 export * from './lib/profile/profile.service';
 export * from './lib/roles/identity-role-endpoints';
 export * from './lib/roles/role-permissions.service';
+export * from './lib/telemetry/frontend-telemetry.provider';
 export * from './lib/users/identity-user-endpoints';
 export * from './lib/users/user-management.service';
 export * from './lib/util/avatar';
