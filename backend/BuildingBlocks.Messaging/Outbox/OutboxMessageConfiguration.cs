@@ -17,6 +17,7 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
         builder.Property(m => m.OccurredAt).HasColumnName("occurred_at").IsRequired();
         builder.Property(m => m.ProcessedAt).HasColumnName("processed_at");
         builder.Property(m => m.Attempts).HasColumnName("attempts").HasDefaultValue(0);
+        builder.Property(m => m.TraceParent).HasColumnName("trace_parent");
 
         // The dispatcher only ever polls unsent rows; the partial index keeps
         // that scan bounded to the unprocessed tail instead of the full table.
