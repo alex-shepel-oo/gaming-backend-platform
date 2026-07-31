@@ -1,5 +1,5 @@
 import { EnvironmentProviders, effect, inject, Injector, provideAppInitializer } from '@angular/core';
-import { initializeFaro } from '@grafana/faro-web-sdk';
+import { initializeFaro, SessionInstrumentation } from '@grafana/faro-web-sdk';
 import { getDefaultOTELInstrumentations, TracingInstrumentation } from '@grafana/faro-web-tracing';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-web';
@@ -23,7 +23,12 @@ export interface FrontendTelemetryOptions {
  * That data ships in Faro's own event format, which needs a Faro receiver (e.g. Grafana Alloy's
  * `faro.receiver` component) to land anywhere useful -- standing that up is a separate
  * infrastructure decision, not something that should fall out of wiring up tracing, so only
- * TracingInstrumentation is registered below.
+ * TracingInstrumentation is registered below, plus SessionInstrumentation: TracingInstrumentation's
+ * own sampler is hard-wired to read the session's `isSampled` flag (no config knob overrides it),
+ * so session tracking has to run even though nothing else about sessions is used here -- without
+ * it every span is silently dropped as NOT_RECORD before export. SessionInstrumentation itself
+ * makes no network call of its own; it only ever pushes through Faro's own transports, which are
+ * intentionally empty below.
  */
 export function provideFrontendTelemetry(options: FrontendTelemetryOptions): EnvironmentProviders {
   const tracesUrl = `${options.otlpEndpoint}/v1/traces`;
@@ -39,6 +44,7 @@ export function provideFrontendTelemetry(options: FrontendTelemetryOptions): Env
     // that's deliberate, not an oversight.
     transports: [],
     instrumentations: [
+      new SessionInstrumentation(),
       new TracingInstrumentation({
         spanProcessor: enduserProcessor,
         // The default instrumentations would otherwise also trace the exporter's own calls to
