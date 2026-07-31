@@ -80,6 +80,8 @@ services:
       RabbitMq__Username: "${RABBITMQ_USER:?RABBITMQ_USER is required, set it in infra/.env}"
       RabbitMq__Password: "${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required, set it in infra/.env}"
       RabbitMq__ExchangeName: gbp.identity
+      Telemetry__OtlpEndpoint: "http://otel-collector:4317"
+      Telemetry__LokiEndpoint: "http://loki:3100"
     ports:
       - "${IDENTITY_SERVICE_PORT:-5000}:5000"
     depends_on:
@@ -142,6 +144,8 @@ services:
       RabbitMq__Port: "5672"
       RabbitMq__Username: "${RABBITMQ_USER:?RABBITMQ_USER is required, set it in infra/.env}"
       RabbitMq__Password: "${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required, set it in infra/.env}"
+      Telemetry__OtlpEndpoint: "http://otel-collector:4317"
+      Telemetry__LokiEndpoint: "http://loki:3100"
     ports:
       - "${ECONOMY_SERVICE_PORT:-5001}:5001"
     depends_on:
@@ -179,6 +183,8 @@ services:
       RabbitMq__Port: "5672"
       RabbitMq__Username: "${RABBITMQ_USER:?RABBITMQ_USER is required, set it in infra/.env}"
       RabbitMq__Password: "${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required, set it in infra/.env}"
+      Telemetry__OtlpEndpoint: "http://otel-collector:4317"
+      Telemetry__LokiEndpoint: "http://loki:3100"
     ports:
       - "${NOTIFICATION_SERVICE_PORT:-5003}:5003"
     depends_on:
@@ -211,6 +217,8 @@ services:
       ConnectionStrings__EconomyDb: "Host=economy_db;Port=5432;Database=${ECONOMY_POSTGRES_DB:?ECONOMY_POSTGRES_DB is required, set it in infra/.env};Username=${ECONOMY_POSTGRES_USER:?ECONOMY_POSTGRES_USER is required, set it in infra/.env};Password=${ECONOMY_POSTGRES_PASSWORD:?ECONOMY_POSTGRES_PASSWORD is required, set it in infra/.env}"
       CleanupJob__IntervalMinutes: "${CLEANUP_JOB_INTERVAL_MINUTES:-15}"
       CleanupJob__OutboxRetentionDays: "${CLEANUP_JOB_OUTBOX_RETENTION_DAYS:-7}"
+      Telemetry__OtlpEndpoint: "http://otel-collector:4317"
+      Telemetry__LokiEndpoint: "http://loki:3100"
     depends_on:
       identity_db:
         condition: service_healthy
@@ -228,6 +236,8 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://+:5100"
+      Telemetry__OtlpEndpoint: "http://otel-collector:4317"
+      Telemetry__LokiEndpoint: "http://loki:3100"
     ports:
       - "${API_GATEWAY_PORT:-5100}:5100"
     depends_on:
@@ -280,6 +290,76 @@ services:
     networks:
       - platform-network
 
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.116.1
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector/otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "${OTEL_COLLECTOR_OTLP_GRPC_PORT:-4317}:4317"
+      - "${OTEL_COLLECTOR_OTLP_HTTP_PORT:-4318}:4318"
+    depends_on:
+      - tempo
+    networks:
+      - platform-network
+
+  tempo:
+    image: grafana/tempo:2.7.1
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo/tempo-config.yaml:/etc/tempo.yaml
+      - tempo_data:/var/tempo
+    ports:
+      - "${TEMPO_QUERY_PORT:-3200}:3200"
+    networks:
+      - platform-network
+
+  prometheus:
+    image: prom/prometheus:v3.9.1
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      - otel-collector
+    networks:
+      - platform-network
+
+  loki:
+    image: grafana/loki:3.3.2
+    command: ["-config.file=/etc/loki/loki-config.yaml"]
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml
+      - loki_data:/loki
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    networks:
+      - platform-network
+
+  grafana:
+    image: grafana/grafana:12.0.0
+    environment:
+      GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required, set it in infra/.env}"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/etc/grafana/dashboards
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    networks:
+      - platform-network
+
 networks:
   platform-network:
     driver: bridge
@@ -287,3 +367,7 @@ networks:
 volumes:
   identity_db_data:
   economy_db_data:
+  tempo_data:
+  prometheus_data:
+  loki_data:
+  grafana_data:
