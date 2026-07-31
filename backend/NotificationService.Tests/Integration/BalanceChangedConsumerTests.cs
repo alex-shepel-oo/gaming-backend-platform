@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 using AwesomeAssertions;
@@ -59,6 +61,80 @@ public sealed class BalanceChangedConsumerTests(NotificationApiFactory factory, 
         otherReceived.Should().BeFalse();
     }
 
+    // BalanceChangedConsumer is the hand-rolled consumer shape (no InboxConsumerBase, no DbContext -
+    // see the type-level comment on it), so it needs its own proof that the shared
+    // MessagingTracePropagation helper still parents its Consumer activity to the delivery's
+    // traceparent header.
+    [Fact]
+    public async Task BalanceChanged_MessageWithTraceParentHeader_ConsumerActivityIsParentedToSameTrace()
+    {
+        var targetUserId = Guid.NewGuid();
+        var currencyId = Guid.NewGuid();
+
+        // Marked Recorded explicitly - an unmarked legacy Activity defaults to "00" (unsampled) trace
+        // flags, which would make the default ParentBasedSampler correctly, but misleadingly for this
+        // test, decline to sample the consumer activity below.
+        using var seedActivity = new Activity("seed-publish").Start();
+        seedActivity.ActivityTraceFlags = ActivityTraceFlags.Recorded;
+        var traceParent = seedActivity.Id!;
+
+        var capturedActivities = new ConcurrentBag<Activity>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "BuildingBlocks.Messaging",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+            ActivityStopped = capturedActivities.Add,
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        await using var targetConnection = BuildConnection(TestTokenFactory.IssueAccessToken(targetUserId));
+        var received = new TaskCompletionSource<BalanceChangedPush>(TaskCreationOptions.RunContinuationsAsynchronously);
+        targetConnection.On<BalanceChangedPush>("balanceChanged", push =>
+        {
+            received.TrySetResult(push);
+            return Task.CompletedTask;
+        });
+        await targetConnection.StartAsync(TestContext.Current.CancellationToken);
+
+        await PublishBalanceChangedWithTraceParentAsync(
+            targetUserId, currencyId, 10m, 50m, traceParent, TestContext.Current.CancellationToken);
+
+        using var timeoutCts = new CancellationTokenSource(DeliveryTimeout);
+        using var registration = timeoutCts.Token.Register(() => received.TrySetCanceled(timeoutCts.Token));
+        await received.Task;
+
+        // ActivityStopped fires once HandleDeliveryAsync's using scope disposes the activity, which
+        // happens right after (not necessarily strictly before) the SignalR send above completes -
+        // poll briefly rather than asserting immediately against a possible race.
+        Activity? consumerActivity = null;
+        await WaitUntilAsync(
+            () =>
+            {
+                consumerActivity = capturedActivities.FirstOrDefault(a => a.TraceId == seedActivity.TraceId);
+                return Task.FromResult(consumerActivity is not null);
+            },
+            TimeSpan.FromSeconds(10));
+
+        consumerActivity.Should().NotBeNull();
+        consumerActivity!.Kind.Should().Be(ActivityKind.Consumer);
+    }
+
+    private static async Task WaitUntilAsync(Func<Task<bool>> condition, TimeSpan timeout)
+    {
+        using var cts = new CancellationTokenSource(timeout);
+        while (!cts.IsCancellationRequested)
+        {
+            if (await condition())
+            {
+                return;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(200), cts.Token);
+        }
+
+        Assert.Fail($"Condition was not met within {timeout}.");
+    }
+
     // Guards the consumer's catch-and-ack path: without it, an undecodable
     // delivery would either crash the BackgroundService (and, by default,
     // the whole host) or sit unacked and block the queue forever.
@@ -99,7 +175,30 @@ public sealed class BalanceChangedConsumerTests(NotificationApiFactory factory, 
         await PublishRawAsync(payload, cancellationToken);
     }
 
-    private async Task PublishRawAsync(string payload, CancellationToken cancellationToken)
+    // Simulates what the outbox dispatcher's PublishOneAsync actually sends: the same payload shape
+    // as PublishBalanceChangedAsync above, plus the W3C traceparent header a real Producer activity
+    // would have injected.
+    private async Task PublishBalanceChangedWithTraceParentAsync(
+        Guid userId, Guid currencyId, decimal amount, decimal balance, string traceParent, CancellationToken cancellationToken)
+    {
+        var payload = JsonSerializer.Serialize(new
+        {
+            Id = Guid.NewGuid(),
+            OccurredAt = DateTimeOffset.UtcNow,
+            LedgerEntryId = Guid.NewGuid(),
+            UserId = userId,
+            CurrencyId = currencyId,
+            Amount = amount,
+            Balance = balance,
+            TransactionType = "Credit",
+            Type = "balance.changed",
+            Version = 1,
+        });
+
+        await PublishRawAsync(payload, cancellationToken, traceParent);
+    }
+
+    private async Task PublishRawAsync(string payload, CancellationToken cancellationToken, string? traceParent = null)
     {
         var options = MsOptions.Create(new RabbitMqOptions
         {
@@ -111,7 +210,8 @@ public sealed class BalanceChangedConsumerTests(NotificationApiFactory factory, 
 
         await using var connection = new RabbitMqConnection(options);
         var eventBus = new RabbitMqEventBus(connection, options);
-        await eventBus.PublishAsync(new EventEnvelope("balance.changed", 1, payload), cancellationToken: cancellationToken);
+        var headers = traceParent is null ? null : new Dictionary<string, string> { ["traceparent"] = traceParent };
+        await eventBus.PublishAsync(new EventEnvelope("balance.changed", 1, payload), headers, cancellationToken);
     }
 
     private HubConnection BuildConnection(string accessToken) =>

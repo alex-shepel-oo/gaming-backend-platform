@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BuildingBlocks.Messaging;
+using BuildingBlocks.Messaging.Tracing;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 using NotificationService.Hubs;
@@ -45,6 +46,11 @@ public sealed partial class BalanceChangedConsumer(
 
     private async Task HandleDeliveryAsync(IChannel channel, BasicDeliverEventArgs delivery, CancellationToken cancellationToken)
     {
+        // Same extract-and-parent step InboxConsumerBase uses, factored into BuildingBlocks.Messaging
+        // rather than duplicated here - this consumer has no DbContext to be generic over (see the
+        // type-level comment above) so it can't share the base class itself, only this helper.
+        using var activity = MessagingTracePropagation.StartConsumerActivity($"{delivery.RoutingKey} process", delivery.BasicProperties.Headers);
+
         try
         {
             var notification = JsonSerializer.Deserialize<BalanceChangedNotification>(delivery.Body.Span);
