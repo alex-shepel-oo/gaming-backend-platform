@@ -1,7 +1,9 @@
 using System.Globalization;
 using ApiGateway.Auth;
+using ApiGateway.Infrastructure;
 using ApiGateway.Options;
 using ApiGateway.ServiceDiscovery;
+using BuildingBlocks.Telemetry.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.Extensions.Options;
@@ -22,7 +24,8 @@ builder.Configuration
 builder.Host.UseSerilog((context, configuration) => configuration
     .Enrich.FromLogContext()
     .Enrich.WithEnvironmentName()
-    .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture));
+    .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture)
+    .WriteToPlatformLoki(context.Configuration, "api-gateway"));
 
 builder.Services.AddOptions<JwtOptions>()
     .Bind(builder.Configuration.GetSection(JwtOptions.SectionName))
@@ -87,6 +90,7 @@ builder.Services.AddOptions<CorsOptions>()
 
 builder.Services.AddHealthChecks();
 builder.Services.AddOcelot(builder.Configuration).AddConsul<ServiceAddressConsulServiceBuilder>().AddPolly();
+builder.Services.AddPlatformTelemetry(builder.Configuration, "api-gateway");
 
 var app = builder.Build();
 
@@ -95,6 +99,8 @@ var app = builder.Build();
 // it can't reach the one dependency (Identity's published keys) it needs to validate a
 // single incoming token.
 await app.Services.GetRequiredService<IJwksKeyCache>().RefreshAsync(CancellationToken.None);
+
+app.UseMiddleware<CorrelationIdMiddleware>();
 
 // Ocelot has no per-route CORS of its own, so the admin/player split is done
 // with two explicit UseWhen branches instead of one blanket UseCors call.
