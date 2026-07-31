@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BuildingBlocks.Messaging.Tracing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -68,6 +69,12 @@ public abstract partial class InboxConsumerBase<TDbContext>(
             await channel.BasicAckAsync(delivery.DeliveryTag, multiple: false, cancellationToken);
             return;
         }
+
+        // Parented to whatever traceparent/tracestate rode along on the delivery's AMQP headers
+        // (the producer side of BuildingBlocks.Messaging.Tracing set these); a delivery with none -
+        // published before this session, or from a producer that never captured a trace - roots a
+        // fresh activity here rather than throwing, so the dedup/side-effect flow below is unaffected.
+        using var activity = MessagingTracePropagation.StartConsumerActivity($"{delivery.RoutingKey} process", delivery.BasicProperties.Headers);
 
         using var scope = scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<TDbContext>();
