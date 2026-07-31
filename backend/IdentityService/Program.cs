@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json.Serialization;
 using BuildingBlocks.Messaging.Extensions;
+using BuildingBlocks.Telemetry.Extensions;
 using IdentityService.Endpoints;
 using IdentityService.Extensions;
 using IdentityService.Infrastructure;
@@ -13,7 +14,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((context, configuration) => configuration
     .Enrich.FromLogContext()
     .Enrich.WithEnvironmentName()
-    .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture));
+    .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture)
+    .WriteToPlatformLoki(context.Configuration, "identity-service"));
 
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -30,6 +32,7 @@ builder.Services.AddIdentityEmail(builder.Configuration);
 builder.Services.AddRabbitMqEventBus(builder.Configuration);
 builder.Services.AddOutbox<IdentityDbContext>();
 builder.Services.AddOutboxDispatcher<IdentityDbContext>(builder.Configuration);
+builder.Services.AddPlatformTelemetry(builder.Configuration, "identity-service");
 builder.Services.AddScoped<DevelopmentSeeder>();
 
 var app = builder.Build();
