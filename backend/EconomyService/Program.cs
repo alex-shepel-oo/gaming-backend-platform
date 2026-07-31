@@ -46,6 +46,7 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<EnduserIdMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {

@@ -124,7 +124,8 @@ app.UseEndpoints(endpoints => endpoints.MapScalarApiReference(options =>
     options.AddDocument("identity", "Identity API", "/openapi/identity/v1.json", isDefault: true)));
 #pragma warning restore ASP0014
 
-await app.UseOcelot();
+await app.UseOcelot(pipelineConfiguration =>
+    pipelineConfiguration.PreAuthorizationMiddleware = EnduserIdEnricher.ApplyAsync);
 
 app.Run();
 
