@@ -64,9 +64,10 @@ public sealed class BalanceChangedConsumerTests(NotificationApiFactory factory, 
     // BalanceChangedConsumer is the hand-rolled consumer shape (no InboxConsumerBase, no DbContext -
     // see the type-level comment on it), so it needs its own proof that the shared
     // MessagingTracePropagation helper still parents its Consumer activity to the delivery's
-    // traceparent header.
+    // traceparent header, and that it tags enduser.id from the payload's UserId - the same
+    // information already needed for the SignalR routing below, not a new field added for this.
     [Fact]
-    public async Task BalanceChanged_MessageWithTraceParentHeader_ConsumerActivityIsParentedToSameTrace()
+    public async Task BalanceChanged_MessageWithTraceParentHeader_ConsumerActivityIsParentedToSameTraceAndTaggedWithUserId()
     {
         var targetUserId = Guid.NewGuid();
         var currencyId = Guid.NewGuid();
@@ -117,6 +118,11 @@ public sealed class BalanceChangedConsumerTests(NotificationApiFactory factory, 
 
         consumerActivity.Should().NotBeNull();
         consumerActivity!.Kind.Should().Be(ActivityKind.Consumer);
+
+        // TagObjects, not Tags: SetTag(string, object?) - what BalanceChangedConsumer and the
+        // enduser.id middleware both call - populates TagObjects, not the legacy string-only Tags
+        // property (that one is only ever populated by the older AddTag(string, string?) method).
+        consumerActivity.TagObjects.Should().Contain(t => t.Key == "enduser.id" && Equals(t.Value, targetUserId));
     }
 
     private static async Task WaitUntilAsync(Func<Task<bool>> condition, TimeSpan timeout)
