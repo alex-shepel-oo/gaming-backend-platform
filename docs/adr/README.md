@@ -26,3 +26,4 @@ See the template: [0000-template.md](0000-template.md).
 | [0017](0017-rs256-and-jwks.md) | RS256 + JWKS | Accepted | 3 |
 | [0018](0018-shared-messaging-building-block.md) | Shared Messaging Building Block (`BuildingBlocks.Messaging`) | Accepted | 3 |
 | [0019](0019-opentelemetry-observability.md) | OpenTelemetry Observability: Collector Hub and Grafana-Native Backends | Accepted | — |
+| [0020](0020-frontend-tracing-with-faro.md) | Frontend Distributed Tracing with Grafana Faro | Accepted | — |

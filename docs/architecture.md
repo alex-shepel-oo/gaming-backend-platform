@@ -104,7 +104,12 @@ invoked.
   known user id is tagged `enduser.id`, so one player's activity is filterable across every
   service's traces and logs. See ADR-0019. Retention on Loki/Tempo/Prometheus is configurable via
   `.env` (`LOKI_RETENTION_PERIOD`/`TEMPO_RETENTION_PERIOD`/`PROMETHEUS_RETENTION_PERIOD`, all
-  defaulting to roughly six months) rather than left unbounded.
+  defaulting to roughly six months) rather than left unbounded. The trace no longer stops at the
+  gateway's edge either: both frontend apps export tracing spans via Grafana Faro straight to the
+  same `otel-collector`, tagged with the same `enduser.id`, so a single trace now runs from an
+  actual browser click through the gateway into whichever backend service (and, where relevant, the
+  outbox/RabbitMQ/SignalR path above) handled it. Faro's error/session/Web-Vitals capture is
+  deliberately not wired up — see ADR-0020.
 
 ## Path-filtered CI
 
