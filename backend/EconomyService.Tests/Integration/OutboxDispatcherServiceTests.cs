@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json.Nodes;
 using AwesomeAssertions;
@@ -11,6 +12,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using NSubstitute;
 using NUnit.Framework;
+using OpenTelemetry;
+using OpenTelemetry.Trace;
 using RabbitMQ.Client;
 using Respawn;
 using Testcontainers.PostgreSql;
@@ -129,6 +132,140 @@ public sealed class OutboxDispatcherServiceTests : IAsyncDisposable
         }
     }
 
+    // Proves the actual point of Part 1: a trace captured at write time (what OutboxWriter would
+    // have stored) survives the round trip through Postgres, the dispatcher's re-parented Producer
+    // activity, and the real AMQP wire encoding, landing on the delivered message's headers with the
+    // same trace id it started with - not just that a header exists, but that it is the same trace.
+    [Test]
+    public async Task Dispatch_MessageWithTraceParent_PublishedAmqpHeadersCarrySameTraceId()
+    {
+        var cancellationToken = TestContext.CurrentContext.CancellationToken;
+        var routingKey = $"test.trace.{Guid.NewGuid():N}";
+
+        // Real production stand-in: without a built TracerProvider, ActivitySource.StartActivity
+        // returns null (nothing is sampling it) and Propagators.DefaultTextMapPropagator stays a
+        // Noop, so Inject writes no headers at all rather than a wrong one - exactly the two things
+        // AddPlatformTelemetry's .AddSource("BuildingBlocks.Messaging") registration sets up for real.
+        using var tracerProvider = CreateMessagingTracerProvider();
+
+        // A plain legacy Activity.Start() (no ActivitySource/listener behind it) defaults to
+        // unsampled ("00" trace flags) - the real HTTP request activity OutboxWriter actually reads
+        // Activity.Current from is sampled (AddAspNetCoreInstrumentation's root sampler is AlwaysOn),
+        // and the default ParentBasedSampler correctly declines to sample a child of an unsampled
+        // parent. Marking this Recorded is what makes the seed activity a faithful stand-in.
+        using var seedActivity = new Activity("seed-request").Start();
+        seedActivity.ActivityTraceFlags = ActivityTraceFlags.Recorded;
+        var traceParent = seedActivity.Id!;
+
+        var messageId = await SeedUnsentMessageAsync(routingKey, """{"hello":"traced"}""", traceParent);
+
+        await using var rabbitConnection = new RabbitMqConnection(MsOptions.Create(_rabbitMqOptions));
+        await using var consumerChannel = await rabbitConnection.CreateChannelAsync(cancellationToken);
+        var queueName = (await consumerChannel.QueueDeclareAsync(
+            queue: string.Empty,
+            durable: false,
+            exclusive: true,
+            autoDelete: true,
+            cancellationToken: cancellationToken)).QueueName;
+        await consumerChannel.QueueBindAsync(queueName, _rabbitMqOptions.ExchangeName, routingKey, cancellationToken: cancellationToken);
+
+        var eventBus = new RabbitMqEventBus(rabbitConnection, MsOptions.Create(_rabbitMqOptions));
+        await using var provider = BuildProvider();
+        using var dispatcher = CreateDispatcher(provider, eventBus, maxAttempts: 5);
+
+        await dispatcher.StartAsync(cancellationToken);
+        try
+        {
+            var delivery = await WaitForDeliveryAsync(consumerChannel, queueName, TimeSpan.FromSeconds(15));
+
+            delivery.Should().NotBeNull();
+            delivery!.BasicProperties.Headers.Should().NotBeNull();
+            delivery.BasicProperties.Headers!.Should().ContainKey("traceparent");
+
+            var deliveredTraceParent = HeaderValueToString(delivery.BasicProperties.Headers["traceparent"]);
+            ActivityContext.TryParse(deliveredTraceParent, null, out var deliveredContext).Should().BeTrue();
+            deliveredContext.TraceId.Should().Be(seedActivity.TraceId);
+        }
+        finally
+        {
+            await dispatcher.StopAsync(cancellationToken);
+        }
+
+        await using var final = CreateDbContext();
+        var finalMessage = await final.OutboxMessages.SingleAsync(m => m.Id == messageId, cancellationToken);
+        finalMessage.ProcessedAt.Should().NotBeNull();
+    }
+
+    // The other half of the same guarantee: a row with no TraceParent at all (written before this
+    // column existed, or by a caller with no live Activity) must not make the dispatcher throw, and
+    // must not break the existing at-least-once delivery guarantee - the message still gets
+    // published and marked processed, just under a fresh root trace instead of a re-parented one.
+    [Test]
+    public async Task Dispatch_MessageWithNullTraceParent_PublishesWithFreshRootTraceWithoutThrowing()
+    {
+        var cancellationToken = TestContext.CurrentContext.CancellationToken;
+        var routingKey = $"test.no-trace.{Guid.NewGuid():N}";
+
+        using var tracerProvider = CreateMessagingTracerProvider();
+
+        var messageId = await SeedUnsentMessageAsync(routingKey, """{"hello":"untraced"}""", traceParent: null);
+
+        await using var rabbitConnection = new RabbitMqConnection(MsOptions.Create(_rabbitMqOptions));
+        await using var consumerChannel = await rabbitConnection.CreateChannelAsync(cancellationToken);
+        var queueName = (await consumerChannel.QueueDeclareAsync(
+            queue: string.Empty,
+            durable: false,
+            exclusive: true,
+            autoDelete: true,
+            cancellationToken: cancellationToken)).QueueName;
+        await consumerChannel.QueueBindAsync(queueName, _rabbitMqOptions.ExchangeName, routingKey, cancellationToken: cancellationToken);
+
+        var eventBus = new RabbitMqEventBus(rabbitConnection, MsOptions.Create(_rabbitMqOptions));
+        await using var provider = BuildProvider();
+        using var dispatcher = CreateDispatcher(provider, eventBus, maxAttempts: 5);
+
+        await dispatcher.StartAsync(cancellationToken);
+        try
+        {
+            var delivery = await WaitForDeliveryAsync(consumerChannel, queueName, TimeSpan.FromSeconds(15));
+
+            delivery.Should().NotBeNull();
+
+            // Still gets a valid W3C traceparent - just a freshly rooted one, not a re-parented one -
+            // rather than a missing/malformed header.
+            if (delivery!.BasicProperties.Headers is { } headers && headers.TryGetValue("traceparent", out var rawValue))
+            {
+                ActivityContext.TryParse(HeaderValueToString(rawValue), null, out var deliveredContext).Should().BeTrue();
+                deliveredContext.TraceId.Should().NotBe(default(ActivityTraceId));
+            }
+        }
+        finally
+        {
+            await dispatcher.StopAsync(cancellationToken);
+        }
+
+        await using var final = CreateDbContext();
+        var finalMessage = await final.OutboxMessages.SingleAsync(m => m.Id == messageId, cancellationToken);
+        finalMessage.ProcessedAt.Should().NotBeNull();
+    }
+
+    // Building a real OpenTelemetry TracerProvider - not just an ActivityListener - is what this
+    // test actually needs: Propagators.DefaultTextMapPropagator is a Noop until an SDK
+    // TracerProviderBuilder has been built at least once in the process (that's what
+    // AddOpenTelemetry().WithTracing(...) does in the real app), so without this, Inject writes no
+    // headers at all rather than a wrong one. AddSource subscribes the listener MessagingActivitySource
+    // needs in the same call.
+    private static TracerProvider CreateMessagingTracerProvider() =>
+        Sdk.CreateTracerProviderBuilder().AddSource("BuildingBlocks.Messaging").Build();
+
+    private static string HeaderValueToString(object? headerValue) =>
+        headerValue switch
+        {
+            byte[] bytes => Encoding.UTF8.GetString(bytes),
+            string text => text,
+            _ => throw new InvalidOperationException($"Unexpected AMQP header value: {headerValue ?? "<null>"}"),
+        };
+
     [Test]
     public async Task Dispatch_TransientPublishFailures_RetriesAndEventuallyMarksProcessedWithAttemptsRecorded()
     {
@@ -137,7 +274,7 @@ public sealed class OutboxDispatcherServiceTests : IAsyncDisposable
 
         var failuresRemaining = 2;
         var eventBus = Substitute.For<IEventBus>();
-        eventBus.PublishAsync(Arg.Any<EventEnvelope>(), Arg.Any<CancellationToken>())
+        eventBus.PublishAsync(Arg.Any<EventEnvelope>(), Arg.Any<IReadOnlyDictionary<string, string>?>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 if (Interlocked.Decrement(ref failuresRemaining) >= 0)
@@ -182,7 +319,7 @@ public sealed class OutboxDispatcherServiceTests : IAsyncDisposable
         var messageId = await SeedUnsentMessageAsync("test.always-fails", """{"attempt":"never-ok"}""");
 
         var eventBus = Substitute.For<IEventBus>();
-        eventBus.PublishAsync(Arg.Any<EventEnvelope>(), Arg.Any<CancellationToken>())
+        eventBus.PublishAsync(Arg.Any<EventEnvelope>(), Arg.Any<IReadOnlyDictionary<string, string>?>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromException(new InvalidOperationException("permanent publish failure")));
 
         await using var provider = BuildProvider();
@@ -238,7 +375,7 @@ public sealed class OutboxDispatcherServiceTests : IAsyncDisposable
 
         var publishCounts = new ConcurrentDictionary<string, int>();
         var sharedEventBus = Substitute.For<IEventBus>();
-        sharedEventBus.PublishAsync(Arg.Any<EventEnvelope>(), Arg.Any<CancellationToken>())
+        sharedEventBus.PublishAsync(Arg.Any<EventEnvelope>(), Arg.Any<IReadOnlyDictionary<string, string>?>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
                 var envelope = callInfo.Arg<EventEnvelope>()!;
@@ -317,7 +454,7 @@ public sealed class OutboxDispatcherServiceTests : IAsyncDisposable
         Assert.Fail($"Condition was not met within {timeout}.");
     }
 
-    private async Task<Guid> SeedUnsentMessageAsync(string type, string payload)
+    private async Task<Guid> SeedUnsentMessageAsync(string type, string payload, string? traceParent = null)
     {
         await using var dbContext = CreateDbContext();
         var message = new OutboxMessage
@@ -329,6 +466,7 @@ public sealed class OutboxDispatcherServiceTests : IAsyncDisposable
             OccurredAt = DateTimeOffset.UtcNow,
             ProcessedAt = null,
             Attempts = 0,
+            TraceParent = traceParent,
         };
         dbContext.OutboxMessages.Add(message);
         await dbContext.SaveChangesAsync(TestContext.CurrentContext.CancellationToken);

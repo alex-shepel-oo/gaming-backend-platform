@@ -63,6 +63,10 @@ namespace IdentityService.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("processed_at");
 
+                    b.Property<string>("TraceParent")
+                        .HasColumnType("text")
+                        .HasColumnName("trace_parent");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasColumnType("text")

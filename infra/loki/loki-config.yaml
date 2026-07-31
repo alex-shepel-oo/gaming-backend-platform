@@ -1,0 +1,40 @@
+# Single-binary dev config: filesystem storage, in-memory ring, no separate
+# read/write/backend targets. Nothing here is meant to survive a `docker compose down -v`.
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+
+common:
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  allow_structured_metadata: true
+  retention_period: ${LOKI_RETENTION_PERIOD}
+
+# retention_period above is only enforced by the compactor -- Loki silently
+# ignores it otherwise. delete_request_store must point at the same object
+# store as schema_config above, or deletion never actually runs.
+compactor:
+  working_directory: /loki/compactor
+  delete_request_store: filesystem
+  retention_enabled: true

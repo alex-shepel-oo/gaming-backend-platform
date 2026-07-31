@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using BuildingBlocks.Messaging;
 using BuildingBlocks.Messaging.Inbox;
@@ -43,6 +44,10 @@ public sealed class UserEmailConfirmedConsumer(
         EconomyDbContext dbContext, Guid messageId, string routingKey, ReadOnlyMemory<byte> body, CancellationToken cancellationToken)
     {
         var payload = JsonSerializer.Deserialize<UserEmailConfirmedPayload>(body.Span)!;
+
+        // Already parsed above for the grant itself - tagging the consumer activity (started in
+        // InboxConsumerBase.HandleDeliveryAsync, ambient here as Activity.Current) with it is free.
+        Activity.Current?.SetTag("enduser.id", payload.UserId);
 
         // WelcomeGrantService (-> ILedgerService) is resolved from a fresh
         // scope rather than the scope owning the dbContext parameter above:

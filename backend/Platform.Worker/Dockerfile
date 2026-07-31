@@ -9,9 +9,11 @@ WORKDIR /src
 
 COPY Directory.Build.props Directory.Packages.props ./
 COPY Platform.Worker/Platform.Worker.csproj Platform.Worker/
+COPY BuildingBlocks.Telemetry/BuildingBlocks.Telemetry.csproj BuildingBlocks.Telemetry/
 RUN dotnet restore Platform.Worker/Platform.Worker.csproj
 
 COPY Platform.Worker/ Platform.Worker/
+COPY BuildingBlocks.Telemetry/ BuildingBlocks.Telemetry/
 RUN dotnet publish Platform.Worker/Platform.Worker.csproj -c Release -o /app --no-restore
 
 # No migrator stage here: the worker only deletes rows in tables that

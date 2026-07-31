@@ -78,6 +78,7 @@ counterpart at all — see the service discovery row below.
 | player-client / Ingress | player-client's own Nginx proxies `/api/*` to `api-gateway` over the compose network, so the browser and the API share the `:8080` origin — what lets the refresh cookie use `SameSite=Strict` (ADR 0011) | The Ingress has exactly one rule: `/` → the `player-client` Service. There's no second rule sending `/api` straight to `api-gateway` — that would duplicate the same-origin decision in two places (Ingress rules and `nginx.conf`) that could quietly drift apart later. player-client's Nginx does the identical `/api` proxy it does in compose, just resolving `api-gateway` through kube-DNS instead of a compose service name — one mechanism, one place, for both topologies. See ADR 0011 / ADR 0012 |
 | Gateway routing config | `ocelot.Development.json`, Consul-based `ServiceName` routing | `ocelot.Kubernetes.json`, static `DownstreamHostAndPorts` pointing at `*.svc.cluster.local` names. `gateway/kustomization.yaml`'s `configMapGenerator` builds the `gateway-config` ConfigMap directly from `backend/ApiGateway/ocelot.Kubernetes.json` instead of a hand-copied inline block — this file drifted from a manually maintained ConfigMap twice during this group before the switch, so generation removes that whole class of mistake. That source file lives outside `infra/kubernetes/gateway/`, and `kubectl apply -k` has no flag to let Kustomize read outside the kustomization's own directory (only the separate `kubectl kustomize` render subcommand does) — so `scripts/k8s/apply.sh` renders with `kubectl kustomize --load-restrictor=LoadRestrictionsNone` and pipes the result into `kubectl apply -f -`, rather than a bare `kubectl apply -k` |
 | Image pull policy | n/a — images are built locally and used directly | `imagePullPolicy: IfNotPresent` on every locally-built image (`identity-service`, `economy-service`, `api-gateway`, `platform-worker`, `player-client`, and both migrator Jobs). All of them are tagged `:latest`, which Kubernetes otherwise defaults to `imagePullPolicy: Always` for — that tries a registry pull on every pod start, which fails on a kind cluster with no registry access. Third-party images (`postgres`, `rabbitmq`, `mailpit`) are left on their own default; only the images this repo builds need the override |
+| Observability stack | `otel-collector`, `tempo`, `prometheus`, `loki`, `grafana` all present as containers (ADR-0019) | **Not deployed here yet.** No Kubernetes manifests exist for any of these five — this side of the platform currently has no metrics, traces, or centralized logs at all. Deferred to the still-pending VPS/staging-vs-production work, alongside the `base`/`overlays` split the current flat, single-environment manifests would also need for that |
 
 Namespace is `gaming-platform`. Files under `base/` carry numeric prefixes
 (`00-namespace.yaml`, `01-configmap.yaml`) so `kubectl apply -f base/` — which
@@ -92,9 +93,18 @@ invoked.
   (as with `User` itself) it deliberately isn't on the entity directly. See ADR 0005.
 - **Event bus**: RabbitMQ, choreography-based saga — planned for the
   Economy/Inventory/Marketplace slice, not yet implemented.
-- **Observability**: correlation ID propagation (`X-Correlation-Id`, generated if
-  absent, pushed into the Serilog log context for the life of the request) and
-  structured logging via Serilog, writing to stdout only.
+- **Observability**: `BuildingBlocks.Telemetry`'s `AddPlatformTelemetry` wires OpenTelemetry
+  (ASP.NET Core, HttpClient and EF Core instrumentation) across every backend service, exporting
+  traces and metrics via OTLP to a single `otel-collector`, which fans out to Tempo (traces) and a
+  Prometheus-scrapeable endpoint (metrics). Serilog keeps its correlation-ID-enriched Console sink
+  and gains a Loki sink alongside it. A trace now spans the async outbox → RabbitMQ → inbox →
+  SignalR path too, not just the originating HTTP request: `OutboxMessage.trace_parent` persists
+  the writing request's trace across the dispatcher's poll cycle, re-parented and propagated onward
+  through standard W3C AMQP headers. Every authenticated request and messaging span carrying a
+  known user id is tagged `enduser.id`, so one player's activity is filterable across every
+  service's traces and logs. See ADR-0019. Retention on Loki/Tempo/Prometheus is configurable via
+  `.env` (`LOKI_RETENTION_PERIOD`/`TEMPO_RETENTION_PERIOD`/`PROMETHEUS_RETENTION_PERIOD`, all
+  defaulting to roughly six months) rather than left unbounded.
 
 ## Path-filtered CI
 

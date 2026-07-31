@@ -1,5 +1,6 @@
 using System.Globalization;
 using BuildingBlocks.Messaging.Extensions;
+using BuildingBlocks.Telemetry.Extensions;
 using EconomyService.Auth;
 using EconomyService.Endpoints;
 using EconomyService.Extensions;
@@ -13,7 +14,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((context, configuration) => configuration
     .Enrich.FromLogContext()
     .Enrich.WithEnvironmentName()
-    .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture));
+    .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture)
+    .WriteToPlatformLoki(context.Configuration, "economy-service"));
 
 builder.Services.AddOpenApi();
 builder.Services.AddValidation();
@@ -28,6 +30,7 @@ builder.Services.AddOutbox<EconomyDbContext>();
 builder.Services.AddOutboxDispatcher<EconomyDbContext>(builder.Configuration);
 builder.Services.AddDeduplicatingEventConsumer();
 builder.Services.AddWelcomeGrantConsumer();
+builder.Services.AddPlatformTelemetry(builder.Configuration, "economy-service");
 builder.Services.AddScoped<DevelopmentSeeder>();
 
 var app = builder.Build();
@@ -43,6 +46,7 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<EnduserIdMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {

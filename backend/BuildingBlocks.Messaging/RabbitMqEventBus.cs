@@ -11,9 +11,11 @@ public sealed class RabbitMqEventBus(IRabbitMqConnection connection, IOptions<Ra
         where TEvent : IntegrationEvent =>
         PublishAsync(
             new EventEnvelope(integrationEvent.Type, integrationEvent.Version, JsonSerializer.Serialize(integrationEvent)),
+            headers: null,
             cancellationToken);
 
-    public async Task PublishAsync(EventEnvelope envelope, CancellationToken cancellationToken = default)
+    public async Task PublishAsync(
+        EventEnvelope envelope, IReadOnlyDictionary<string, string>? headers = null, CancellationToken cancellationToken = default)
     {
         await using var channel = await connection.CreateChannelAsync(cancellationToken);
 
@@ -22,6 +24,11 @@ public sealed class RabbitMqEventBus(IRabbitMqConnection connection, IOptions<Ra
             ContentType = "application/json",
             Persistent = true,
         };
+
+        if (headers is { Count: > 0 })
+        {
+            properties.Headers = headers.ToDictionary(kv => kv.Key, object? (kv) => kv.Value);
+        }
 
         // Routing key = event type: the topic exchange dispatches on exactly
         // this, and a future consumer binds its queue to the subset it cares

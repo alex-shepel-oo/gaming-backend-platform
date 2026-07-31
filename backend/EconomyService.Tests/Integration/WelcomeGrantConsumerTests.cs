@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using AwesomeAssertions;
 using BuildingBlocks.Messaging;
 using BuildingBlocks.Messaging.Inbox;
@@ -13,6 +15,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using NUnit.Framework;
+using OpenTelemetry;
+using OpenTelemetry.Trace;
 using RabbitMQ.Client;
 using Respawn;
 using Testcontainers.PostgreSql;
@@ -163,6 +167,66 @@ public sealed class WelcomeGrantConsumerTests : IAsyncDisposable
         balance.Amount.Should().Be(GrantAmount);
     }
 
+    // UserEmailConfirmedConsumer already parses payload.UserId for the grant itself - tagging the
+    // consumer activity (started in InboxConsumerBase.HandleDeliveryAsync) with enduser.id reuses
+    // that same value rather than adding a new field anywhere.
+    [Test]
+    public async Task Deliver_UserEmailConfirmed_TagsConsumerActivityWithUserId()
+    {
+        var cancellationToken = TestContext.CurrentContext.CancellationToken;
+        var messageId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
+
+        // Marked Recorded explicitly - an unmarked legacy Activity defaults to "00" (unsampled) trace
+        // flags, which would make the default ParentBasedSampler correctly, but misleadingly for this
+        // test, decline to sample the consumer activity below.
+        using var seedActivity = new Activity("seed-publish").Start();
+        seedActivity.ActivityTraceFlags = ActivityTraceFlags.Recorded;
+
+        // Propagators.DefaultTextMapPropagator is a Noop until a real TracerProvider has been built
+        // at least once in the process - without it, Extract silently fails to read the traceparent
+        // header back out, and the consumer activity would always root fresh instead of parenting.
+        using var tracerProvider = Sdk.CreateTracerProviderBuilder().AddSource("BuildingBlocks.Messaging").Build();
+
+        var capturedActivities = new ConcurrentBag<Activity>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "BuildingBlocks.Messaging",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+            ActivityStopped = capturedActivities.Add,
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        await using var provider = BuildProvider(new NoOpInboxFaultInjector());
+        using var consumer = CreateConsumer(provider, out var queueName);
+
+        await consumer.StartAsync(cancellationToken);
+        try
+        {
+            await WaitForConsumerReadyAsync(queueName, cancellationToken);
+            await PublishWithTraceParentAsync(messageId, userId, seedActivity.Id!, cancellationToken);
+
+            await WaitUntilAsync(
+                async () =>
+                {
+                    await using var verify = CreateDbContext();
+                    return await verify.LedgerEntries.AnyAsync(e => e.UserId == userId, cancellationToken);
+                },
+                TimeSpan.FromSeconds(15));
+
+            await WaitUntilAsync(
+                () => Task.FromResult(capturedActivities.Any(a => a.TraceId == seedActivity.TraceId)),
+                TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await consumer.StopAsync(cancellationToken);
+        }
+
+        var consumerActivity = capturedActivities.Single(a => a.TraceId == seedActivity.TraceId);
+        consumerActivity.TagObjects.Should().Contain(t => t.Key == "enduser.id" && Equals(t.Value, userId));
+    }
+
     [Test]
     public async Task Deliver_SameMessageTwice_DoesNotCreateSecondLedgerEntry()
     {
@@ -263,7 +327,21 @@ public sealed class WelcomeGrantConsumerTests : IAsyncDisposable
 
         await using var connection = new RabbitMqConnection(MsOptions.Create(_rabbitMqOptions));
         var eventBus = new RabbitMqEventBus(connection, MsOptions.Create(_rabbitMqOptions));
-        await eventBus.PublishAsync(new EventEnvelope(RoutingKey, 1, payload), cancellationToken);
+        await eventBus.PublishAsync(new EventEnvelope(RoutingKey, 1, payload), cancellationToken: cancellationToken);
+    }
+
+    // Simulates what the outbox dispatcher's PublishOneAsync actually sends: the same payload shape
+    // as PublishAsync above, plus the W3C traceparent header a real Producer activity would inject.
+    private async Task PublishWithTraceParentAsync(Guid messageId, Guid userId, string traceParent, CancellationToken cancellationToken)
+    {
+        var payload = $$"""{"Id":"{{messageId}}","OccurredAt":"2026-07-19T00:00:00+00:00","UserId":"{{userId}}"}""";
+
+        await using var connection = new RabbitMqConnection(MsOptions.Create(_rabbitMqOptions));
+        var eventBus = new RabbitMqEventBus(connection, MsOptions.Create(_rabbitMqOptions));
+        await eventBus.PublishAsync(
+            new EventEnvelope(RoutingKey, 1, payload),
+            headers: new Dictionary<string, string> { ["traceparent"] = traceParent },
+            cancellationToken);
     }
 
     // BackgroundService.StartAsync returns once ExecuteAsync has been
