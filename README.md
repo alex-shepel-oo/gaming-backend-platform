@@ -35,6 +35,7 @@ The project implements a multi-tenant backend platform for games. Each game has 
 ![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white)
 ![Loki](https://img.shields.io/badge/Loki-Log%20Aggregation-F46800?logo=grafana&logoColor=white)
 ![Tempo](https://img.shields.io/badge/Tempo-Distributed%20Tracing-F46800?logo=grafana&logoColor=white)
+![Grafana Faro](https://img.shields.io/badge/Faro-Frontend%20Tracing-F46800?logo=grafana&logoColor=white)
 
 **Infrastructure**
 ![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker)

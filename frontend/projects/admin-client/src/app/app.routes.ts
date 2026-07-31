@@ -1,45 +1,42 @@
 import { Routes } from '@angular/router';
 import { authGuard, guestGuard, permissionGuard, roleGuard } from 'shared';
-import { AdminDashboard } from './dashboard/admin-dashboard';
-import { GamePicker } from './game-picker/game-picker';
-import { GamesManagement } from './games-management/games-management';
 import { AdminLogin } from './login/admin-login';
-import { MyGameMetadata } from './my-game-metadata/my-game-metadata';
-import { RolePermissionsEditor } from './role-permissions-editor/role-permissions-editor';
 import { AdminShell } from './shell/admin-shell';
-import { UserManagement } from './user-management/user-management';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'login' },
+  // AdminLogin is the screen every not-yet-authenticated visitor hits first, so it stays in the
+  // initial bundle; every platform-admin screen behind it loads on demand.
   { path: 'login', component: AdminLogin, canActivate: [guestGuard] },
   {
     path: '',
     component: AdminShell,
     canActivate: [authGuard],
     children: [
-      { path: 'select-game', component: GamePicker },
-      { path: 'dashboard', component: AdminDashboard },
+      { path: 'select-game', loadComponent: () => import('./game-picker/game-picker').then((m) => m.GamePicker) },
+      { path: 'dashboard', loadComponent: () => import('./dashboard/admin-dashboard').then((m) => m.AdminDashboard) },
       {
         path: 'games',
-        component: GamesManagement,
+        loadComponent: () => import('./games-management/games-management').then((m) => m.GamesManagement),
         canActivate: [permissionGuard],
         data: { permission: 'platform.games.manage' },
       },
       {
         path: 'roles',
-        component: RolePermissionsEditor,
+        loadComponent: () =>
+          import('./role-permissions-editor/role-permissions-editor').then((m) => m.RolePermissionsEditor),
         canActivate: [permissionGuard],
         data: { permission: 'platform.roles.manage' },
       },
       {
         path: 'my-game',
-        component: MyGameMetadata,
+        loadComponent: () => import('./my-game-metadata/my-game-metadata').then((m) => m.MyGameMetadata),
         canActivate: [permissionGuard],
         data: { permission: 'game.metadata.edit' },
       },
       {
         path: 'users',
-        component: UserManagement,
+        loadComponent: () => import('./user-management/user-management').then((m) => m.UserManagement),
         canActivate: [roleGuard],
         data: { roles: ['Moderator', 'Admin'] },
       },
