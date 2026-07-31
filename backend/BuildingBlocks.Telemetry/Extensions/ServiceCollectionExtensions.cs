@@ -41,6 +41,12 @@ public static class ServiceCollectionExtensions
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
                 .AddEntityFrameworkCoreInstrumentation()
+                // BuildingBlocks.Messaging's own ActivitySource (outbox publish / inbox-and-consumer
+                // process spans) - a custom source is invisible to the SDK until named explicitly
+                // like this, unlike the three well-known ones above. Registered here unconditionally
+                // rather than per-service: harmless for a service that never touches messaging, and
+                // one fewer thing for each Program.cs to have to remember to wire up.
+                .AddSource("BuildingBlocks.Messaging")
                 .AddOtlpExporter(otlp => otlp.Endpoint = otlpEndpoint))
             .WithMetrics(metrics => metrics
                 .AddAspNetCoreInstrumentation()

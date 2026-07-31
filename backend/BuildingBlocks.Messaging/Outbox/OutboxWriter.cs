@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,6 +19,12 @@ public sealed class OutboxWriter<TDbContext>(TDbContext dbContext) : IOutboxWrit
             OccurredAt = integrationEvent.OccurredAt,
             ProcessedAt = null,
             Attempts = 0,
+            // This write runs inside the original HTTP request's own scope, so
+            // Activity.Current is still the live, correctly-parented request
+            // activity - the dispatcher's poll loop has no such ambient
+            // context by the time it eventually publishes this row, so the
+            // W3C id has to be captured here and carried on the row itself.
+            TraceParent = Activity.Current?.Id,
         });
 
         return dbContext.SaveChangesAsync(cancellationToken);

@@ -1,3 +1,4 @@
+using BuildingBlocks.Messaging.Tracing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -79,11 +80,16 @@ public sealed partial class OutboxDispatcherService<TDbContext>(
     {
         var pipeline = BuildRetryPipeline(message, settings.MaxAttempts);
 
+        // One Producer activity per outbox row, started once outside the retry loop: a retried
+        // publish is the same logical send happening again, not a second one, so every attempt
+        // carries the same traceparent headers rather than minting a new trace id per retry.
+        using var activity = MessagingTracePropagation.StartProducerActivity(message.TraceParent, out var headers);
+
         try
         {
             await pipeline.ExecuteAsync(
                 ct => new ValueTask(eventBus.PublishAsync(
-                    new EventEnvelope(message.Type, message.Version, message.Payload), ct)),
+                    new EventEnvelope(message.Type, message.Version, message.Payload), headers, ct)),
                 cancellationToken);
 
             message.ProcessedAt = timeProvider.GetUtcNow();

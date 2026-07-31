@@ -82,6 +82,11 @@
     <PackageVersion Include="Quartz.Extensions.DependencyInjection" Version="3.18.2" />
     <PackageVersion Include="Quartz.Extensions.Hosting" Version="3.18.2" />
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />
+    <!-- BuildingBlocks.Messaging only: the base API (ActivitySource, the W3C
+         Propagators/PropagationContext types) for the outbox/RabbitMQ/inbox
+         trace-linking below, without pulling in the full SDK or an exporter -
+         this project has no OTLP endpoint of its own to export to. -->
+    <PackageVersion Include="OpenTelemetry.Api" Version="1.17.0" />
     <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.17.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.17.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.17.0" />

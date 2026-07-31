@@ -111,7 +111,7 @@ public sealed class BalanceChangedConsumerTests(NotificationApiFactory factory, 
 
         await using var connection = new RabbitMqConnection(options);
         var eventBus = new RabbitMqEventBus(connection, options);
-        await eventBus.PublishAsync(new EventEnvelope("balance.changed", 1, payload), cancellationToken);
+        await eventBus.PublishAsync(new EventEnvelope("balance.changed", 1, payload), cancellationToken: cancellationToken);
     }
 
     private HubConnection BuildConnection(string accessToken) =>

@@ -258,7 +258,7 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
 
         await using var connection = new RabbitMqConnection(MsOptions.Create(_rabbitMqOptions));
         var eventBus = new RabbitMqEventBus(connection, MsOptions.Create(_rabbitMqOptions));
-        await eventBus.PublishAsync(new EventEnvelope(RoutingKey, 1, payload), cancellationToken);
+        await eventBus.PublishAsync(new EventEnvelope(RoutingKey, 1, payload), cancellationToken: cancellationToken);
     }
 
     private const string OtherExchangeRoutingKey = "other-exchange.test-event";
@@ -283,7 +283,7 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
 
         await using var connection = new RabbitMqConnection(MsOptions.Create(otherExchangeOptions));
         var eventBus = new RabbitMqEventBus(connection, MsOptions.Create(otherExchangeOptions));
-        await eventBus.PublishAsync(new EventEnvelope(OtherExchangeRoutingKey, 1, payload), cancellationToken);
+        await eventBus.PublishAsync(new EventEnvelope(OtherExchangeRoutingKey, 1, payload), cancellationToken: cancellationToken);
     }
 
     // BackgroundService.StartAsync returns once ExecuteAsync has been
