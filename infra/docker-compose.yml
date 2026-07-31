@@ -305,7 +305,9 @@ services:
 
   tempo:
     image: grafana/tempo:2.7.1
-    command: ["-config.file=/etc/tempo.yaml"]
+    command: ["-config.file=/etc/tempo.yaml", "-config.expand-env=true"]
+    environment:
+      TEMPO_RETENTION_PERIOD: "${TEMPO_RETENTION_PERIOD:-4380h}"
     volumes:
       - ./tempo/tempo-config.yaml:/etc/tempo.yaml
       - tempo_data:/var/tempo
@@ -316,6 +318,12 @@ services:
 
   prometheus:
     image: prom/prometheus:v3.9.1
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--storage.tsdb.retention.time=${PROMETHEUS_RETENTION_PERIOD:-180d}"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
@@ -328,7 +336,9 @@ services:
 
   loki:
     image: grafana/loki:3.3.2
-    command: ["-config.file=/etc/loki/loki-config.yaml"]
+    command: ["-config.file=/etc/loki/loki-config.yaml", "-config.expand-env=true"]
+    environment:
+      LOKI_RETENTION_PERIOD: "${LOKI_RETENTION_PERIOD:-4380h}"
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml
       - loki_data:/loki
