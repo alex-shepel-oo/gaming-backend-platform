@@ -10,10 +10,12 @@ WORKDIR /src
 COPY Directory.Build.props Directory.Packages.props ./
 COPY NotificationService/NotificationService.csproj NotificationService/
 COPY BuildingBlocks.Messaging/BuildingBlocks.Messaging.csproj BuildingBlocks.Messaging/
+COPY BuildingBlocks.Telemetry/BuildingBlocks.Telemetry.csproj BuildingBlocks.Telemetry/
 RUN dotnet restore NotificationService/NotificationService.csproj
 
 COPY NotificationService/ NotificationService/
 COPY BuildingBlocks.Messaging/ BuildingBlocks.Messaging/
+COPY BuildingBlocks.Telemetry/ BuildingBlocks.Telemetry/
 RUN dotnet publish NotificationService/NotificationService.csproj -c Release -o /app --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final

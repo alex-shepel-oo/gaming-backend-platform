@@ -1,4 +1,5 @@
 using System.Globalization;
+using BuildingBlocks.Telemetry.Extensions;
 using NotificationService.Auth;
 using NotificationService.Endpoints;
 using NotificationService.Extensions;
@@ -12,7 +13,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((context, configuration) => configuration
     .Enrich.FromLogContext()
     .Enrich.WithEnvironmentName()
-    .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture));
+    .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture)
+    .WriteToPlatformLoki(context.Configuration, "notification-service"));
 
 builder.Services.AddOpenApi();
 builder.Services.AddValidation();
@@ -22,6 +24,7 @@ builder.Services.AddNotificationHealthChecks();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddNotificationAuthentication(builder.Configuration);
 builder.Services.AddNotificationSignalR();
+builder.Services.AddPlatformTelemetry(builder.Configuration, "notification-service");
 
 var app = builder.Build();
 
