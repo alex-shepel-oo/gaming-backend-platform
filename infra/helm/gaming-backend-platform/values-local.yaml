@@ -1,0 +1,14 @@
+# Overlay for the local kind cluster this chart is actually validated
+# against (`helm upgrade --install -f values-local.yaml`). Only the knobs
+# that genuinely vary by target live here; the shared shape stays in
+# values.yaml.
+
+image:
+  tag: latest
+
+ingress:
+  className: traefik
+  adminHost: admin.gaming-platform.local
+
+mailpit:
+  enabled: true

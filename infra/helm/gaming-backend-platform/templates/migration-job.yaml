@@ -1,0 +1,53 @@
+# Same ordering docker-compose gets for free from identity-migrator's/
+# economy-migrator's depends_on: condition: service_completed_successfully --
+# a Job has no equivalent of that, so this runs as a pre-install/pre-upgrade
+# hook instead of a plain resource, guaranteeing it finishes (Helm always
+# waits for Job hooks to reach Complete) before any app Deployment is
+# created. hook-delete-policy: before-hook-creation clears out the previous
+# run's completed/failed Job before this one is submitted, since a Job's own
+# spec is immutable and a stale Job of the same name would otherwise block
+# `helm upgrade` outright.
+{{- range $name, $svc := .Values.migrationJobs }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "gbp.labels" $ | nindent 4 }}
+    app: {{ $name }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: {{ $svc.hookWeight | quote }}
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: {{ $name }}
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        # The StatefulSet this Job's database lives on is itself a
+        # pre-install/pre-upgrade hook (see templates/statefulset.yaml) at an
+        # earlier weight, so it's submitted before this Job runs -- but Helm
+        # doesn't wait for a StatefulSet hook to become Ready the way it
+        # waits for a Job hook to Complete, only the apply itself is
+        # ordered. This closes that gap the same way wait-for-identity/
+        # wait-for-economy do for app Deployments elsewhere in this chart.
+        - name: wait-for-db
+          image: postgres:17-alpine
+          command: ["sh", "-c", "until pg_isready -h {{ $svc.dbHost }} -p 5432; do sleep 2; done"]
+      containers:
+        - name: {{ $name }}
+          image: {{ printf "%s/%s:%s" $.Values.image.registry $svc.image $.Values.image.tag }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          env:
+            - name: {{ $svc.connectionStringKey }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $svc.secretName }}
+                  key: {{ $svc.connectionStringKey }}
+{{- end }}

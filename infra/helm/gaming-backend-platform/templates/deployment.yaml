@@ -1,0 +1,88 @@
+{{- range $name, $svc := .Values.deployments }}
+{{- if not (and (eq $name "mailpit") (not $.Values.mailpit.enabled)) }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "gbp.labels" $ | nindent 4 }}
+    app: {{ $name }}
+spec:
+  replicas: {{ $svc.replicas }}
+  selector:
+    matchLabels:
+      app: {{ $name }}
+  template:
+    metadata:
+      labels:
+        app: {{ $name }}
+      annotations:
+        checksum/shared-config: {{ $.Values.sharedConfig | toYaml | sha256sum }}
+        {{- if $svc.configMap }}
+        checksum/config: {{ $svc.configMap | toYaml | sha256sum }}
+        {{- end }}
+        {{- if eq $name "gateway" }}
+        checksum/ocelot-config: {{ $.Values.gateway.ocelotConfigJson | sha256sum }}
+        {{- end }}
+    spec:
+      {{- if $svc.initContainers }}
+      initContainers:
+        {{- $svc.initContainers | toYaml | nindent 8 }}
+      {{- end }}
+      containers:
+        {{- /* Sprig's `default` treats a literal `false` as empty, which would
+        silently flip mailpit's `internal: false` back to true -- so this
+        checks for the key's presence explicitly instead of piping through
+        `default`. */}}
+        {{- $internal := true }}
+        {{- if hasKey $svc "internal" }}
+        {{- $internal = $svc.internal }}
+        {{- end }}
+        - name: {{ $name }}
+          {{- if $internal }}
+          image: {{ printf "%s/%s:%s" $.Values.image.registry $svc.image $.Values.image.tag }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          {{- else }}
+          image: {{ $svc.image }}
+          imagePullPolicy: IfNotPresent
+          {{- end }}
+          {{- if $svc.port }}
+          ports:
+            - containerPort: {{ $svc.port }}
+          {{- end }}
+          {{- if $svc.ports }}
+          ports:
+            {{- $svc.ports | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if or $svc.envFrom $svc.env }}
+          {{- if $svc.envFrom }}
+          envFrom:
+            {{- $svc.envFrom | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if $svc.env }}
+          env:
+            {{- $svc.env | toYaml | nindent 12 }}
+          {{- end }}
+          {{- end }}
+          {{- if $svc.volumeMounts }}
+          volumeMounts:
+            {{- $svc.volumeMounts | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if $svc.livenessProbe }}
+          livenessProbe:
+            {{- $svc.livenessProbe | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if $svc.readinessProbe }}
+          readinessProbe:
+            {{- $svc.readinessProbe | toYaml | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- $svc.resources | toYaml | nindent 12 }}
+      {{- if $svc.volumes }}
+      volumes:
+        {{- $svc.volumes | toYaml | nindent 8 }}
+      {{- end }}
+{{- end }}
+{{- end }}

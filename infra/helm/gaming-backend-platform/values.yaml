@@ -1,0 +1,396 @@
+# Default/structural values: the shape every environment shares (ports,
+# probes, resource requests, which services talk to which). Values that
+# genuinely differ per target (image tag, whether mailpit exists, the ingress
+# class/host) live in values-local.yaml / values-production.yaml and are
+# passed with -f on top of this file, not duplicated here.
+#
+# The namespace is not templated by this chart -- install with
+# `--namespace gaming-platform --create-namespace` and every object below
+# lands there via .Release.Namespace.
+
+image:
+  registry: ghcr.io/alex-shepel-oo
+  tag: latest
+  pullPolicy: IfNotPresent
+
+ingress:
+  enabled: true
+  className: nginx
+  adminHost: admin.gaming-platform.local
+  playerClient:
+    service: player-client
+    port: 8080
+  adminClient:
+    service: admin-client
+    port: 8081
+
+mailpit:
+  enabled: true
+
+sharedConfig:
+  Jwt__Issuer: "gaming-backend-platform/identity"
+  Jwt__Audiences__0: "gbp-player"
+  Jwt__Audiences__1: "gbp-admin"
+  Jwt__ClockSkewSeconds: "30"
+
+# ocelot.Kubernetes.json lives under backend/ApiGateway/, outside this chart,
+# so it stays the one copy of the gateway's routing table instead of a second
+# one drifting inside the chart. apply.sh supplies it at deploy time with
+# `--set-file gateway.ocelotConfigJson=backend/ApiGateway/ocelot.Kubernetes.json`;
+# left empty here so `helm lint`/`helm template` still render without it.
+gateway:
+  ocelotConfigJson: ""
+
+# One entry per Deployment. `service.name` defaults to the map key; only
+# gateway needs the override (Deployment "gateway", Service "api-gateway").
+deployments:
+  identity-service:
+    image: identity-service
+    replicas: 2
+    port: 5000
+    service:
+      enabled: true
+      port: 5000
+    configMapName: identity-config
+    configMap:
+      POSTGRES_DB: "identity_db"
+      POSTGRES_USER: "identity"
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "http://+:5000"
+      Email__Smtp__Host: "mailpit"
+      Email__Smtp__Port: "1025"
+      Email__Smtp__UseStartTls: "false"
+      RabbitMq__Host: "rabbitmq"
+      RabbitMq__Port: "5672"
+      RabbitMq__ExchangeName: "gbp.identity"
+    envFrom:
+      - configMapRef: {name: shared-config}
+      - configMapRef: {name: identity-config}
+      - secretRef: {name: identity-secrets}
+    env:
+      - name: RabbitMq__Username
+        valueFrom: {secretKeyRef: {name: rabbitmq-secrets, key: RABBITMQ_DEFAULT_USER}}
+      - name: RabbitMq__Password
+        valueFrom: {secretKeyRef: {name: rabbitmq-secrets, key: RABBITMQ_DEFAULT_PASS}}
+    livenessProbe:
+      httpGet: {path: /health, port: 5000}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    readinessProbe:
+      httpGet: {path: /health/ready, port: 5000}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+
+  economy-service:
+    image: economy-service
+    replicas: 2
+    port: 5001
+    service:
+      enabled: true
+      port: 5001
+    configMapName: economy-config
+    configMap:
+      POSTGRES_DB: "economy_db"
+      POSTGRES_USER: "economy"
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "http://+:5001"
+      Jwt__JwksUri: "http://identity-service:5000/.well-known/jwks.json"
+      RabbitMq__Host: "rabbitmq"
+      RabbitMq__Port: "5672"
+    envFrom:
+      - configMapRef: {name: shared-config}
+      - configMapRef: {name: economy-config}
+      - secretRef: {name: economy-secrets}
+    env:
+      - name: RabbitMq__Username
+        valueFrom: {secretKeyRef: {name: rabbitmq-secrets, key: RABBITMQ_DEFAULT_USER}}
+      - name: RabbitMq__Password
+        valueFrom: {secretKeyRef: {name: rabbitmq-secrets, key: RABBITMQ_DEFAULT_PASS}}
+    # UserEmailConfirmedConsumer binds its queue to gbp.identity at startup
+    # and the whole host goes down if that exchange doesn't exist yet; only
+    # identity-service's own topology initializer declares it. There's no
+    # depends_on in Kubernetes, so this waits for identity-service to report
+    # ready instead of letting economy-service crash-loop until it wins the
+    # race on its own.
+    initContainers:
+      - name: wait-for-identity
+        image: busybox:1.36
+        command: ["sh", "-c", "until wget -qO- http://identity-service:5000/health/ready; do sleep 2; done"]
+    livenessProbe:
+      httpGet: {path: /health, port: 5001}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    readinessProbe:
+      httpGet: {path: /health/ready, port: 5001}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+
+  notification-service:
+    image: notification-service
+    replicas: 1
+    port: 5003
+    service:
+      enabled: true
+      port: 5003
+    configMapName: notification-config
+    configMap:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "http://+:5003"
+      Jwt__JwksUri: "http://identity-service:5000/.well-known/jwks.json"
+      RabbitMq__Host: "rabbitmq"
+      RabbitMq__Port: "5672"
+    envFrom:
+      - configMapRef: {name: shared-config}
+      - configMapRef: {name: notification-config}
+    env:
+      - name: RabbitMq__Username
+        valueFrom: {secretKeyRef: {name: rabbitmq-secrets, key: RABBITMQ_DEFAULT_USER}}
+      - name: RabbitMq__Password
+        valueFrom: {secretKeyRef: {name: rabbitmq-secrets, key: RABBITMQ_DEFAULT_PASS}}
+    # BalanceChangedConsumer binds its queue to gbp.economy at startup and the
+    # whole host goes down if that exchange doesn't exist yet; only
+    # economy-service's own topology initializer declares it.
+    initContainers:
+      - name: wait-for-economy
+        image: busybox:1.36
+        command: ["sh", "-c", "until wget -qO- http://economy-service:5001/health/ready; do sleep 2; done"]
+    livenessProbe:
+      httpGet: {path: /health, port: 5003}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    readinessProbe:
+      httpGet: {path: /health/ready, port: 5003}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+
+  platform-worker:
+    image: platform-worker
+    replicas: 1
+    envFrom:
+      - secretRef: {name: identity-secrets}
+      - secretRef: {name: economy-secrets}
+    livenessProbe:
+      exec: {command: ["sh", "-c", "grep -q dotnet /proc/1/cmdline"]}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+
+  player-client:
+    image: player-client
+    replicas: 2
+    port: 8080
+    service:
+      enabled: true
+      port: 8080
+    livenessProbe:
+      httpGet: {path: /, port: 8080}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    readinessProbe:
+      httpGet: {path: /, port: 8080}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+
+  admin-client:
+    image: admin-client
+    replicas: 2
+    port: 8081
+    service:
+      enabled: true
+      port: 8081
+    livenessProbe:
+      httpGet: {path: /, port: 8081}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    readinessProbe:
+      httpGet: {path: /, port: 8081}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+
+  gateway:
+    image: api-gateway
+    replicas: 2
+    port: 5100
+    service:
+      enabled: true
+      name: api-gateway
+      port: 5100
+    configMapName: gateway-config
+    configMap:
+      ASPNETCORE_ENVIRONMENT: "Kubernetes"
+      ASPNETCORE_URLS: "http://+:5100"
+      Jwt__JwksUri: "http://identity-service:5000/.well-known/jwks.json"
+    envFrom:
+      - configMapRef: {name: shared-config}
+      - configMapRef: {name: gateway-config}
+    volumeMounts:
+      - name: ocelot-kubernetes-config
+        mountPath: /app/ocelot.Kubernetes.json
+        subPath: ocelot.Kubernetes.json
+    volumes:
+      - name: ocelot-kubernetes-config
+        configMap:
+          name: gateway-config
+          items:
+            - key: ocelot.Kubernetes.json
+              path: ocelot.Kubernetes.json
+    livenessProbe:
+      httpGet: {path: /health, port: 5100}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    readinessProbe:
+      httpGet: {path: /health, port: 5100}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+
+  mailpit:
+    image: axllent/mailpit
+    internal: false
+    replicas: 1
+    service:
+      enabled: true
+      ports:
+        - {name: smtp, port: 1025}
+        - {name: ui, port: 8025}
+    ports:
+      - {name: smtp, containerPort: 1025}
+      - {name: ui, containerPort: 8025}
+    env:
+      - name: MP_MAX_MESSAGES
+        value: "500"
+    readinessProbe:
+      exec: {command: ["/mailpit", "readyz"]}
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    resources:
+      requests: {cpu: 50m, memory: 64Mi}
+      limits: {cpu: 200m, memory: 128Mi}
+
+# One entry per StatefulSet. identity-db/economy-db also carry `hook.weight`:
+# see templates/statefulset.yaml for why they need to be pre-install/
+# pre-upgrade hooks too, not just the migration Jobs.
+statefulsets:
+  identity-db:
+    image: postgres:17-alpine
+    containerName: postgres
+    port: 5432
+    env:
+      - name: POSTGRES_DB
+        valueFrom: {configMapKeyRef: {name: identity-config, key: POSTGRES_DB}}
+      - name: POSTGRES_USER
+        valueFrom: {configMapKeyRef: {name: identity-config, key: POSTGRES_USER}}
+      - name: POSTGRES_PASSWORD
+        valueFrom: {secretKeyRef: {name: identity-secrets, key: POSTGRES_PASSWORD}}
+    volumeMount: {name: identity-db-data, mountPath: /var/lib/postgresql/data, subPath: postgres}
+    storage: 1Gi
+    readinessProbe:
+      exec: {command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "$(POSTGRES_DB)"]}
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    resources:
+      requests: {cpu: 250m, memory: 256Mi}
+      limits: {cpu: 500m, memory: 512Mi}
+    hook:
+      weight: "-20"
+
+  economy-db:
+    image: postgres:17-alpine
+    containerName: postgres
+    port: 5432
+    env:
+      - name: POSTGRES_DB
+        valueFrom: {configMapKeyRef: {name: economy-config, key: POSTGRES_DB}}
+      - name: POSTGRES_USER
+        valueFrom: {configMapKeyRef: {name: economy-config, key: POSTGRES_USER}}
+      - name: POSTGRES_PASSWORD
+        valueFrom: {secretKeyRef: {name: economy-secrets, key: POSTGRES_PASSWORD}}
+    volumeMount: {name: economy-db-data, mountPath: /var/lib/postgresql/data, subPath: postgres}
+    storage: 1Gi
+    readinessProbe:
+      exec: {command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "$(POSTGRES_DB)"]}
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    resources:
+      requests: {cpu: 250m, memory: 256Mi}
+      limits: {cpu: 500m, memory: 512Mi}
+    hook:
+      weight: "-20"
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    containerPorts:
+      - {name: amqp, containerPort: 5672}
+      - {name: management, containerPort: 15672}
+    svcPorts:
+      - {name: amqp, port: 5672, targetPort: 5672}
+      - {name: management, port: 15672, targetPort: 15672}
+    env:
+      - name: RABBITMQ_DEFAULT_USER
+        valueFrom: {secretKeyRef: {name: rabbitmq-secrets, key: RABBITMQ_DEFAULT_USER}}
+      - name: RABBITMQ_DEFAULT_PASS
+        valueFrom: {secretKeyRef: {name: rabbitmq-secrets, key: RABBITMQ_DEFAULT_PASS}}
+    volumeMount: {name: rabbitmq-data, mountPath: /var/lib/rabbitmq}
+    storage: 1Gi
+    readinessProbe:
+      exec: {command: ["rabbitmq-diagnostics", "check_port_connectivity"]}
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      timeoutSeconds: 10
+    resources:
+      requests: {cpu: 250m, memory: 256Mi}
+      limits: {cpu: 500m, memory: 512Mi}
+
+# Migration Jobs, run as pre-install/pre-upgrade hooks (see
+# templates/migration-job.yaml) at a later weight than their StatefulSet, so
+# the DB StatefulSet's object exists first. Each Job still polls its own DB
+# with pg_isready before running the migrator -- Helm applies a hook
+# StatefulSet without waiting for it to become Ready, only Job hooks are
+# actually waited on.
+migrationJobs:
+  identity-migrator:
+    image: identity-migrator
+    dbHost: identity-db
+    secretName: identity-secrets
+    connectionStringKey: ConnectionStrings__IdentityDb
+    hookWeight: "-10"
+  economy-migrator:
+    image: economy-migrator
+    dbHost: economy-db
+    secretName: economy-secrets
+    connectionStringKey: ConnectionStrings__EconomyDb
+    hookWeight: "-10"

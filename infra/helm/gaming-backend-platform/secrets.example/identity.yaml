@@ -1,0 +1,21 @@
+# Template only. The real Secret is never committed -- copy this file,
+# fill in real values, and apply it directly (kubectl apply -f) rather than
+# keeping the filled-in copy anywhere under version control.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: identity-secrets
+  namespace: gaming-platform
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: "change-me"
+  ConnectionStrings__IdentityDb: "Host=identity-db.gaming-platform.svc.cluster.local;Port=5432;Database=identity_db;Username=identity;Password=change-me"
+  # A real value here is a PKCS8 PEM, which is genuinely multi-line -- fill it
+  # in as a YAML block scalar the same way this line's structure already
+  # allows (`Jwt__PrivateKeyPem: |` followed by indented lines). Left as a
+  # single-line placeholder here on purpose, not shaped like a real PEM
+  # block, so an unfilled copy of this template never looks like key
+  # material to a secret scanner.
+  Jwt__PrivateKeyPem: "replace-with-a-real-RSA-2048-private-key-in-PKCS8-PEM-form"
+  Email__Smtp__UserName: "replace-with-smtp-username"
+  Email__Smtp__Password: "replace-with-smtp-password"

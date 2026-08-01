@@ -1,0 +1,22 @@
+{{- range $name, $svc := .Values.deployments }}
+{{- if $svc.configMapName }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $svc.configMapName }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "gbp.labels" $ | nindent 4 }}
+    app: {{ $name }}
+data:
+  {{- $svc.configMap | toYaml | nindent 2 }}
+  {{- if eq $name "gateway" }}
+  # Generated straight from backend/ApiGateway/ocelot.Kubernetes.json (see
+  # values.yaml's gateway.ocelotConfigJson comment) so there is exactly one
+  # copy of the routing table, not a hand-maintained second one in the chart.
+  ocelot.Kubernetes.json: |
+    {{- $.Values.gateway.ocelotConfigJson | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}
