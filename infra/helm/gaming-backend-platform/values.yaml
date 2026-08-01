@@ -25,10 +25,13 @@ ingress:
   # major browser/OS resolves to 127.0.0.1 with zero configuration (RFC
   # 6761), unlike the old admin.gaming-platform.local rule that needed a
   # manual /etc/hosts entry. `mailpit` is skipped below (see ingress.yaml)
-  # when mailpit.enabled is false. Grafana/Prometheus/Loki/Tempo/
-  # otel-collector aren't part of this chart yet (still docker-compose only,
-  # ADR-0019) -- the same pattern applies to them once a later session adds
-  # them here.
+  # when mailpit.enabled is false. Entries that carry a `namespace` (the
+  # observability ones below) render into a second Ingress object in that
+  # namespace instead of this chart's default gaming-platform one -- an
+  # Ingress rule's backend Service can only ever live in the Ingress's own
+  # namespace, so otel-collector is deliberately absent here too (it's an
+  # ingestion target other in-cluster workloads reach via Service DNS, not
+  # something a human browses to).
   hosts:
     player-client:
       host: player-client.localhost
@@ -46,6 +49,26 @@ ingress:
       host: gateway.localhost
       service: api-gateway
       port: 5100
+    grafana:
+      host: grafana.localhost
+      service: grafana
+      port: 3000
+      namespace: observability
+    prometheus:
+      host: prometheus.localhost
+      service: prometheus
+      port: 9090
+      namespace: observability
+    loki:
+      host: loki.localhost
+      service: loki
+      port: 3100
+      namespace: observability
+    tempo:
+      host: tempo.localhost
+      service: tempo
+      port: 3200
+      namespace: observability
 
 mailpit:
   enabled: true
