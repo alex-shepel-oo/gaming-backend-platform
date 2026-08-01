@@ -6,9 +6,5 @@
 image:
   tag: latest
 
-ingress:
-  className: traefik
-  adminHost: admin.gaming-platform.local
-
 mailpit:
   enabled: true

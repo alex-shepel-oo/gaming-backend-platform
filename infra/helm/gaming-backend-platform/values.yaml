@@ -15,14 +15,37 @@ image:
 
 ingress:
   enabled: true
-  className: nginx
-  adminHost: admin.gaming-platform.local
-  playerClient:
-    service: player-client
-    port: 8080
-  adminClient:
-    service: admin-client
-    port: 8081
+  # Traefik, installed as a cluster addon (scripts/k8s/install-traefik.sh),
+  # not something this chart itself deploys -- same relationship the old
+  # Kustomize tree had with ingress-nginx, just pointed at a different
+  # controller.
+  className: traefik
+  # One host-based rule per web-facing Service already in this chart --
+  # every entry's `host` is a single-level `*.localhost` name, which every
+  # major browser/OS resolves to 127.0.0.1 with zero configuration (RFC
+  # 6761), unlike the old admin.gaming-platform.local rule that needed a
+  # manual /etc/hosts entry. `mailpit` is skipped below (see ingress.yaml)
+  # when mailpit.enabled is false. Grafana/Prometheus/Loki/Tempo/
+  # otel-collector aren't part of this chart yet (still docker-compose only,
+  # ADR-0019) -- the same pattern applies to them once a later session adds
+  # them here.
+  hosts:
+    player-client:
+      host: player-client.localhost
+      service: player-client
+      port: 8080
+    admin-client:
+      host: admin-client.localhost
+      service: admin-client
+      port: 8081
+    mailpit:
+      host: mailpit.localhost
+      service: mailpit
+      port: 8025
+    gateway:
+      host: gateway.localhost
+      service: api-gateway
+      port: 5100
 
 mailpit:
   enabled: true

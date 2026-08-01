@@ -9,28 +9,18 @@ metadata:
 spec:
   ingressClassName: {{ .Values.ingress.className }}
   rules:
-    - http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: {{ .Values.ingress.playerClient.service }}
-                port:
-                  number: {{ .Values.ingress.playerClient.port }}
-    # Host-based rule -- admin-client needs a genuinely separate origin, not
-    # just another path prefix under the same host. On a local kind cluster
-    # this hostname resolves only via an /etc/hosts entry pointed at the
-    # ingress controller's address; a real cluster would resolve it through
-    # actual DNS instead.
-    - host: {{ .Values.ingress.adminHost }}
+    {{- range $key, $route := .Values.ingress.hosts }}
+    {{- if not (and (eq $key "mailpit") (not $.Values.mailpit.enabled)) }}
+    - host: {{ $route.host }}
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: {{ .Values.ingress.adminClient.service }}
+                name: {{ $route.service }}
                 port:
-                  number: {{ .Values.ingress.adminClient.port }}
+                  number: {{ $route.port }}
+    {{- end }}
+    {{- end }}
 {{- end }}
