@@ -41,6 +41,14 @@ public sealed class IdentityApiFactory(PostgresFixture postgres, RabbitMqFixture
                 ["ConnectionStrings:IdentityDb"] = postgres.ConnectionString,
                 ["Jwt:PrivateKeyPem"] = TestPrivateKeyPem,
 
+                // Seeding/OpenAPI now default to enabled independent of ASPNETCORE_ENVIRONMENT
+                // (see SeedingOptions/ApiOptions), whereas "Testing" previously never tripped
+                // IsDevelopment() and so never seeded automatically. Pin both off here so this
+                // shared factory keeps that exact behavior -- every existing test that wants
+                // seeded data already asks DevelopmentSeeder for it explicitly.
+                ["Seeding:Enabled"] = "false",
+                ["Api:ExposeOpenApi"] = "false",
+
                 ["RabbitMq:Host"] = rabbitMq.Hostname,
                 ["RabbitMq:Port"] = rabbitMq.Port.ToString(CultureInfo.InvariantCulture),
                 ["RabbitMq:Username"] = "guest",
