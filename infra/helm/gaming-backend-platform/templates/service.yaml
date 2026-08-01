@@ -6,7 +6,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ $svc.service.name | default $name }}
-  namespace: {{ $.Release.Namespace }}
+  namespace: {{ $svc.namespace | default $.Release.Namespace }}
   labels:
     {{- include "gbp.labels" $ | nindent 4 }}
     app: {{ $name }}

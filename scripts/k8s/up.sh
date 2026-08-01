@@ -81,6 +81,13 @@ else
     -f "$SECRETS_DIR/rabbitmq-secrets.yaml"
 fi
 
+# observability's own namespace, same treatment as gaming-platform above:
+# created here rather than declared as a chart resource, since Helm's
+# --create-namespace only covers the release namespace and a chart-declared
+# Namespace object would otherwise fight with this script over ownership.
+OBSERVABILITY_NAMESPACE="observability"
+kubectl get namespace "$OBSERVABILITY_NAMESPACE" >/dev/null 2>&1 || kubectl create namespace "$OBSERVABILITY_NAMESPACE"
+
 echo "Deploying the Helm release..."
 bash "$REPO_ROOT/scripts/k8s/apply.sh"
 

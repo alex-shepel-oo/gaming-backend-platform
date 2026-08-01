@@ -64,6 +64,28 @@ sharedConfig:
 gateway:
   ocelotConfigJson: ""
 
+# otel-collector/Tempo/Prometheus/Loki/Grafana live in their own namespace,
+# separate from gaming-platform -- per the owner's own principle of not
+# duplicating this stack per environment later, keeping it structurally
+# separate now (one shared observability namespace, multiple app namespaces)
+# is the natural shape rather than something to retrofit once a staging/
+# production split exists. Namespace creation itself is external to this
+# chart, the same way gaming-platform's is (scripts/k8s/up.sh), not a
+# resource this chart declares -- avoids Helm's "invalid ownership metadata"
+# conflict a chart-declared Namespace would hit once something else has
+# already created it.
+#
+# Each *Yaml/*Json value below is this component's config file, straight
+# from its docker-compose counterpart (infra/otel-collector/, infra/tempo/,
+# infra/loki/, infra/prometheus/, infra/grafana/) -- same reasoning as
+# gateway.ocelotConfigJson above, supplied at deploy time with --set-file so
+# there is exactly one copy of each, not a second one drifting inside the
+# chart. Left empty here so `helm lint`/`helm template` still render without
+# them.
+observability:
+  namespace: observability
+  otelCollectorConfigYaml: ""
+
 # One entry per Deployment. `service.name` defaults to the map key; only
 # gateway needs the override (Deployment "gateway", Service "api-gateway").
 deployments:
@@ -329,6 +351,46 @@ deployments:
     resources:
       requests: {cpu: 50m, memory: 64Mi}
       limits: {cpu: 200m, memory: 128Mi}
+
+  # otel-collector below sets `namespace: observability` (see the
+  # observability values block above) and `internal: false` -- same as
+  # mailpit above, it runs its own upstream image straight from Docker Hub,
+  # not something built from this repo and pushed to this platform's own
+  # registry.
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.116.1
+    internal: false
+    namespace: observability
+    replicas: 1
+    args: ["--config=/etc/otel-collector-config.yaml"]
+    ports:
+      - {name: otlp-grpc, containerPort: 4317}
+      - {name: otlp-http, containerPort: 4318}
+      - {name: metrics, containerPort: 8889}
+    service:
+      enabled: true
+      ports:
+        - {name: otlp-grpc, port: 4317, targetPort: 4317}
+        - {name: otlp-http, port: 4318, targetPort: 4318}
+        - {name: metrics, port: 8889, targetPort: 8889}
+    configMapName: otel-collector-config
+    volumeMounts:
+      - name: config
+        mountPath: /etc/otel-collector-config.yaml
+        subPath: otel-collector-config.yaml
+    volumes:
+      - name: config
+        configMap:
+          name: otel-collector-config
+          items:
+            - {key: otel-collector-config.yaml, path: otel-collector-config.yaml}
+    readinessProbe:
+      tcpSocket: {port: 4317}
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}
 
 # One entry per StatefulSet. identity-db/economy-db also carry `hook.weight`:
 # see templates/statefulset.yaml for why they need to be pre-install/

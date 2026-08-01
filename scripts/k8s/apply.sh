@@ -7,10 +7,11 @@ set -euo pipefail
 # statefulset.yaml and migration-job.yaml) -- a Job has no depends_on
 # equivalent, but Helm's hook mechanism is exactly what exists to express
 # that ordering declaratively instead of a wrapper script re-implementing
-# kubectl wait by hand. This script's only remaining job is the one thing
-# Helm can't read on its own: ocelot.Kubernetes.json lives under
-# backend/ApiGateway/, not under the chart, so it goes in via --set-file
-# rather than a second copy drifting inside infra/helm/.
+# kubectl wait by hand. This script's only remaining job is the things Helm
+# can't read on its own: ocelot.Kubernetes.json lives under backend/
+# ApiGateway/, and the observability stack's own config files live under
+# their own infra/ directories (shared with docker-compose) -- neither is a
+# second copy kept inside the chart, both go in via --set-file instead.
 
 NAMESPACE="gaming-platform"
 CHART="infra/helm/gaming-backend-platform"
@@ -19,4 +20,5 @@ RELEASE="gbp"
 helm upgrade --install "$RELEASE" "$CHART" \
   --namespace "$NAMESPACE" --create-namespace \
   -f "$CHART/values-local.yaml" \
-  --set-file gateway.ocelotConfigJson=backend/ApiGateway/ocelot.Kubernetes.json
+  --set-file gateway.ocelotConfigJson=backend/ApiGateway/ocelot.Kubernetes.json \
+  --set-file observability.otelCollectorConfigYaml=infra/otel-collector/otel-collector-config.yaml

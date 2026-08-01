@@ -5,7 +5,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $name }}
-  namespace: {{ $.Release.Namespace }}
+  namespace: {{ $svc.namespace | default $.Release.Namespace }}
   labels:
     {{- include "gbp.labels" $ | nindent 4 }}
     app: {{ $name }}
@@ -25,6 +25,9 @@ spec:
         {{- end }}
         {{- if eq $name "gateway" }}
         checksum/ocelot-config: {{ $.Values.gateway.ocelotConfigJson | sha256sum }}
+        {{- end }}
+        {{- if eq $name "otel-collector" }}
+        checksum/otel-collector-config: {{ $.Values.observability.otelCollectorConfigYaml | sha256sum }}
         {{- end }}
     spec:
       {{- if $svc.initContainers }}
@@ -47,6 +50,10 @@ spec:
           {{- else }}
           image: {{ $svc.image }}
           imagePullPolicy: IfNotPresent
+          {{- end }}
+          {{- if $svc.args }}
+          args:
+            {{- $svc.args | toYaml | nindent 12 }}
           {{- end }}
           {{- if $svc.port }}
           ports:
