@@ -88,6 +88,9 @@ observability:
   tempoConfigYaml: ""
   prometheusConfigYaml: ""
   lokiConfigYaml: ""
+  grafanaDatasourcesYaml: ""
+  grafanaDashboardsProviderYaml: ""
+  grafanaDashboardJson: ""
 
 # One entry per Deployment. `service.name` defaults to the map key; only
 # gateway needs the override (Deployment "gateway", Service "api-gateway").
@@ -519,6 +522,53 @@ deployments:
       requests: {cpu: 100m, memory: 128Mi}
       limits: {cpu: 500m, memory: 256Mi}
 
+  grafana:
+    image: grafana/grafana:12.0.0
+    internal: false
+    namespace: observability
+    replicas: 1
+    # Runs as the image's own non-root user (uid 472); same PVC-writability
+    # reasoning as prometheus above.
+    securityContext:
+      fsGroup: 472
+    ports:
+      - {name: http, containerPort: 3000}
+    service:
+      enabled: true
+      port: 3000
+    envFrom:
+      - secretRef: {name: grafana-secrets}
+    configMapName: grafana-config
+    volumeMounts:
+      - name: config
+        mountPath: /etc/grafana/provisioning/datasources/datasources.yml
+        subPath: datasources.yml
+      - name: config
+        mountPath: /etc/grafana/provisioning/dashboards/dashboards.yml
+        subPath: dashboards.yml
+      - name: config
+        mountPath: /etc/grafana/dashboards/service-overview.json
+        subPath: service-overview.json
+      - name: data
+        mountPath: /var/lib/grafana
+    volumes:
+      - name: config
+        configMap:
+          name: grafana-config
+          items:
+            - {key: datasources.yml, path: datasources.yml}
+            - {key: dashboards.yml, path: dashboards.yml}
+            - {key: service-overview.json, path: service-overview.json}
+      - name: data
+        persistentVolumeClaim: {claimName: grafana-data}
+    readinessProbe:
+      httpGet: {path: /api/health, port: 3000}
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+
 # Standalone PVCs (see templates/pvc.yaml) for observability Deployments that
 # own persistent state but are single-replica, same as their docker-compose
 # counterparts -- a plain PVC rather than a StatefulSet's
@@ -532,6 +582,9 @@ persistentVolumeClaims:
     namespace: observability
     storage: 1Gi
   loki-data:
+    namespace: observability
+    storage: 1Gi
+  grafana-data:
     namespace: observability
     storage: 1Gi
 

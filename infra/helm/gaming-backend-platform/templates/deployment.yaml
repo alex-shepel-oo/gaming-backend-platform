@@ -38,6 +38,9 @@ spec:
         {{- if eq $name "loki" }}
         checksum/loki-config: {{ $.Values.observability.lokiConfigYaml | sha256sum }}
         {{- end }}
+        {{- if eq $name "grafana" }}
+        checksum/grafana-config: {{ printf "%s%s%s" $.Values.observability.grafanaDatasourcesYaml $.Values.observability.grafanaDashboardsProviderYaml $.Values.observability.grafanaDashboardJson | sha256sum }}
+        {{- end }}
     spec:
       {{- if $svc.securityContext }}
       securityContext:

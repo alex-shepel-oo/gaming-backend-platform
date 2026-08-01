@@ -88,6 +88,18 @@ fi
 OBSERVABILITY_NAMESPACE="observability"
 kubectl get namespace "$OBSERVABILITY_NAMESPACE" >/dev/null 2>&1 || kubectl create namespace "$OBSERVABILITY_NAMESPACE"
 
+if kubectl -n "$OBSERVABILITY_NAMESPACE" get secret grafana-secrets >/dev/null 2>&1; then
+  echo "grafana-secrets already applied in '$OBSERVABILITY_NAMESPACE', leaving it as it is."
+else
+  mkdir -p "$SECRETS_DIR"
+  GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 16)
+  sed \
+    -e "s/change-me/${GRAFANA_ADMIN_PASSWORD}/g" \
+    "$REPO_ROOT/infra/helm/gaming-backend-platform/secrets.example/grafana.yaml" \
+    > "$SECRETS_DIR/grafana-secrets.yaml"
+  kubectl apply -n "$OBSERVABILITY_NAMESPACE" -f "$SECRETS_DIR/grafana-secrets.yaml"
+fi
+
 echo "Deploying the Helm release..."
 bash "$REPO_ROOT/scripts/k8s/apply.sh"
 

@@ -53,5 +53,13 @@ data:
   loki-config.yaml: |
     {{- $.Values.observability.lokiConfigYaml | nindent 4 }}
   {{- end }}
+  {{- if eq $name "grafana" }}
+  datasources.yml: |
+    {{- $.Values.observability.grafanaDatasourcesYaml | nindent 4 }}
+  dashboards.yml: |
+    {{- $.Values.observability.grafanaDashboardsProviderYaml | nindent 4 }}
+  service-overview.json: |
+    {{- $.Values.observability.grafanaDashboardJson | nindent 4 }}
+  {{- end }}
 {{- end }}
 {{- end }}
