@@ -5,7 +5,9 @@ using BuildingBlocks.Telemetry.Extensions;
 using IdentityService.Endpoints;
 using IdentityService.Extensions;
 using IdentityService.Infrastructure;
+using IdentityService.Options;
 using IdentityService.Persistence;
+using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using Serilog;
 
@@ -45,16 +47,17 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<EnduserIdMiddleware>();
 
-if (app.Environment.IsDevelopment())
+if (app.Services.GetRequiredService<IOptions<ApiOptions>>().Value.ExposeOpenApi)
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
+}
 
-    using (var scope = app.Services.CreateScope())
-    {
-        var seeder = scope.ServiceProvider.GetRequiredService<DevelopmentSeeder>();
-        await seeder.SeedAsync();
-    }
+if (app.Services.GetRequiredService<IOptions<SeedingOptions>>().Value.Enabled)
+{
+    using var scope = app.Services.CreateScope();
+    var seeder = scope.ServiceProvider.GetRequiredService<DevelopmentSeeder>();
+    await seeder.SeedAsync();
 }
 
 app.MapHealthEndpoints();

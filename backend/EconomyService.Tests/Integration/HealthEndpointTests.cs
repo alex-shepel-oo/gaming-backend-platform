@@ -34,6 +34,11 @@ public sealed class HealthEndpointTests : IDisposable
                     ["RabbitMq:Port"] = RabbitMqTestBroker.Container.GetMappedPublicPort(5672).ToString(CultureInfo.InvariantCulture),
                     ["RabbitMq:Username"] = "guest",
                     ["RabbitMq:Password"] = "guest",
+
+                    // Seeding would hit the deliberately-unreachable database above and take
+                    // the whole host down before either test below ever runs.
+                    ["Seeding:Enabled"] = "false",
+                    ["Api:ExposeOpenApi"] = "false",
                 }));
 
             // The app's startup path does one blocking JWKS refresh before it accepts any

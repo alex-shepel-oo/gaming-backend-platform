@@ -114,6 +114,16 @@ public static class ServiceCollectionExtensions
             .ValidateOnStart();
         services.AddScoped<IWelcomeGrantService, WelcomeGrantService>();
 
+        services.AddOptions<SeedingOptions>()
+            .Bind(configuration.GetSection(SeedingOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<ApiOptions>()
+            .Bind(configuration.GetSection(ApiOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         return services;
     }
 

@@ -91,6 +91,11 @@ public sealed class HealthReadyRabbitMqDownTests : IAsyncDisposable
                     ["RabbitMq:Port"] = _rabbitMq.GetMappedPublicPort(5672).ToString(CultureInfo.InvariantCulture),
                     ["RabbitMq:Username"] = "guest",
                     ["RabbitMq:Password"] = "guest",
+
+                    // Not what this class exercises -- keeps this isolated host's DB state
+                    // (and startup path) identical to every other test's "Testing" default.
+                    ["Seeding:Enabled"] = "false",
+                    ["Api:ExposeOpenApi"] = "false",
                 }));
 
             // The app's startup path does one blocking JWKS refresh before it accepts any

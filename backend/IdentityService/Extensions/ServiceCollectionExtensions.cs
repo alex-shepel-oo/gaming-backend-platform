@@ -94,6 +94,16 @@ public static class ServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddOptions<SeedingOptions>()
+            .Bind(configuration.GetSection(SeedingOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<ApiOptions>()
+            .Bind(configuration.GetSection(ApiOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
         services.AddSingleton<IJwtSigningKeys, JwtSigningKeys>();
         services.AddSingleton<ITokenService, TokenService>();
