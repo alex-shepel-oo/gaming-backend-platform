@@ -49,5 +49,9 @@ data:
   prometheus.yml: |
     {{- $.Values.observability.prometheusConfigYaml | nindent 4 }}
   {{- end }}
+  {{- if eq $name "loki" }}
+  loki-config.yaml: |
+    {{- $.Values.observability.lokiConfigYaml | nindent 4 }}
+  {{- end }}
 {{- end }}
 {{- end }}

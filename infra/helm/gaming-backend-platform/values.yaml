@@ -87,6 +87,7 @@ observability:
   otelCollectorConfigYaml: ""
   tempoConfigYaml: ""
   prometheusConfigYaml: ""
+  lokiConfigYaml: ""
 
 # One entry per Deployment. `service.name` defaults to the map key; only
 # gateway needs the override (Deployment "gateway", Service "api-gateway").
@@ -481,6 +482,43 @@ deployments:
       requests: {cpu: 100m, memory: 256Mi}
       limits: {cpu: 500m, memory: 512Mi}
 
+  loki:
+    image: grafana/loki:3.3.2
+    internal: false
+    namespace: observability
+    replicas: 1
+    args: ["-config.file=/etc/loki/loki-config.yaml", "-config.expand-env=true"]
+    env:
+      - name: LOKI_RETENTION_PERIOD
+        value: "4380h"
+    ports:
+      - {name: http, containerPort: 3100}
+    service:
+      enabled: true
+      port: 3100
+    configMapName: loki-config
+    volumeMounts:
+      - name: config
+        mountPath: /etc/loki/loki-config.yaml
+        subPath: loki-config.yaml
+      - name: data
+        mountPath: /loki
+    volumes:
+      - name: config
+        configMap:
+          name: loki-config
+          items:
+            - {key: loki-config.yaml, path: loki-config.yaml}
+      - name: data
+        persistentVolumeClaim: {claimName: loki-data}
+    readinessProbe:
+      httpGet: {path: /ready, port: 3100}
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+
 # Standalone PVCs (see templates/pvc.yaml) for observability Deployments that
 # own persistent state but are single-replica, same as their docker-compose
 # counterparts -- a plain PVC rather than a StatefulSet's
@@ -491,6 +529,9 @@ persistentVolumeClaims:
     namespace: observability
     storage: 1Gi
   prometheus-data:
+    namespace: observability
+    storage: 1Gi
+  loki-data:
     namespace: observability
     storage: 1Gi
 
