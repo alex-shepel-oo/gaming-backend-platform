@@ -653,7 +653,7 @@ statefulsets:
     volumeMount: {name: identity-db-data, mountPath: /var/lib/postgresql/data, subPath: postgres}
     storage: 1Gi
     readinessProbe:
-      exec: {command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "$(POSTGRES_DB)"]}
+      exec: {command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]}
       initialDelaySeconds: 5
       periodSeconds: 5
     resources:
@@ -676,7 +676,7 @@ statefulsets:
     volumeMount: {name: economy-db-data, mountPath: /var/lib/postgresql/data, subPath: postgres}
     storage: 1Gi
     readinessProbe:
-      exec: {command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "$(POSTGRES_DB)"]}
+      exec: {command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]}
       initialDelaySeconds: 5
       periodSeconds: 5
     resources:
