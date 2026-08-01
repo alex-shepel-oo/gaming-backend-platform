@@ -473,8 +473,8 @@ deployments:
       initialDelaySeconds: 5
       periodSeconds: 5
     resources:
-      requests: {cpu: 100m, memory: 128Mi}
-      limits: {cpu: 500m, memory: 256Mi}
+      requests: {cpu: 100m, memory: 256Mi}
+      limits: {cpu: 500m, memory: 512Mi}
 
   prometheus:
     image: prom/prometheus:v3.9.1
