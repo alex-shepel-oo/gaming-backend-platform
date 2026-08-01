@@ -140,6 +140,8 @@ deployments:
       RabbitMq__Host: "rabbitmq"
       RabbitMq__Port: "5672"
       RabbitMq__ExchangeName: "gbp.identity"
+      Telemetry__OtlpEndpoint: "http://otel-collector.observability.svc.cluster.local:4317"
+      Telemetry__LokiEndpoint: "http://loki.observability.svc.cluster.local:3100"
     envFrom:
       - configMapRef: {name: shared-config}
       - configMapRef: {name: identity-config}
@@ -185,6 +187,8 @@ deployments:
       Jwt__JwksUri: "http://identity-service:5000/.well-known/jwks.json"
       RabbitMq__Host: "rabbitmq"
       RabbitMq__Port: "5672"
+      Telemetry__OtlpEndpoint: "http://otel-collector.observability.svc.cluster.local:4317"
+      Telemetry__LokiEndpoint: "http://loki.observability.svc.cluster.local:3100"
     envFrom:
       - configMapRef: {name: shared-config}
       - configMapRef: {name: economy-config}
@@ -235,6 +239,8 @@ deployments:
       Jwt__JwksUri: "http://identity-service:5000/.well-known/jwks.json"
       RabbitMq__Host: "rabbitmq"
       RabbitMq__Port: "5672"
+      Telemetry__OtlpEndpoint: "http://otel-collector.observability.svc.cluster.local:4317"
+      Telemetry__LokiEndpoint: "http://loki.observability.svc.cluster.local:3100"
     envFrom:
       - configMapRef: {name: shared-config}
       - configMapRef: {name: notification-config}
@@ -265,7 +271,12 @@ deployments:
   platform-worker:
     image: platform-worker
     replicas: 1
+    configMapName: platform-worker-config
+    configMap:
+      Telemetry__OtlpEndpoint: "http://otel-collector.observability.svc.cluster.local:4317"
+      Telemetry__LokiEndpoint: "http://loki.observability.svc.cluster.local:3100"
     envFrom:
+      - configMapRef: {name: platform-worker-config}
       - secretRef: {name: identity-secrets}
       - secretRef: {name: economy-secrets}
     livenessProbe:
@@ -327,6 +338,8 @@ deployments:
       ASPNETCORE_ENVIRONMENT: "Kubernetes"
       ASPNETCORE_URLS: "http://+:5100"
       Jwt__JwksUri: "http://identity-service:5000/.well-known/jwks.json"
+      Telemetry__OtlpEndpoint: "http://otel-collector.observability.svc.cluster.local:4317"
+      Telemetry__LokiEndpoint: "http://loki.observability.svc.cluster.local:3100"
     envFrom:
       - configMapRef: {name: shared-config}
       - configMapRef: {name: gateway-config}
