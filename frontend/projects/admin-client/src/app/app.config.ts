@@ -19,8 +19,9 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes),
     { provide: CLIENT_TYPE, useValue: 'admin' },
     { provide: GUEST_REDIRECT_PATH, useValue: '/dashboard' },
-    // otel-collector's OTLP/HTTP port, exposed straight to the host like every other observability
-    // container in infra/docker-compose.yml -- same dev-only-literal posture as that file.
-    provideFrontendTelemetry({ appName: 'admin-client', otlpEndpoint: 'http://localhost:4318' }),
+    // Relative path, proxied same-origin to otel-collector by nginx.conf's /otlp/ location --
+    // mirrors how /api already reaches its backend, so the browser never talks to
+    // otel-collector's own origin directly.
+    provideFrontendTelemetry({ appName: 'admin-client', otlpEndpoint: '/otlp' }),
   ],
 };
