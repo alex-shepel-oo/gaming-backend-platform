@@ -51,7 +51,7 @@ The project implements a multi-tenant backend platform for games. Each game has 
 | [platform-worker-ci](.github/workflows/platform-worker-ci.yml) | `backend/Platform.Worker/**`, `backend/Platform.Worker.Tests/**`, `backend/Directory.*.props`, `global.json` | same shape as `economy-ci`, scoped to `platform-worker` |
 | [player-client-ci](.github/workflows/player-client-ci.yml) | `frontend/**` | Node 22, `npm ci` + `npm run build` + `npm run test` (Vitest), Trivy filesystem scan, pushes `player-client` to GHCR, then Trivy image scan |
 | [admin-client-ci](.github/workflows/admin-client-ci.yml) | `frontend/**` | Same shape as `player-client-ci`, scoped to `admin-client` |
-| [k8s-validate](.github/workflows/k8s-validate.yml) | `infra/kubernetes/**` | renders the Kustomize tree and validates it with `kubeconform` |
+| [k8s-validate](.github/workflows/k8s-validate.yml) | `infra/helm/**` | renders the Helm chart and validates it with `kubeconform` |
 | [gitleaks](.github/workflows/gitleaks.yml) | every push/PR to `main`/`develop`, whole repository | scans the full git history (not just the diff) for committed secrets |
 
 Path filters mean touching `backend/EconomyService/` doesn't trigger
@@ -104,23 +104,34 @@ has the one-liner.
 
 ## Running on Kubernetes
 
-Manifests live under `infra/kubernetes/` — `base/`, `identity/`, `economy/`,
-`rabbitmq/`, `worker/`, `notification/`, `player-client/`, `admin-client/`,
-`gateway/`, `mailpit/` — one namespace (`gaming-platform`) with the same
-services as the compose stack above. They target a local `kind` cluster or
-a sandbox namespace, not production — see
-[docs/architecture.md](docs/architecture.md#local-vs-kubernetes) for the
-full local-vs-cluster breakdown, including why the environment is pinned to
+The chart lives under `infra/helm/gaming-backend-platform/` — one Helm
+release, one namespace (`gaming-platform`), the same services as the compose
+stack above. `values.yaml` carries the shape every environment shares;
+`values-local.yaml` (the local `kind` cluster / sandbox namespace this is
+actually validated against) and `values-production.yaml` (still a
+placeholder — no real VPS/domain yet) layer the knobs that differ. See
+[docs/architecture.md](docs/architecture.md#local-vs-kubernetes) for the full
+local-vs-cluster breakdown, including why the environment is pinned to
 `Development` here.
 
-Secrets are never committed; each service ships a `secret.example.yaml`
-template instead:
+A local `kind` cluster needs Traefik as its ingress controller and a couple
+of host port mappings to actually front it — `kind`'s own node image ships
+neither:
 
 ```
-cp infra/kubernetes/identity/secret.example.yaml /tmp/identity-secrets.yaml
-cp infra/kubernetes/economy/secret.example.yaml /tmp/economy-secrets.yaml
-cp infra/kubernetes/rabbitmq/secret.example.yaml /tmp/rabbitmq-secrets.yaml
+kind create cluster --config scripts/k8s/kind-config.yaml
+scripts/k8s/install-traefik.sh
+```
+
+Secrets are never committed; each service ships a template instead, under
+`infra/helm/gaming-backend-platform/secrets.example/`:
+
+```
+cp infra/helm/gaming-backend-platform/secrets.example/identity.yaml /tmp/identity-secrets.yaml
+cp infra/helm/gaming-backend-platform/secrets.example/economy.yaml /tmp/economy-secrets.yaml
+cp infra/helm/gaming-backend-platform/secrets.example/rabbitmq.yaml /tmp/rabbitmq-secrets.yaml
 # edit each of the three with real values, then:
+kubectl create namespace gaming-platform
 kubectl apply -f /tmp/identity-secrets.yaml -f /tmp/economy-secrets.yaml -f /tmp/rabbitmq-secrets.yaml
 scripts/k8s/apply.sh
 ```
@@ -131,36 +142,35 @@ their own — only `identity-secrets` carries the private key
 ([ADR 0017](docs/adr/0017-rs256-and-jwks.md)). Consul is not deployed at all
 here — Kubernetes Services and kube-DNS already provide discovery (ADR 0002).
 
-`scripts/k8s/apply.sh` (no argument defaults to the whole `infra/kubernetes`
-tree) does more than a bare `kubectl apply -f`: the two database
-StatefulSets are applied and waited on first, then the `identity-migrator`/
-`economy-migrator` Jobs are applied and waited on to completion, and only
-after that does the rest of the tree — including `mailpit`, `player-client`
-and `admin-client` — get applied. That ordering is spelled out explicitly
-because a Kubernetes `Job` has no `depends_on: condition:
-service_completed_successfully` equivalent the way compose's migrator
-containers do.
+`scripts/k8s/apply.sh` is a thin `helm upgrade --install` wrapper now, not a
+hand-rolled apply order: the two database StatefulSets and the
+`identity-migrator`/`economy-migrator` Jobs are `pre-install`/`pre-upgrade`
+Helm hooks (see `templates/statefulset.yaml` and `templates/migration-job.yaml`
+in the chart), so Helm itself finishes them before any app Deployment —
+including `mailpit`, `player-client` and `admin-client` — gets created. A
+`Job` still has no `depends_on: condition: service_completed_successfully`
+equivalent, but this is Helm's own mechanism for exactly that problem rather
+than a wrapper script re-implementing `kubectl wait` by hand. The chart's
+`gateway-config` ConfigMap is generated the same way the old Kustomize tree's
+was: straight from `backend/ApiGateway/ocelot.Kubernetes.json`, which lives
+outside the chart, so `apply.sh` passes it in with `--set-file` rather than
+keeping a second copy that could drift.
 
-The `gateway/` part of that same render-and-apply step goes through
-Kustomize rather than being folded into a plain file list: its ConfigMap is
-generated directly from `backend/ApiGateway/ocelot.Kubernetes.json`, so
-there's no hand-copied routing table that can drift from the real one. That
-source file lives outside `infra/kubernetes/gateway/`, though, and `kubectl
-apply -k` has no flag to let Kustomize read outside the kustomization's own
-directory — only the separate `kubectl kustomize` render command does — so
-the script renders with `kubectl kustomize
---load-restrictor=LoadRestrictionsNone` first and pipes the result into
-`kubectl apply -f -`.
+Reach the stack through the Ingress, fronted by Traefik: every web-facing
+service gets its own single-level `*.localhost` hostname, which every major
+browser/OS resolves to `127.0.0.1` with zero setup (RFC 6761) — no
+`/etc/hosts` entry needed, unlike the old path-plus-one-host layout.
 
-Reach the stack through the Ingress (assumes `ingress-nginx`). Its first rule
-routes `/` to `player-client`, which proxies `/api` onward to the gateway
-itself — see [docs/architecture.md](docs/architecture.md#local-vs-kubernetes).
-A second, host-based rule routes `admin.gaming-platform.local` to
-`admin-client` instead — a path prefix under the same host wouldn't give
-`admin-client` a genuinely separate origin, so this is the first host-based
-rule in the repo; on a local `kind` cluster the hostname needs an
-`/etc/hosts` entry pointed at the ingress controller's address, where a real
-cluster would just resolve it through DNS. Or port-forward directly:
+| Host | Routes to |
+|---|---|
+| `player-client.localhost` | `player-client` (itself proxying `/api` onward to the gateway) |
+| `admin-client.localhost` | `admin-client` |
+| `mailpit.localhost` | Mailpit's UI (kind/sandbox only) |
+| `gateway.localhost` | `api-gateway` directly — convenient for Postman/curl against the API, not something the web clients themselves need |
+
+See [docs/architecture.md](docs/architecture.md#local-vs-kubernetes) for why
+player-client's own Nginx does the `/api` proxying rather than a second
+Ingress rule. Or port-forward directly:
 
 ```
 kubectl -n gaming-platform port-forward svc/player-client 8080:8080
@@ -194,8 +204,11 @@ scripts/
 │   ├── ci.sh       # verify.sh, then deploy.sh
 │   └── stop.sh     # docker compose down (--clean also drops volumes and prunes images)
 └── k8s/
-    ├── apply.sh     # render infra/kubernetes with Kustomize and apply it (see above)
-    └── teardown.sh  # kind delete cluster --name gbp
+    ├── kind-config.yaml           # kind cluster config: host port mappings for Traefik
+    ├── install-traefik.sh         # one-time cluster addon install (see above)
+    ├── traefik-values-local.yaml  # values for the official Traefik chart on kind
+    ├── apply.sh                   # helm upgrade --install the chart (see above)
+    └── teardown.sh                # kind delete cluster --name gbp
 ```
 
 **`verify.sh` vs `ci.sh`:** `verify.sh` is the quick local gate — build and
@@ -943,9 +956,10 @@ that service's own rules. It does so through narrow, cleanup-only
   `processed_at`, nothing more. No per-message retry bookkeeping or
   metadata — that's the full inbox pattern, still Extended scope.
 - Kubernetes Secrets are plain `Secret` objects applied from the
-  `*.secret.example.yaml` templates, not sourced from an external
-  secrets manager. Kustomize's `secretGenerator` came up as the natural next
-  step here and wasn't built in this group.
+  `secrets.example/*.yaml` templates, not sourced from an external secrets
+  manager, and deliberately kept outside the Helm release itself so an
+  `upgrade` never touches them. Something like Sealed Secrets came up as the
+  natural next step here and wasn't built in this group.
 - RabbitMQ and both Postgres instances run as dev/sandbox-only images
   (`rabbitmq:4-management-alpine`, `postgres:17-alpine`) in every environment
   this repo currently deploys to. A production target would point at managed
