@@ -32,7 +32,14 @@ spec:
         {{- if eq $name "tempo" }}
         checksum/tempo-config: {{ $.Values.observability.tempoConfigYaml | sha256sum }}
         {{- end }}
+        {{- if eq $name "prometheus" }}
+        checksum/prometheus-config: {{ $.Values.observability.prometheusConfigYaml | sha256sum }}
+        {{- end }}
     spec:
+      {{- if $svc.securityContext }}
+      securityContext:
+        {{- $svc.securityContext | toYaml | nindent 8 }}
+      {{- end }}
       {{- if $svc.initContainers }}
       initContainers:
         {{- $svc.initContainers | toYaml | nindent 8 }}

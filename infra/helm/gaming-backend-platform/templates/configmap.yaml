@@ -45,5 +45,9 @@ data:
   tempo-config.yaml: |
     {{- $.Values.observability.tempoConfigYaml | nindent 4 }}
   {{- end }}
+  {{- if eq $name "prometheus" }}
+  prometheus.yml: |
+    {{- $.Values.observability.prometheusConfigYaml | nindent 4 }}
+  {{- end }}
 {{- end }}
 {{- end }}

@@ -86,6 +86,7 @@ observability:
   namespace: observability
   otelCollectorConfigYaml: ""
   tempoConfigYaml: ""
+  prometheusConfigYaml: ""
 
 # One entry per Deployment. `service.name` defaults to the map key; only
 # gateway needs the override (Deployment "gateway", Service "api-gateway").
@@ -435,6 +436,51 @@ deployments:
       requests: {cpu: 100m, memory: 128Mi}
       limits: {cpu: 500m, memory: 256Mi}
 
+  prometheus:
+    image: prom/prometheus:v3.9.1
+    internal: false
+    namespace: observability
+    replicas: 1
+    # Runs as the image's own non-root user (uid 65534) -- fsGroup makes the
+    # local-path-provisioner PVC actually writable by it, unlike the
+    # postgres image elsewhere in this chart, whose entrypoint chowns its
+    # own data directory itself before dropping privileges.
+    securityContext:
+      fsGroup: 65534
+    args:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--storage.tsdb.retention.time=180d"
+    ports:
+      - {name: http, containerPort: 9090}
+    service:
+      enabled: true
+      port: 9090
+    configMapName: prometheus-config
+    volumeMounts:
+      - name: config
+        mountPath: /etc/prometheus/prometheus.yml
+        subPath: prometheus.yml
+      - name: data
+        mountPath: /prometheus
+    volumes:
+      - name: config
+        configMap:
+          name: prometheus-config
+          items:
+            - {key: prometheus.yml, path: prometheus.yml}
+      - name: data
+        persistentVolumeClaim: {claimName: prometheus-data}
+    readinessProbe:
+      httpGet: {path: /-/healthy, port: 9090}
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    resources:
+      requests: {cpu: 100m, memory: 256Mi}
+      limits: {cpu: 500m, memory: 512Mi}
+
 # Standalone PVCs (see templates/pvc.yaml) for observability Deployments that
 # own persistent state but are single-replica, same as their docker-compose
 # counterparts -- a plain PVC rather than a StatefulSet's
@@ -442,6 +488,9 @@ deployments:
 # matching its docker-compose counterpart.
 persistentVolumeClaims:
   tempo-data:
+    namespace: observability
+    storage: 1Gi
+  prometheus-data:
     namespace: observability
     storage: 1Gi
 

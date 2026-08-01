@@ -22,4 +22,5 @@ helm upgrade --install "$RELEASE" "$CHART" \
   -f "$CHART/values-local.yaml" \
   --set-file gateway.ocelotConfigJson=backend/ApiGateway/ocelot.Kubernetes.json \
   --set-file observability.otelCollectorConfigYaml=infra/otel-collector/otel-collector-config.yaml \
-  --set-file observability.tempoConfigYaml=infra/tempo/tempo-config.yaml
+  --set-file observability.tempoConfigYaml=infra/tempo/tempo-config.yaml \
+  --set-file observability.prometheusConfigYaml=infra/prometheus/prometheus.yml
