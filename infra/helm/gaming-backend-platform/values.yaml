@@ -85,6 +85,7 @@ gateway:
 observability:
   namespace: observability
   otelCollectorConfigYaml: ""
+  tempoConfigYaml: ""
 
 # One entry per Deployment. `service.name` defaults to the map key; only
 # gateway needs the override (Deployment "gateway", Service "api-gateway").
@@ -391,6 +392,58 @@ deployments:
     resources:
       requests: {cpu: 100m, memory: 128Mi}
       limits: {cpu: 500m, memory: 256Mi}
+
+  tempo:
+    image: grafana/tempo:2.7.1
+    internal: false
+    namespace: observability
+    replicas: 1
+    args: ["-config.file=/etc/tempo.yaml", "-config.expand-env=true"]
+    env:
+      - name: TEMPO_RETENTION_PERIOD
+        value: "4380h"
+    ports:
+      - {name: otlp-grpc, containerPort: 4317}
+      - {name: otlp-http, containerPort: 4318}
+      - {name: http, containerPort: 3200}
+    service:
+      enabled: true
+      ports:
+        - {name: otlp-grpc, port: 4317, targetPort: 4317}
+        - {name: otlp-http, port: 4318, targetPort: 4318}
+        - {name: http, port: 3200, targetPort: 3200}
+    configMapName: tempo-config
+    volumeMounts:
+      - name: config
+        mountPath: /etc/tempo.yaml
+        subPath: tempo-config.yaml
+      - name: data
+        mountPath: /var/tempo
+    volumes:
+      - name: config
+        configMap:
+          name: tempo-config
+          items:
+            - {key: tempo-config.yaml, path: tempo-config.yaml}
+      - name: data
+        persistentVolumeClaim: {claimName: tempo-data}
+    readinessProbe:
+      httpGet: {path: /ready, port: 3200}
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+
+# Standalone PVCs (see templates/pvc.yaml) for observability Deployments that
+# own persistent state but are single-replica, same as their docker-compose
+# counterparts -- a plain PVC rather than a StatefulSet's
+# volumeClaimTemplate. otel-collector is stateless and has no entry here,
+# matching its docker-compose counterpart.
+persistentVolumeClaims:
+  tempo-data:
+    namespace: observability
+    storage: 1Gi
 
 # One entry per StatefulSet. identity-db/economy-db also carry `hook.weight`:
 # see templates/statefulset.yaml for why they need to be pre-install/

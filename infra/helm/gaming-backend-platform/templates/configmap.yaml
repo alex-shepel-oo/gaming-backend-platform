@@ -41,5 +41,9 @@ data:
   otel-collector-config.yaml: |
     {{- $.Values.observability.otelCollectorConfigYaml | nindent 4 }}
   {{- end }}
+  {{- if eq $name "tempo" }}
+  tempo-config.yaml: |
+    {{- $.Values.observability.tempoConfigYaml | nindent 4 }}
+  {{- end }}
 {{- end }}
 {{- end }}

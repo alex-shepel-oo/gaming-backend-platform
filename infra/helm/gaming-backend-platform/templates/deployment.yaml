@@ -29,6 +29,9 @@ spec:
         {{- if eq $name "otel-collector" }}
         checksum/otel-collector-config: {{ $.Values.observability.otelCollectorConfigYaml | sha256sum }}
         {{- end }}
+        {{- if eq $name "tempo" }}
+        checksum/tempo-config: {{ $.Values.observability.tempoConfigYaml | sha256sum }}
+        {{- end }}
     spec:
       {{- if $svc.initContainers }}
       initContainers:
