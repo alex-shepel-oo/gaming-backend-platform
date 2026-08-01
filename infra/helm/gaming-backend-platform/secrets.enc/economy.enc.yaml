@@ -1,0 +1,28 @@
+# Real secret values, encrypted at rest with SOPS (see .sops.yaml). Decrypt
+# with `sops -d` before applying -- never commit the decrypted form. The
+# plain secrets.example/economy.yaml template alongside this file still
+# documents the shape for anyone who hasn't set up an age key yet.
+apiVersion: v1
+kind: Secret
+metadata:
+    name: economy-secrets
+    namespace: gaming-platform
+type: Opaque
+stringData:
+    POSTGRES_PASSWORD: ENC[AES256_GCM,data:0oLIMrbZuRMgqtf0KvyCetSGV1Wbd/nRtXdpH1Kvy6w=,iv:CkDR4+moOhNT/X8gdvzhb36U5CiRh9PRZpa9nZZzVPc=,tag:60jk4bqX5W80sho6kJGsgg==,type:str]
+    ConnectionStrings__EconomyDb: ENC[AES256_GCM,data:DdX7yIAK0Bw5lG+2A3lG/tLe14SLF+ebDxl/18fcgK5oSGbwuySUaVsOeDUF/6e7aMfqdEH/bwjEKfndm/qnqLYq4S5ogVDQ5eCDdJMiCDQDPT8uP/cmkQ5/UUjA4scaOsxndayPH+xHjlTJpppWro4EeYIfEOjzK/1QmCUgqZQGRVtEwFc/BWbu,iv:9++EE6Uik5bqZHF3tyT5L4Y+IzOwoph00d5BE5OiQqE=,tag:tLfn+7+XE2bB3OM+EJsZZA==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB5U2Q5SU1jVG5XWG5HQndy
+            czNUZzhnd0RTc3E3THdEUGJMYTRsZnBpcmdBCjV1ampHSlBpQWRESjM0Y0pBL0RO
+            NGliYS8yRnQzM0Q3Z0NjVThNMFZlc0EKLS0tIFRxUEpRdTBiZlI1aU55Mmo1dEt2
+            WGYwZ0hkekowNnVENzIvbHd6eHBhWXcKYiqKQHybXPNL/hOD+bCWDx0bek6inCjC
+            fOqr/+WbA2MSgOPTOfQOE1zp6aStGv7k+Fzk6wgVT/Iz5etZnkGirQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1kl06atlam4ngyp0x8h6d4hv58p7m6qv8xa6gnpewsa64srem9c2q65pvjc
+    encrypted_regex: ^(stringData|data)$
+    lastmodified: "2026-08-01T15:46:53Z"
+    mac: ENC[AES256_GCM,data:F6sevgNPCpa8ecoXH/n75dR5ltYTxQpOuoTE1Vkzp4mNEjfFir66jKhy2my8BwxDtRTUwIxf2p/imrXwhmc5ojF8vDfcAO837wjoKF6zUi7/z7CwHrY44g2wUvbB5OGevf++TLJnf0GBeAaGTdLV+ej+OH3vC1HV2iiS1bQs9ls=,iv:B22DbFiYUcuKMdAuIGFswiMUYTrg9Ajg3PjudNt/alc=,tag:jDw7mwJRyH9wGuqP6KO1Gw==,type:str]
+    version: 3.13.2
