@@ -52,6 +52,9 @@ deployments:
       enabled: true
       port: 5000
     configMapName: identity-config
+    # identity-db (a pre-install hook) reads POSTGRES_DB/POSTGRES_USER from
+    # this ConfigMap, so it has to be a hook too -- see templates/configmap.yaml.
+    configMapHookWeight: "-30"
     configMap:
       POSTGRES_DB: "identity_db"
       POSTGRES_USER: "identity"
@@ -97,6 +100,9 @@ deployments:
       enabled: true
       port: 5001
     configMapName: economy-config
+    # economy-db (a pre-install hook) reads POSTGRES_DB/POSTGRES_USER from
+    # this ConfigMap, so it has to be a hook too -- see templates/configmap.yaml.
+    configMapHookWeight: "-30"
     configMap:
       POSTGRES_DB: "economy_db"
       POSTGRES_USER: "economy"

@@ -9,6 +9,19 @@ metadata:
   labels:
     {{- include "gbp.labels" $ | nindent 4 }}
     app: {{ $name }}
+  {{- if $svc.configMapHookWeight }}
+  annotations:
+    # identity-config/economy-config feed identity-db/economy-db's own env
+    # (POSTGRES_DB/POSTGRES_USER via configMapKeyRef), and that StatefulSet
+    # is itself a pre-install/pre-upgrade hook -- so this ConfigMap has to be
+    # a hook too, at an earlier weight, or it simply doesn't exist yet when
+    # the StatefulSet hook tries to read it (found the hard way: a fresh
+    # `helm install` left identity-db/economy-db stuck in
+    # CreateContainerConfigError, "configmap not found", because normal
+    # resources are only created after every pre-install hook finishes).
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: {{ $svc.configMapHookWeight | quote }}
+  {{- end }}
 data:
   {{- $svc.configMap | toYaml | nindent 2 }}
   {{- if eq $name "gateway" }}
