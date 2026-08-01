@@ -123,8 +123,12 @@ kind create cluster --config scripts/k8s/kind-config.yaml
 scripts/k8s/install-traefik.sh
 ```
 
-Secrets are never committed; each service ships a template instead, under
-`infra/helm/gaming-backend-platform/secrets.example/`:
+Secrets are never committed as plaintext, but which mechanism applies depends
+on whether the values are throwaway or meant to persist:
+
+For a disposable local cluster, each service still ships a plain template
+under `infra/helm/gaming-backend-platform/secrets.example/` — copy, fill in
+local values, apply directly, and never check the filled-in copy in:
 
 ```
 cp infra/helm/gaming-backend-platform/secrets.example/identity.yaml /tmp/identity-secrets.yaml
@@ -135,6 +139,56 @@ kubectl create namespace gaming-platform
 kubectl apply -f /tmp/identity-secrets.yaml -f /tmp/economy-secrets.yaml -f /tmp/rabbitmq-secrets.yaml
 scripts/k8s/apply.sh
 ```
+
+(`scripts/k8s/up.sh` already automates exactly this for the local `kind`
+cluster, generating fresh values into a scratch directory on first run —
+nothing above is needed if you're just running the stack locally.)
+
+For values meant to survive a rebuild and actually be reviewable in git —
+the real deployment this eventually targets — secrets are encrypted with
+[SOPS](https://github.com/getsops/sops) using `age` as the encryption
+backend, not left as an unencrypted file someone has to remember to keep out
+of version control. `.sops.yaml` at the repo root scopes which paths get
+encrypted and with which recipient key:
+
+```yaml
+creation_rules:
+  - path_regex: infra[\\/]helm[\\/]gaming-backend-platform[\\/]secrets\.enc[\\/].*\.enc\.yaml$
+    encrypted_regex: ^(stringData|data)$
+    age: age1kl06atlam4ngyp0x8h6d4hv58p7m6qv8xa6gnpewsa64srem9c2q65pvjc
+```
+
+`encrypted_regex` keeps only `stringData`'s values ciphertext — `apiVersion`,
+`kind`, `metadata` and the `stringData` keys themselves stay legible, so a
+`git diff` on one of these files still shows which secret changed even
+though the value itself doesn't. The matching private key never lives in the
+repo; it sits wherever `sops` looks for it by default
+(`$XDG_CONFIG_HOME/sops/age/keys.txt` on Linux/macOS,
+`%AppData%\sops\age\keys.txt` on Windows), generated once per operator with
+`age-keygen`. The real VPS deployment will need its own such keypair, kept
+outside git the same way — what's here proves the mechanism, not a
+production key.
+
+`infra/helm/gaming-backend-platform/secrets.enc/` holds the encrypted,
+real-value counterparts of the four `secrets.example/` templates, committed
+alongside them rather than replacing them — the plain templates remain the
+"here's the shape" reference for anyone who hasn't set up an age key yet.
+Encrypting a filled-in template and applying it looks like:
+
+```
+sops -e -i infra/helm/gaming-backend-platform/secrets.enc/identity.enc.yaml
+
+sops -d infra/helm/gaming-backend-platform/secrets.enc/identity.enc.yaml | kubectl apply -f -
+sops -d infra/helm/gaming-backend-platform/secrets.enc/economy.enc.yaml  | kubectl apply -f -
+sops -d infra/helm/gaming-backend-platform/secrets.enc/rabbitmq.enc.yaml | kubectl apply -f -
+sops -d infra/helm/gaming-backend-platform/secrets.enc/grafana.enc.yaml  | kubectl apply -f -
+scripts/k8s/apply.sh
+```
+
+Piping `sops -d` straight into `kubectl apply -f -` means the decrypted YAML
+never touches disk at all; if it does for any reason (debugging a template,
+say), delete it once the apply succeeds rather than leaving it next to its
+encrypted counterpart.
 
 `gateway`, `economy-service` and `notification-service` validate tokens
 against Identity's published JWKS rather than holding any signing secret of
