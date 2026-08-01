@@ -167,6 +167,17 @@ browser/OS resolves to `127.0.0.1` with zero setup (RFC 6761) — no
 | `admin-client.localhost` | `admin-client` |
 | `mailpit.localhost` | Mailpit's UI (kind/sandbox only) |
 | `gateway.localhost` | `api-gateway` directly — convenient for Postman/curl against the API, not something the web clients themselves need |
+| `traefik.localhost` | Traefik's own dashboard (`/dashboard/`, trailing slash required) — routers, services and middleware, live |
+
+Seeded demo accounts, all sharing the password `DemoPassword123!` (`DevelopmentSeeder`, this
+password only exists on a local/sandbox cluster — never a real deployment):
+
+| Email | Role |
+|---|---|
+| `admin@demo-shooter.dev` | Platform admin |
+| `player.one@demo-shooter.dev`, `player.two@demo-shooter.dev` | Players, `demo-shooter` |
+| `gameadmin@demo-racer.dev` | Game admin, `demo-racer` |
+| `player.three@demo-racer.dev` | Player, `demo-racer` |
 
 See [docs/architecture.md](docs/architecture.md#local-vs-kubernetes) for why
 player-client's own Nginx does the `/api` proxying rather than a second
