@@ -23,6 +23,8 @@ public sealed class EconomyApiFactory : WebApplicationFactory<Program>
         .WithPassword("economy_test_password")
         .Build();
 
+    public string ConnectionString => _container.GetConnectionString();
+
     private Respawner _respawner = null!;
 
     public async Task InitializeAsync()
@@ -80,6 +82,14 @@ public sealed class EconomyApiFactory : WebApplicationFactory<Program>
             {
                 ["ConnectionStrings:EconomyDb"] = _container.GetConnectionString(),
                 ["Jwt:JwksUri"] = "https://identity.test/.well-known/jwks.json",
+
+                // Seeding/OpenAPI now default to enabled independent of ASPNETCORE_ENVIRONMENT
+                // (see SeedingOptions/ApiOptions), whereas "Testing" previously never tripped
+                // IsDevelopment() and so never seeded automatically. Pin both off here so this
+                // shared factory keeps that exact behavior -- every existing test that wants
+                // seeded data already asks DevelopmentSeeder for it explicitly.
+                ["Seeding:Enabled"] = "false",
+                ["Api:ExposeOpenApi"] = "false",
                 ["RabbitMq:Host"] = RabbitMqTestBroker.Container.Hostname,
                 ["RabbitMq:Port"] = RabbitMqTestBroker.Container.GetMappedPublicPort(5672).ToString(CultureInfo.InvariantCulture),
                 ["RabbitMq:Username"] = "guest",
