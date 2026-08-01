@@ -13,6 +13,17 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
+# Default terminationGracePeriodSeconds for every Deployment (templates/deployment.yaml
+# reads $svc.terminationGracePeriodSeconds first, falling back to this), overridable per
+# service if one genuinely needs longer than another later. 30s comfortably covers this
+# platform's slowest realistic in-flight work: the Ocelot gateway's own QoSOptions.Timeout
+# (backend/ApiGateway/ocelot.json) caps a single proxied call at 5s, and
+# OutboxDispatcherService's worst-case Polly retry tail per message is ~3s
+# (BuildingBlocks.Messaging/Outbox/OutboxDispatcherService.cs). Each backend service's
+# HostOptions.ShutdownTimeout is set below this value, so the host always finishes and
+# exits on its own before Kubernetes would otherwise send SIGKILL.
+terminationGracePeriodSeconds: 30
+
 ingress:
   enabled: true
   # Traefik, installed as a cluster addon (scripts/k8s/install-traefik.sh),
