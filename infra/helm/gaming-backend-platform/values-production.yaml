@@ -1,13 +1,99 @@
-# Placeholder. There is no real VPS or domain yet (see
-# .plan/vps_rollout_plan.md) -- this file exists so the one-values-file-per-
-# environment shape is wired up now, not so it carries real production
-# values before there is a real target to point them at.
+# Real production target: shepel.dev, VPS behind Cloudflare (SSL/TLS: Full strict) --
+# see .plan/vps_rollout_plan.md.
 #
-# Known gaps to fill in once that target exists, not invented here:
-#   - image.tag: a real released tag, not :latest
-#   - ingress.className / a real ingress host once cert-manager and DNS exist
-#   - per-service ASPNETCORE_ENVIRONMENT (see docs/architecture.md's "Known
-#     limitation" on this exact point -- still an open decision)
+# TLS: Traefik presents a Cloudflare Origin Certificate, not a Let's Encrypt one --
+# Cloudflare's own edge issues the public-facing cert, the origin only needs to be
+# trusted by Cloudflare specifically. ingress.tlsSecretName below must exist as a
+# Secret (the Origin Certificate's cert+key) in both gaming-platform and observability
+# namespaces before this actually serves HTTPS -- not created by this chart itself.
+#
+image:
+  tag: develop
 
 mailpit:
   enabled: false
+
+# The base chart's hpa.maxReplicas: 10 (per service) is sized for a real multi-node
+# cluster, not this single small VPS -- proven live: identity-service hit all 10 replicas
+# during a startup crash-loop, which then exhausted the node's inotify watch limit
+# (each replica's FileSystemWatcher on appsettings.json needs one), turning a transient
+# CPU spike into a much worse cascade of new crashes. 3 is enough headroom for real demo
+# traffic on this box without repeating that.
+deployments:
+  # ASPNETCORE_ENVIRONMENT=Production (not the chart's own Development default) and
+  # Seeding__Enabled=false: found live on the first real deploy that leaving these
+  # unset meant DevelopmentSeeder's known DemoPassword123! accounts (including a
+  # Platform Admin) actually existed on a publicly reachable server -- README's own
+  # "this password only exists on a local/sandbox cluster" statement was being
+  # violated by the default. Production also gets the refresh cookie's Secure flag
+  # right, which only appsettings.json (not appsettings.Development.json) sets.
+  identity-service:
+    configMap:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      Seeding__Enabled: "false"
+    hpa:
+      maxReplicas: 3
+  economy-service:
+    configMap:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      Seeding__Enabled: "false"
+    hpa:
+      maxReplicas: 3
+  gateway:
+    hpa:
+      maxReplicas: 3
+  notification-service:
+    configMap:
+      ASPNETCORE_ENVIRONMENT: "Production"
+  # Real Resend SMTP relay instead of mailpit. Email__From stays Resend's own
+  # onboarding@resend.dev sandbox sender -- shepel.dev isn't verified with Resend yet,
+  # and the real appsettings.json default (no-reply@gaming-platform.local) gets a hard
+  # SMTP rejection from an unverified domain. Switch this to a real shepel.dev address
+  # once domain verification (SPF/DKIM) is done. Credentials themselves live in
+  # secrets.enc/email-service.enc.yaml, not here.
+  email-service:
+    configMap:
+      Email__Smtp__Host: "smtp.resend.com"
+      Email__Smtp__Port: "587"
+      Email__Smtp__UseStartTls: "true"
+      Email__From: "onboarding@resend.dev"
+  # Recruiter-facing read access: anonymous Viewer role (no account needed for the public
+  # link), Explore disabled globally since Grafana OSS has no per-role toggle for it and
+  # an ad-hoc query over a huge time range is a real load risk on this small box. The
+  # real admin login (grafana-secrets) stays separate and private. Gate the actual URL
+  # with Cloudflare Access on top of this, not instead of it.
+  grafana:
+    env:
+      - name: GF_AUTH_ANONYMOUS_ENABLED
+        value: "true"
+      - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+        value: "Viewer"
+      - name: GF_EXPLORE_ENABLED
+        value: "false"
+
+ingress:
+  tlsSecretName: cloudflare-origin-tls
+  hosts:
+    player-client:
+      host: gbplatform.shepel.dev
+      service: player-client
+      port: 8080
+    admin-client:
+      host: gbadmin.shepel.dev
+      service: admin-client
+      port: 8081
+    gateway:
+      host: gbgateway.shepel.dev
+      service: api-gateway
+      port: 5100
+    grafana:
+      host: gbgrafana.shepel.dev
+      service: grafana
+      port: 3000
+      namespace: observability
+    # Prometheus/Loki/Tempo stay off public ingress in production -- none of them have
+    # auth of their own, and nothing needs to browse to them directly; Grafana already
+    # queries all three as datasources over in-cluster Service DNS.
+    prometheus: null
+    loki: null
+    tempo: null
