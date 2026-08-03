@@ -45,31 +45,22 @@ deployments:
   notification-service:
     configMap:
       ASPNETCORE_ENVIRONMENT: "Production"
-  # Real Resend SMTP relay instead of mailpit. Email__From stays Resend's own
-  # onboarding@resend.dev sandbox sender -- shepel.dev isn't verified with Resend yet,
-  # and the real appsettings.json default (no-reply@gaming-platform.local) gets a hard
-  # SMTP rejection from an unverified domain. Switch this to a real shepel.dev address
-  # once domain verification (SPF/DKIM) is done. Credentials themselves live in
+  # Real Resend SMTP relay instead of mailpit. shepel.dev is verified with Resend now
+  # (MX/SPF on send.shepel.dev, DKIM via resend._domainkey.shepel.dev), so Email__From
+  # is a real address on it instead of the onboarding@resend.dev sandbox sender that
+  # only ever delivers to the account owner's own inbox. Credentials themselves live in
   # secrets.enc/email-service.enc.yaml, not here.
   email-service:
     configMap:
       Email__Smtp__Host: "smtp.resend.com"
       Email__Smtp__Port: "587"
       Email__Smtp__UseStartTls: "true"
-      Email__From: "onboarding@resend.dev"
-  # Recruiter-facing read access: anonymous Viewer role (no account needed for the public
-  # link), Explore disabled globally since Grafana OSS has no per-role toggle for it and
-  # an ad-hoc query over a huge time range is a real load risk on this small box. The
-  # real admin login (grafana-secrets) stays separate and private. Gate the actual URL
-  # with Cloudflare Access on top of this, not instead of it.
-  grafana:
-    env:
-      - name: GF_AUTH_ANONYMOUS_ENABLED
-        value: "true"
-      - name: GF_AUTH_ANONYMOUS_ORG_ROLE
-        value: "Viewer"
-      - name: GF_EXPLORE_ENABLED
-        value: "false"
+      Email__From: "no-reply@shepel.dev"
+  # Recruiter-facing read access goes through Grafana's own Public Dashboards feature
+  # instead (share a specific curated dashboard via its own unique URL, no login, no
+  # Cloudflare Access seat) -- narrower than instance-wide anonymous access would have
+  # been, and doesn't hit Cloudflare Access's 50-seat free-tier ceiling. Nothing to
+  # configure here for that; it's a per-dashboard toggle in the UI as the real admin.
 
 ingress:
   tlsSecretName: cloudflare-origin-tls
