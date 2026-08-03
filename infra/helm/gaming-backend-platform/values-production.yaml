@@ -1,0 +1,13 @@
+# Placeholder. There is no real VPS or domain yet (see
+# .plan/vps_rollout_plan.md) -- this file exists so the one-values-file-per-
+# environment shape is wired up now, not so it carries real production
+# values before there is a real target to point them at.
+#
+# Known gaps to fill in once that target exists, not invented here:
+#   - image.tag: a real released tag, not :latest
+#   - ingress.className / a real ingress host once cert-manager and DNS exist
+#   - per-service ASPNETCORE_ENVIRONMENT (see docs/architecture.md's "Known
+#     limitation" on this exact point -- still an open decision)
+
+mailpit:
+  enabled: false

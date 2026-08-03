@@ -1,0 +1,34 @@
+# Values for the official Argo CD chart (argo/argo-cd) on the local kind
+# cluster -- same relationship to install-argocd.sh that
+# traefik-values-local.yaml has to install-traefik.sh, just a different
+# cluster addon. Trimmed per the "Fitting the single-VPS budget" section of
+# .plan/vps_rollout_plan.md (item 5): dex, the notifications controller, and
+# the applicationSet controller aren't used by this project's GitOps flow
+# (no SSO, no PR-based notifications, no generator-driven multi-cluster
+# Application fan-out), so leaving them running would just be idle memory on
+# a single-node box. The applicationSet controller has no enabled toggle in
+# this chart version, so it's parked at zero replicas instead of removed
+# outright.
+dex:
+  enabled: false
+
+notifications:
+  enabled: false
+
+applicationSet:
+  replicas: 0
+
+configs:
+  params:
+    # Traefik terminates TLS the same way it does for every other
+    # *.localhost host in this project (see traefik-values-local.yaml's own
+    # comment on api.insecure) -- the server talks plain HTTP behind it
+    # rather than doing its own TLS a second time in front of a proxy that's
+    # already unauthenticated on this local-only cluster.
+    server.insecure: true
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hostname: argocd.localhost

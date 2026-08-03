@@ -1,0 +1,65 @@
+{{- range $name, $svc := .Values.deployments }}
+{{- if $svc.configMapName }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $svc.configMapName }}
+  namespace: {{ $svc.namespace | default $.Release.Namespace }}
+  labels:
+    {{- include "gbp.labels" $ | nindent 4 }}
+    app: {{ $name }}
+  {{- if $svc.configMapHookWeight }}
+  annotations:
+    # identity-config/economy-config feed identity-db/economy-db's own env
+    # (POSTGRES_DB/POSTGRES_USER via configMapKeyRef), and that StatefulSet
+    # is itself a pre-install/pre-upgrade hook -- so this ConfigMap has to be
+    # a hook too, at an earlier weight, or it simply doesn't exist yet when
+    # the StatefulSet hook tries to read it (found the hard way: a fresh
+    # `helm install` left identity-db/economy-db stuck in
+    # CreateContainerConfigError, "configmap not found", because normal
+    # resources are only created after every pre-install hook finishes).
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: {{ $svc.configMapHookWeight | quote }}
+  {{- end }}
+data:
+  {{- if $svc.configMap }}
+  {{- $svc.configMap | toYaml | nindent 2 }}
+  {{- end }}
+  {{- if eq $name "gateway" }}
+  # Generated straight from backend/ApiGateway/ocelot.Kubernetes.json (see
+  # values.yaml's gateway.ocelotConfigJson comment) so there is exactly one
+  # copy of the routing table, not a hand-maintained second one in the chart.
+  ocelot.Kubernetes.json: |
+    {{- $.Values.gateway.ocelotConfigJson | nindent 4 }}
+  {{- end }}
+  {{- if eq $name "otel-collector" }}
+  # Generated straight from infra/otel-collector/otel-collector-config.yaml
+  # (see values.yaml's observability.otelCollectorConfigYaml comment) -- the
+  # docker-compose bind mount becomes a --set-file value instead, same
+  # one-copy reasoning as the gateway's ocelot config above.
+  otel-collector-config.yaml: |
+    {{- $.Values.observability.otelCollectorConfigYaml | nindent 4 }}
+  {{- end }}
+  {{- if eq $name "tempo" }}
+  tempo-config.yaml: |
+    {{- $.Values.observability.tempoConfigYaml | nindent 4 }}
+  {{- end }}
+  {{- if eq $name "prometheus" }}
+  prometheus.yml: |
+    {{- $.Values.observability.prometheusConfigYaml | nindent 4 }}
+  {{- end }}
+  {{- if eq $name "loki" }}
+  loki-config.yaml: |
+    {{- $.Values.observability.lokiConfigYaml | nindent 4 }}
+  {{- end }}
+  {{- if eq $name "grafana" }}
+  datasources.yml: |
+    {{- $.Values.observability.grafanaDatasourcesYaml | nindent 4 }}
+  dashboards.yml: |
+    {{- $.Values.observability.grafanaDashboardsProviderYaml | nindent 4 }}
+  service-overview.json: |
+    {{- $.Values.observability.grafanaDashboardJson | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}

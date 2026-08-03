@@ -27,6 +27,12 @@ builder.Host.UseSerilog((context, configuration) => configuration
     .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture)
     .WriteToPlatformLoki(context.Configuration, "api-gateway"));
 
+// Comfortably below the Helm chart's terminationGracePeriodSeconds default (30s,
+// infra/helm/gaming-backend-platform/values.yaml) so the host always finishes
+// proxying an in-flight request and exits on its own, instead of Kubernetes
+// cutting it short with SIGKILL once the grace period runs out.
+builder.Host.ConfigureHostOptions(options => options.ShutdownTimeout = TimeSpan.FromSeconds(15));
+
 builder.Services.AddOptions<JwtOptions>()
     .Bind(builder.Configuration.GetSection(JwtOptions.SectionName))
     .ValidateDataAnnotations()

@@ -19,6 +19,12 @@ builder.Host.UseSerilog((context, configuration) => configuration
     .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture)
     .WriteToPlatformLoki(context.Configuration, "identity-service"));
 
+// Comfortably below the Helm chart's terminationGracePeriodSeconds default (30s,
+// infra/helm/gaming-backend-platform/values.yaml) so the host always finishes an
+// in-flight request or outbox dispatch cycle and exits on its own, instead of
+// Kubernetes cutting it short with SIGKILL once the grace period runs out.
+builder.Host.ConfigureHostOptions(options => options.ShutdownTimeout = TimeSpan.FromSeconds(15));
+
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();

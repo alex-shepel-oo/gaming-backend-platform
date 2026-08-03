@@ -1,0 +1,19 @@
+# kind's own node image has no ingress controller built in the way some
+# managed clusters' do, and a plain kind cluster has no path from the host's
+# network into the cluster for ports 80/443 either. extraPortMappings binds
+# those two host ports onto the control-plane node container; Traefik's own
+# Helm values (see scripts/k8s/traefik-values-local.yaml) then bind its pod
+# to the matching hostPort on that same node, closing the loop -- the same
+# recipe kind documents for ingress-nginx, just pointed at Traefik instead.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: gbp
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 80
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 443
+        protocol: TCP

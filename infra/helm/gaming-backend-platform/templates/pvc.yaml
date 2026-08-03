@@ -1,0 +1,20 @@
+# Standalone PVCs for Deployments that own persistent state but don't need a
+# stable pod identity the way the StatefulSets in this chart do (Tempo/Loki/
+# Prometheus/Grafana are each a single replica, same as their docker-compose
+# counterparts) -- so a plain PersistentVolumeClaim mounted into the
+# Deployment's pod, not a volumeClaimTemplate on a StatefulSet.
+{{- range $name, $pvc := .Values.persistentVolumeClaims }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}
+  namespace: {{ $pvc.namespace | default $.Release.Namespace }}
+  labels:
+    {{- include "gbp.labels" $ | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ $pvc.storage }}
+{{- end }}

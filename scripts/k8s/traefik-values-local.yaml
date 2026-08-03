@@ -1,0 +1,31 @@
+# Values for the official Traefik chart (traefik/traefik) on the local kind
+# cluster built from kind-config.yaml in this same directory. hostPort binds
+# Traefik's pod directly onto the node container's network namespace on
+# 80/443 -- exactly the two ports kind-config.yaml maps from the Docker host
+# -- so a LoadBalancer Service (which never gets an external IP on kind, no
+# cloud provider to hand one out) isn't needed; ClusterIP is enough since
+# nothing routes through the Service itself for external traffic.
+ports:
+  web:
+    hostPort: 80
+  websecure:
+    hostPort: 443
+
+service:
+  spec:
+    type: ClusterIP
+
+# Local-only convenience: the dashboard is unauthenticated (api.insecure), which
+# Traefik's own docs call out as unsafe outside a local/dev cluster -- fine here
+# since kind never accepts external traffic, not something to carry into the
+# real VPS values file. Routed at traefik.localhost, the same convention as
+# every other local host in this project.
+api:
+  dashboard: true
+  insecure: true
+
+ingressRoute:
+  dashboard:
+    enabled: true
+    matchRule: Host(`traefik.localhost`)
+    entryPoints: ["web"]

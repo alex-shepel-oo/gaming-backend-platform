@@ -1,0 +1,28 @@
+# Real secret values, encrypted at rest with SOPS (see .sops.yaml). Decrypt
+# with `sops -d` before applying -- never commit the decrypted form. The
+# plain secrets.example/rabbitmq.yaml template alongside this file still
+# documents the shape for anyone who hasn't set up an age key yet.
+apiVersion: v1
+kind: Secret
+metadata:
+    name: rabbitmq-secrets
+    namespace: gaming-platform
+type: Opaque
+stringData:
+    RABBITMQ_DEFAULT_USER: ENC[AES256_GCM,data:garp,iv:XNfVMVKRSTRULPBoe/9xa100PgefQA0NdPjewKUm3M0=,tag:ISqnI+OyUARuN7KiTtlX+w==,type:str]
+    RABBITMQ_DEFAULT_PASS: ENC[AES256_GCM,data:YNnOWCNhSbUyzuVZIYjHEl9X2VV4iMWHKwZAyMFlp3U=,iv:flsznXYLTyWSJplArlACk3udZNLE3M2lbnNetj2MCy0=,tag:0k4OD379LTVqhGJmnW2xvA==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBuVDVNNFNTcVQwUEJhNGEy
+            VkJDb0RFZFExZjNzaEZjdlVPK0JTNGZDUHhRCjFLUXduc1Z5SjR3a0Z0b0pDN3Jx
+            SXJzY1RLZllBYTJkVEdJSllPVWJhbXMKLS0tIGFLY0c3NGtLM3gvUnhHV0xldlQy
+            SS9oemhKUGVZWEZhRXdEZ2ZBS3JUVTgKgImLariLt7W4I9R07J7GZn8grzT0gPVr
+            1HIu5o3AimMFOIpU+XIK/tWEmCN+zbgPdFbXhTVFTDaTV4svPfsnAg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1kl06atlam4ngyp0x8h6d4hv58p7m6qv8xa6gnpewsa64srem9c2q65pvjc
+    encrypted_regex: ^(stringData|data)$
+    lastmodified: "2026-08-01T15:46:53Z"
+    mac: ENC[AES256_GCM,data:c3U9P4NW3Wu/qVIzrL1TIw8XJftKT03NSLkZiaTmHMsYMM7vKfHD8PIXcXkczxKTyujNs/yAJN5KqgYuH92BrBmy6uTW1Dga/MRcYtdMAx0e1BJbY5dQIeTzegbXu5d32Ml7+9FckoPavZiWodxFmrLYKazfEcTGXJjYUsqnRUQ=,iv:QZX2BMxEhuOateTeje33mHIhsDY5yLAah7n6ywm8b1U=,tag:cN0q5Gumkiek2qHpE+NuMQ==,type:str]
+    version: 3.13.2

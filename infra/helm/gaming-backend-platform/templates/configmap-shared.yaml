@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shared-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gbp.labels" . | nindent 4 }}
+data:
+  {{- .Values.sharedConfig | toYaml | nindent 2 }}
