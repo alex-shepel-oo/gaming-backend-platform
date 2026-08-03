@@ -6,6 +6,7 @@ using IdentityService.Contracts.Requests;
 using IdentityService.Contracts.Responses;
 using IdentityService.Domain;
 using IdentityService.Domain.Enums;
+using IdentityService.Messaging.Events;
 using IdentityService.Persistence;
 using IdentityService.Services;
 using IdentityService.Tests.Integration.Fixtures;
@@ -166,13 +167,14 @@ public sealed class ResetPasswordTests(IdentityApiFactory factory) : IClassFixtu
             JsonOptions,
             TestContext.Current.CancellationToken);
 
-        var sent = factory.EmailSender.Sent.Last();
+        var events = await factory.GetOutboxEventsAsync<PasswordResetRequestedEvent>(
+            "password_reset.requested", TestContext.Current.CancellationToken);
+        var resetLink = events.Last(e => e.Email == email).ResetLink;
 
         const string marker = "token=";
-        var start = sent.HtmlBody.IndexOf(marker, StringComparison.Ordinal) + marker.Length;
-        var end = sent.HtmlBody.IndexOf('"', start);
+        var start = resetLink.IndexOf(marker, StringComparison.Ordinal) + marker.Length;
 
-        return sent.HtmlBody[start..end];
+        return resetLink[start..];
     }
 
     private static async Task<string> NormalizedProblemBodyAsync(HttpResponseMessage response)

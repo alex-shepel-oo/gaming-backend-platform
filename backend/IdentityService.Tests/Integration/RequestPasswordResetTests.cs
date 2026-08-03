@@ -4,6 +4,7 @@ using System.Text.Json;
 using AwesomeAssertions;
 using IdentityService.Contracts.Requests;
 using IdentityService.Domain;
+using IdentityService.Messaging.Events;
 using IdentityService.Persistence;
 using IdentityService.Services;
 using IdentityService.Tests.Integration.Fixtures;
@@ -31,12 +32,16 @@ public sealed class RequestPasswordResetTests(IdentityApiFactory factory) : ICla
         var response = await RequestResetAsync(client, user.Email);
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
-        factory.EmailSender.Sent.Should().HaveCount(1);
 
-        var sent = factory.EmailSender.Sent.Single();
-        sent.HtmlBody.Should().Contain("http://localhost:8080/reset-password?token=");
+        var events = await factory.GetOutboxEventsAsync<PasswordResetRequestedEvent>(
+            "password_reset.requested", TestContext.Current.CancellationToken);
+        events.Should().ContainSingle();
 
-        var rawToken = ExtractToken(sent.HtmlBody);
+        var sent = events.Single();
+        sent.Email.Should().Be(user.Email);
+        sent.ResetLink.Should().StartWith("http://localhost:8080/reset-password?token=");
+
+        var rawToken = ExtractToken(sent.ResetLink);
         var tokenGenerator = factory.Services.GetRequiredService<IRefreshTokenGenerator>();
 
         var storedToken = await FindActiveTokenAsync(user.Id);
@@ -52,7 +57,8 @@ public sealed class RequestPasswordResetTests(IdentityApiFactory factory) : ICla
         var response = await RequestResetAsync(client, $"{Guid.NewGuid():N}@example.com");
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
-        factory.EmailSender.Sent.Should().BeEmpty();
+        (await factory.GetOutboxEventsAsync<PasswordResetRequestedEvent>(
+            "password_reset.requested", TestContext.Current.CancellationToken)).Should().BeEmpty();
     }
 
     [Fact]
@@ -84,7 +90,8 @@ public sealed class RequestPasswordResetTests(IdentityApiFactory factory) : ICla
 
         first.StatusCode.Should().Be(HttpStatusCode.Accepted);
         second.StatusCode.Should().Be(HttpStatusCode.Accepted);
-        factory.EmailSender.Sent.Should().HaveCount(1);
+        (await factory.GetOutboxEventsAsync<PasswordResetRequestedEvent>(
+            "password_reset.requested", TestContext.Current.CancellationToken)).Should().ContainSingle();
 
         var allTokens = await FindAllTokensAsync(user.Id);
         allTokens.Should().ContainSingle(t => t.ConsumedAt == null && t.Id == firstToken!.Id);
@@ -109,7 +116,8 @@ public sealed class RequestPasswordResetTests(IdentityApiFactory factory) : ICla
         activeToken.Should().NotBeNull();
         activeToken!.Id.Should().NotBe(firstToken.Id);
 
-        factory.EmailSender.Sent.Should().HaveCount(2);
+        (await factory.GetOutboxEventsAsync<PasswordResetRequestedEvent>(
+            "password_reset.requested", TestContext.Current.CancellationToken)).Should().HaveCount(2);
     }
 
     private static Task<HttpResponseMessage> RequestResetAsync(HttpClient client, string email) =>
@@ -119,13 +127,12 @@ public sealed class RequestPasswordResetTests(IdentityApiFactory factory) : ICla
             JsonOptions,
             TestContext.Current.CancellationToken);
 
-    private static string ExtractToken(string htmlBody)
+    private static string ExtractToken(string resetLink)
     {
         const string marker = "token=";
-        var start = htmlBody.IndexOf(marker, StringComparison.Ordinal) + marker.Length;
-        var end = htmlBody.IndexOf('"', start);
+        var start = resetLink.IndexOf(marker, StringComparison.Ordinal) + marker.Length;
 
-        return htmlBody[start..end];
+        return resetLink[start..];
     }
 
     private async Task<User> SeedUserAsync()

@@ -1,30 +1,24 @@
+using BuildingBlocks.Messaging.Outbox;
 using IdentityService.Auth;
 using IdentityService.Domain;
 using IdentityService.Domain.Enums;
 using IdentityService.Exceptions;
+using IdentityService.Messaging.Events;
 using IdentityService.Persistence;
-using IdentityService.Services.Email;
-using IdentityService.Services.Email.Templates;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace IdentityService.Services;
 
-public sealed partial class AuthenticationService(
+public sealed class AuthenticationService(
     IdentityDbContext dbContext,
     IPasswordHasher passwordHasher,
     IEmailVerificationService emailVerificationService,
     IRefreshTokenService refreshTokenService,
     ITokenService tokenService,
     IPermissionResolver permissionResolver,
-    IEmailSender emailSender,
-    IEmailTemplateRenderer templateRenderer,
-    TimeProvider timeProvider,
-    ILogger<AuthenticationService> logger) : IAuthenticationService
+    IOutboxWriter outboxWriter,
+    TimeProvider timeProvider) : IAuthenticationService
 {
-    private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(10);
-
-
     public async Task<RegistrationResult> RegisterAsync(
         string gameSlug,
         string email,
@@ -81,7 +75,7 @@ public sealed partial class AuthenticationService(
             }
             else if (user.EmailConfirmed)
             {
-                await SendDuplicateRegistrationNoticeAsync(user.Id, user.Email, game.Name, cancellationToken);
+                await SendDuplicateRegistrationNoticeAsync(user.Email, game.Name, cancellationToken);
             }
 
             if (user.EmailConfirmed)
@@ -217,29 +211,14 @@ public sealed partial class AuthenticationService(
         GrantedAt = now,
     };
 
-    private async Task SendDuplicateRegistrationNoticeAsync(
-        Guid userId, string email, string gameName, CancellationToken cancellationToken)
-    {
-        try
-        {
-            using var timeoutCts = new CancellationTokenSource(SendTimeout);
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
-
-            var htmlBody = templateRenderer.RenderDuplicateRegistrationNotice(gameName);
-            var textBody =
-                $"Someone attempted to register an account for {gameName} using this email address. " +
-                "If this was not you, you can safely ignore this message -- no changes were made to your account.";
-
-            await emailSender.SendAsync(
-                new EmailMessage(email, "Registration attempt on your email address", htmlBody, textBody),
-                linkedCts.Token);
-        }
-        catch (Exception exception)
-        {
-            LogDuplicateRegistrationNoticeSendFailed(exception, userId);
-        }
-    }
-
-    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to send duplicate registration notice email for user {UserId}")]
-    private partial void LogDuplicateRegistrationNoticeSendFailed(Exception exception, Guid userId);
+    private async Task SendDuplicateRegistrationNoticeAsync(string email, string gameName, CancellationToken cancellationToken) =>
+        await outboxWriter.WriteAsync(
+            new DuplicateRegistrationNoticeRequestedEvent
+            {
+                Id = Guid.CreateVersion7(),
+                OccurredAt = timeProvider.GetUtcNow(),
+                Email = email,
+                GameName = gameName,
+            },
+            cancellationToken);
 }

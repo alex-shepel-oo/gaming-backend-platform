@@ -1,30 +1,25 @@
+using BuildingBlocks.Messaging.Outbox;
 using IdentityService.Domain;
 using IdentityService.Domain.Enums;
 using IdentityService.Exceptions;
+using IdentityService.Messaging.Events;
 using IdentityService.Options;
 using IdentityService.Persistence;
-using IdentityService.Services.Email;
-using IdentityService.Services.Email.Templates;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace IdentityService.Services;
 
-public sealed partial class PasswordResetService(
+public sealed class PasswordResetService(
     IdentityDbContext dbContext,
     IRefreshTokenGenerator tokenGenerator,
-    IEmailSender emailSender,
-    IEmailTemplateRenderer templateRenderer,
     IPasswordHasher passwordHasher,
     ISessionService sessionService,
+    IOutboxWriter outboxWriter,
     IOptions<PasswordResetOptions> options,
     IOptions<EmailOptions> emailOptions,
-    TimeProvider timeProvider,
-    ILogger<PasswordResetService> logger) : IPasswordResetService
+    TimeProvider timeProvider) : IPasswordResetService
 {
-    private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(10);
-
     private readonly PasswordResetOptions _options = options.Value;
     private readonly EmailOptions _emailOptions = emailOptions.Value;
 
@@ -76,27 +71,22 @@ public sealed partial class PasswordResetService(
         dbContext.PasswordResetTokens.Add(token);
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        var resetLink = $"{_emailOptions.FrontendBaseUrl}/reset-password?token={rawToken}";
+
+        // Written in the same transaction as the token row above -- see EmailVerificationService's
+        // own comment on IssueAndSendCodeAsync for why this replaces the old synchronous SMTP send.
+        await outboxWriter.WriteAsync(
+            new PasswordResetRequestedEvent
+            {
+                Id = Guid.CreateVersion7(),
+                OccurredAt = now,
+                Email = user.Email,
+                ResetLink = resetLink,
+                ExpiresInMinutes = _options.TokenTtlMinutes,
+            },
+            cancellationToken);
+
         await transaction.CommitAsync(cancellationToken);
-
-        try
-        {
-            using var timeoutCts = new CancellationTokenSource(SendTimeout);
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
-
-            var resetLink = $"{_emailOptions.FrontendBaseUrl}/reset-password?token={rawToken}";
-            var htmlBody = templateRenderer.RenderPasswordReset(resetLink, _options.TokenTtlMinutes);
-            var textBody =
-                $"We received a request to reset your password. Use this link: {resetLink}. " +
-                $"It expires in {_options.TokenTtlMinutes} minutes.";
-
-            await emailSender.SendAsync(
-                new EmailMessage(user.Email, "Reset your password", htmlBody, textBody),
-                linkedCts.Token);
-        }
-        catch (Exception exception)
-        {
-            LogPasswordResetEmailSendFailed(exception, user.Id);
-        }
     }
 
     public async Task<string> CompleteResetAsync(string rawToken, string newPassword, CancellationToken cancellationToken = default)
@@ -134,7 +124,4 @@ public sealed partial class PasswordResetService(
 
         return token.User.Email;
     }
-
-    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to send password reset email for user {UserId}")]
-    private partial void LogPasswordResetEmailSendFailed(Exception exception, Guid userId);
 }
