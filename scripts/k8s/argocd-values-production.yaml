@@ -1,0 +1,39 @@
+# Argo CD on the real VPS -- same trimming as argocd-values-local.yaml (dex,
+# notifications, applicationSet all off, same reasoning). Traefik still terminates TLS,
+# but now with the real Cloudflare Origin Certificate instead of plain HTTP -- the
+# cloudflare-origin-tls Secret must already exist in this namespace (copied from
+# gaming-platform's copy, same cert covers *.shepel.dev).
+dex:
+  enabled: false
+
+notifications:
+  enabled: false
+
+applicationSet:
+  replicas: 0
+
+configs:
+  params:
+    server.insecure: true
+  rbac:
+    # Recruiter-facing read access: view Applications/sync status/history/diffs, no
+    # sync/rollback/delete. Secret data (data/stringData) is redacted by Argo CD itself
+    # by default in the UI/CLI/API -- nothing extra needed here for that part.
+    policy.csv: |
+      p, role:readonly, applications, get, */*, allow
+      p, role:readonly, applications, action/*, */*, deny
+      p, role:readonly, applications, sync, */*, deny
+      p, role:readonly, applications, delete, */*, deny
+      g, readonly, role:readonly
+    policy.default: role:readonly
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hostname: gbargocd.shepel.dev
+    tls: true
+    extraTls:
+      - hosts:
+          - gbargocd.shepel.dev
+        secretName: cloudflare-origin-tls
