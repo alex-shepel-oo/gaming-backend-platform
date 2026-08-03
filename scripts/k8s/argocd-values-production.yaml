@@ -15,6 +15,12 @@ applicationSet:
 configs:
   params:
     server.insecure: true
+  cm:
+    # Anyone reaching gbargocd.shepel.dev gets policy.default's role with no login at
+    # all -- Argo CD's own equivalent of Grafana's Public Dashboards, so recruiter
+    # access doesn't need Cloudflare Access (and its 50-seat free-tier ceiling) either.
+    # The real admin login still exists and still has full access.
+    users.anonymous.enabled: "true"
   rbac:
     # Recruiter-facing read access: view Applications/sync status/history/diffs, no
     # sync/rollback/delete. Secret data (data/stringData) is redacted by Argo CD itself
