@@ -1,10 +1,10 @@
 using AwesomeAssertions;
-using IdentityService.Options;
-using IdentityService.Services.Email;
+using EmailService.Options;
+using EmailService.Services.Email;
 using Microsoft.Extensions.Options;
 using Xunit;
 
-namespace IdentityService.Tests.Unit;
+namespace EmailService.Tests.Unit;
 
 public class SmtpEmailSenderTests
 {

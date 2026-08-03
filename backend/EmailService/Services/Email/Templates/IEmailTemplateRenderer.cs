@@ -1,4 +1,4 @@
-namespace IdentityService.Services.Email.Templates;
+namespace EmailService.Services.Email.Templates;
 
 public interface IEmailTemplateRenderer
 {

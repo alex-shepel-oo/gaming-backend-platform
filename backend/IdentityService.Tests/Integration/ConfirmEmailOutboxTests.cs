@@ -1,6 +1,5 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using AwesomeAssertions;
 using BuildingBlocks.Messaging.Outbox;
 using IdentityService.Contracts.Requests;
@@ -8,7 +7,6 @@ using IdentityService.Contracts.Responses;
 using IdentityService.Domain;
 using IdentityService.Messaging.Events;
 using IdentityService.Persistence;
-using IdentityService.Services.Email;
 using IdentityService.Tests.Integration.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,7 +15,7 @@ using Xunit;
 namespace IdentityService.Tests.Integration;
 
 [Collection(nameof(IdentityApiCollectionDefinition))]
-public sealed partial class ConfirmEmailOutboxTests(IdentityApiFactory factory) : IClassFixture<IdentityApiFactory>, IAsyncLifetime
+public sealed class ConfirmEmailOutboxTests(IdentityApiFactory factory) : IClassFixture<IdentityApiFactory>, IAsyncLifetime
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -25,15 +23,12 @@ public sealed partial class ConfirmEmailOutboxTests(IdentityApiFactory factory) 
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-    [GeneratedRegex(@"\d{6}")]
-    private static partial Regex SixDigitCode();
-
     [Fact]
     public async Task Confirm_Success_WritesOneUnprocessedOutboxRowWithConfirmedUserId()
     {
         using var client = factory.CreateClient();
         var (email, userId) = await RegisterAsync(client);
-        var code = ExtractCode(factory.EmailSender.Sent.Single());
+        var code = await ExtractCodeAsync(email);
 
         var response = await client.PostAsJsonAsync(
             "/api/identity/auth/confirm-email",
@@ -56,11 +51,11 @@ public sealed partial class ConfirmEmailOutboxTests(IdentityApiFactory factory) 
     }
 
     [Fact]
-    public async Task Confirm_WrongCode_DoesNotWriteOutboxRow()
+    public async Task Confirm_WrongCode_DoesNotWriteUserEmailConfirmedOutboxRow()
     {
         using var client = factory.CreateClient();
         var (email, _) = await RegisterAsync(client);
-        var correctCode = ExtractCode(factory.EmailSender.Sent.Single());
+        var correctCode = await ExtractCodeAsync(email);
         var wrongCode = correctCode == "000000" ? "000001" : "000000";
 
         var response = await client.PostAsJsonAsync(
@@ -74,16 +69,19 @@ public sealed partial class ConfirmEmailOutboxTests(IdentityApiFactory factory) 
         await using var scope = factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
 
-        (await dbContext.Set<OutboxMessage>().AnyAsync(TestContext.Current.CancellationToken))
+        // Registration itself already wrote an email_verification.requested row above -- the
+        // assertion here is specifically that a wrong code never produces a user.email_confirmed
+        // one, not that the outbox table stays empty.
+        (await dbContext.Set<OutboxMessage>().AnyAsync(m => m.Type == "user.email_confirmed", TestContext.Current.CancellationToken))
             .Should().BeFalse();
     }
 
     [Fact]
-    public async Task Confirm_ExpiredCode_DoesNotWriteOutboxRow()
+    public async Task Confirm_ExpiredCode_DoesNotWriteUserEmailConfirmedOutboxRow()
     {
         using var client = factory.CreateClient();
         var (email, _) = await RegisterAsync(client);
-        var code = ExtractCode(factory.EmailSender.Sent.Single());
+        var code = await ExtractCodeAsync(email);
 
         factory.TimeProvider.Advance(TimeSpan.FromMinutes(21));
 
@@ -98,11 +96,17 @@ public sealed partial class ConfirmEmailOutboxTests(IdentityApiFactory factory) 
         await using var scope = factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
 
-        (await dbContext.Set<OutboxMessage>().AnyAsync(TestContext.Current.CancellationToken))
+        (await dbContext.Set<OutboxMessage>().AnyAsync(m => m.Type == "user.email_confirmed", TestContext.Current.CancellationToken))
             .Should().BeFalse();
     }
 
-    private static string ExtractCode(EmailMessage message) => SixDigitCode().Match(message.HtmlBody).Value;
+    private async Task<string> ExtractCodeAsync(string email)
+    {
+        var events = await factory.GetOutboxEventsAsync<EmailVerificationRequestedEvent>(
+            "email_verification.requested", TestContext.Current.CancellationToken);
+
+        return events.Single(e => e.Email == email).Code;
+    }
 
     private async Task<(string Email, Guid UserId)> RegisterAsync(HttpClient client)
     {

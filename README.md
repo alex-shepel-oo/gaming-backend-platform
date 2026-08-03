@@ -10,6 +10,8 @@ The project implements a multi-tenant backend platform for games. Each game has 
 [![gateway-ci](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/gateway-ci.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/gateway-ci.yml)
 [![economy-ci](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/economy-ci.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/economy-ci.yml)
 [![platform-worker-ci](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/platform-worker-ci.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/platform-worker-ci.yml)
+[![notification-ci](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/notification-ci.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/notification-ci.yml)
+[![email-service-ci](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/email-service-ci.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/email-service-ci.yml)
 [![player-client-ci](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/player-client-ci.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/player-client-ci.yml)
 [![admin-client-ci](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/admin-client-ci.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/admin-client-ci.yml)
 [![k8s-validate](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/k8s-validate.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/k8s-validate.yml)
@@ -49,6 +51,8 @@ The project implements a multi-tenant backend platform for games. Each game has 
 | [gateway-ci](.github/workflows/gateway-ci.yml) | `backend/ApiGateway/**`, `backend/ApiGateway.Tests/**`, `backend/Directory.*.props`, `global.json` | `dotnet build` + `dotnet test`, then pushes `api-gateway` to GHCR |
 | [economy-ci](.github/workflows/economy-ci.yml) | `backend/EconomyService/**`, `backend/EconomyService.Tests/**`, `backend/Directory.*.props`, `global.json` | `dotnet build` + `dotnet test`, Trivy filesystem scan, pushes `economy-service` to GHCR, then Trivy image scan |
 | [platform-worker-ci](.github/workflows/platform-worker-ci.yml) | `backend/Platform.Worker/**`, `backend/Platform.Worker.Tests/**`, `backend/Directory.*.props`, `global.json` | same shape as `economy-ci`, scoped to `platform-worker` |
+| [notification-ci](.github/workflows/notification-ci.yml) | `backend/NotificationService/**`, `backend/NotificationService.Tests/**`, `backend/BuildingBlocks.Messaging/**`, `backend/Directory.*.props`, `global.json` | same shape as `economy-ci`, scoped to `notification-service` |
+| [email-service-ci](.github/workflows/email-service-ci.yml) | `backend/EmailService/**`, `backend/EmailService.Tests/**`, `backend/Directory.*.props`, `global.json` | same shape as `economy-ci`, scoped to `email-service` |
 | [player-client-ci](.github/workflows/player-client-ci.yml) | `frontend/**` | Node 22, `npm ci` + `npm run build` + `npm run test` (Vitest), Trivy filesystem scan, pushes `player-client` to GHCR, then Trivy image scan |
 | [admin-client-ci](.github/workflows/admin-client-ci.yml) | `frontend/**` | Same shape as `player-client-ci`, scoped to `admin-client` |
 | [k8s-validate](.github/workflows/k8s-validate.yml) | `infra/helm/**` | renders the Helm chart and validates it with `kubeconform` |
@@ -170,7 +174,7 @@ outside git the same way — what's here proves the mechanism, not a
 production key.
 
 `infra/helm/gaming-backend-platform/secrets.enc/` holds the encrypted,
-real-value counterparts of the four `secrets.example/` templates, committed
+real-value counterparts of the five `secrets.example/` templates, committed
 alongside them rather than replacing them — the plain templates remain the
 "here's the shape" reference for anyone who hasn't set up an age key yet.
 Encrypting a filled-in template and applying it looks like:
@@ -178,10 +182,11 @@ Encrypting a filled-in template and applying it looks like:
 ```
 sops -e -i infra/helm/gaming-backend-platform/secrets.enc/identity.enc.yaml
 
-sops -d infra/helm/gaming-backend-platform/secrets.enc/identity.enc.yaml | kubectl apply -f -
-sops -d infra/helm/gaming-backend-platform/secrets.enc/economy.enc.yaml  | kubectl apply -f -
-sops -d infra/helm/gaming-backend-platform/secrets.enc/rabbitmq.enc.yaml | kubectl apply -f -
-sops -d infra/helm/gaming-backend-platform/secrets.enc/grafana.enc.yaml  | kubectl apply -f -
+sops -d infra/helm/gaming-backend-platform/secrets.enc/identity.enc.yaml      | kubectl apply -f -
+sops -d infra/helm/gaming-backend-platform/secrets.enc/economy.enc.yaml       | kubectl apply -f -
+sops -d infra/helm/gaming-backend-platform/secrets.enc/email-service.enc.yaml | kubectl apply -f -
+sops -d infra/helm/gaming-backend-platform/secrets.enc/rabbitmq.enc.yaml      | kubectl apply -f -
+sops -d infra/helm/gaming-backend-platform/secrets.enc/grafana.enc.yaml       | kubectl apply -f -
 scripts/k8s/apply.sh
 ```
 

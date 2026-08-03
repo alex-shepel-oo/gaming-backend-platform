@@ -17,5 +17,3 @@ stringData:
   # block, so an unfilled copy of this template never looks like key
   # material to a secret scanner.
   Jwt__PrivateKeyPem: "replace-with-a-real-RSA-2048-private-key-in-PKCS8-PEM-form"
-  Email__Smtp__UserName: "replace-with-smtp-username"
-  Email__Smtp__Password: "replace-with-smtp-password"

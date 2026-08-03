@@ -25,7 +25,7 @@ bash "$REPO_ROOT/scripts/k8s/install-traefik.sh"
 
 kubectl get namespace "$NAMESPACE" >/dev/null 2>&1 || kubectl create namespace "$NAMESPACE"
 
-if kubectl -n "$NAMESPACE" get secret identity-secrets economy-secrets rabbitmq-secrets >/dev/null 2>&1; then
+if kubectl -n "$NAMESPACE" get secret identity-secrets economy-secrets email-service-secrets rabbitmq-secrets >/dev/null 2>&1; then
   echo "Secrets already applied in '$NAMESPACE', leaving them as they are."
 else
   echo "Generating local-only secrets (never committed, live under $SECRETS_DIR)..."
@@ -75,9 +75,19 @@ else
     "$REPO_ROOT/infra/helm/gaming-backend-platform/secrets.example/rabbitmq.yaml" \
     > "$SECRETS_DIR/rabbitmq-secrets.yaml"
 
+  # No generated password here: the local cluster's mailpit needs no SMTP auth at
+  # all, so the template's placeholders are blanked out to the empty values
+  # SmtpEmailSender already treats as "skip AuthenticateAsync", not a real credential.
+  sed \
+    -e 's/"replace-with-smtp-username"/""/' \
+    -e 's/"replace-with-smtp-password"/""/' \
+    "$REPO_ROOT/infra/helm/gaming-backend-platform/secrets.example/email-service.yaml" \
+    > "$SECRETS_DIR/email-service-secrets.yaml"
+
   kubectl apply -n "$NAMESPACE" \
     -f "$SECRETS_DIR/identity-secrets.yaml" \
     -f "$SECRETS_DIR/economy-secrets.yaml" \
+    -f "$SECRETS_DIR/email-service-secrets.yaml" \
     -f "$SECRETS_DIR/rabbitmq-secrets.yaml"
 fi
 

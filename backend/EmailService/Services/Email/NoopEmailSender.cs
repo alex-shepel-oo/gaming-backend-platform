@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace IdentityService.Services.Email;
+namespace EmailService.Services.Email;
 
 public sealed partial class NoopEmailSender(ILogger<NoopEmailSender> logger) : IEmailSender
 {

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <ItemGroup>
+    <ProjectReference Include="..\BuildingBlocks.Messaging\BuildingBlocks.Messaging.csproj" />
+    <ProjectReference Include="..\BuildingBlocks.Telemetry\BuildingBlocks.Telemetry.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="EmailService.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="Serilog.Enrichers.Environment" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <PackageReference Include="RabbitMQ.Client" />
+    <PackageReference Include="MailKit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Plain content, not EmbeddedResource on purpose: EmailTemplateRenderer reads these fresh off
+         disk on every render call instead of caching them once at startup, so a ConfigMap-mounted
+         file change (infra/helm/gaming-backend-platform's email-service-templates ConfigMap) reaches
+         a running pod without a restart. CopyToOutputDirectory keeps `dotnet run`/the Docker image
+         working with a sane baked-in default before any ConfigMap volume overlays it. -->
+    <Content Include="Templates\*.html" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

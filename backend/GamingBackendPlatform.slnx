@@ -6,6 +6,8 @@
   <Project Path="BuildingBlocks.Telemetry/BuildingBlocks.Telemetry.csproj" />
   <Project Path="EconomyService.Tests/EconomyService.Tests.csproj" />
   <Project Path="EconomyService/EconomyService.csproj" />
+  <Project Path="EmailService.Tests/EmailService.Tests.csproj" />
+  <Project Path="EmailService/EmailService.csproj" />
   <Project Path="IdentityService.Tests/IdentityService.Tests.csproj" />
   <Project Path="IdentityService/IdentityService.csproj" />
   <Project Path="NotificationService.Tests/NotificationService.Tests.csproj" />

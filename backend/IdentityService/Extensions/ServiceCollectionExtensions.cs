@@ -8,8 +8,6 @@ using IdentityService.Options;
 using IdentityService.Persistence;
 using IdentityService.RateLimiting;
 using IdentityService.Services;
-using IdentityService.Services.Email;
-using IdentityService.Services.Email.Templates;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -183,25 +181,15 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    // Only FrontendBaseUrl lives here now -- actually sending email moved to EmailService, reached
+    // through the three outbox events written by EmailVerificationService/PasswordResetService/
+    // AuthenticationService, not a direct call from this service.
     public static IServiceCollection AddIdentityEmail(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<EmailOptions>()
             .Bind(configuration.GetSection(EmailOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
-
-        services.AddSingleton<IEmailTemplateRenderer, EmailTemplateRenderer>();
-
-        var provider = configuration.GetSection(EmailOptions.SectionName).Get<EmailOptions>()?.Provider;
-
-        if (string.Equals(provider, "Smtp", StringComparison.OrdinalIgnoreCase))
-        {
-            services.AddSingleton<IEmailSender, SmtpEmailSender>();
-        }
-        else
-        {
-            services.AddSingleton<IEmailSender, NoopEmailSender>();
-        }
 
         return services;
     }

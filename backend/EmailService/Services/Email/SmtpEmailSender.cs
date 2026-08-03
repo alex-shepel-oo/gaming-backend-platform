@@ -1,10 +1,10 @@
-using IdentityService.Options;
+using EmailService.Options;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Options;
 using MimeKit;
 
-namespace IdentityService.Services.Email;
+namespace EmailService.Services.Email;
 
 public sealed class SmtpEmailSender(IOptions<EmailOptions> options) : IEmailSender
 {

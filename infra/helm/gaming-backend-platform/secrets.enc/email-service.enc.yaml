@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: email-service-secrets
+    namespace: gaming-platform
+type: Opaque
+stringData:
+    Email__Smtp__UserName: ""
+    Email__Smtp__Password: ""
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBWWGtZYkNZd2NmVFEybU5v
+            YzlkR3I2enB6eHpUNWR6eEpwdjBnZERDUUY4CkhDOHhqN21xZGlQOHpUYzRWRGp1
+            R0VxejdONStoUGRqVFZiMEc4cVhPSGcKLS0tIE4xbDRDOUJEQU5INktmU0Ywbys5
+            TTR3Tk9HRW1CV1dnVHFZb3ZBNXFkdzgKmfYfks+CS/wrb9W9QWOHVp9TUK8Ddhov
+            jRoRpyZru85GwtOmGlXHzCWlevmDL2cuv5fc359iMl8mLxNPRN2rrQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1kl06atlam4ngyp0x8h6d4hv58p7m6qv8xa6gnpewsa64srem9c2q65pvjc
+    encrypted_regex: ^(stringData|data)$
+    lastmodified: "2026-08-03T10:00:22Z"
+    mac: ENC[AES256_GCM,data:JZ8aYUyZED8isgcuYaHrDWSDBBXiS42wwlDYgVfJB5EZaj8//NjnUz8ZNg73YJ0zC+hSPcPusRUuQEozxq2L5Ox+uGI+CS6YMEs/UUibFbFrXdX2ue5Cb7OVZe4t87PRc9O4BEM0lEW2QPzJTqC/HZLGpslsUk8JsXv7KcKZUDU=,iv:fzjkD3au2nTeunUs4EHNEjmnMhYKT6HdMdQiRTrUdEs=,tag:kTAbeQEHYO1xeXMNLqpYIQ==,type:str]
+    version: 3.13.2

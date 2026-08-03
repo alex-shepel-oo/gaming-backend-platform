@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
-using IdentityService.Services.Email;
+using EmailService.Services.Email;
 
-namespace IdentityService.Tests.Integration.Fakes;
+namespace EmailService.Tests.Integration.Fixtures;
 
 public sealed class RecordingEmailSender : IEmailSender
 {
@@ -15,6 +15,4 @@ public sealed class RecordingEmailSender : IEmailSender
 
         return Task.CompletedTask;
     }
-
-    public void Clear() => _sent.Clear();
 }

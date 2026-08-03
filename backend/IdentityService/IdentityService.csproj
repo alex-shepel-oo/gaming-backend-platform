@@ -27,13 +27,6 @@
     <PackageReference Include="AspNetCore.HealthChecks.NpgSql" />
     <PackageReference Include="AspNetCore.HealthChecks.Rabbitmq" />
     <PackageReference Include="RabbitMQ.Client" />
-    <PackageReference Include="MailKit" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="Services\Email\Templates\EmailVerification.html" />
-    <EmbeddedResource Include="Services\Email\Templates\PasswordReset.html" />
-    <EmbeddedResource Include="Services\Email\Templates\DuplicateRegistrationNotice.html" />
   </ItemGroup>
 
 </Project>
