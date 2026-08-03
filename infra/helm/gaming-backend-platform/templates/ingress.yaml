@@ -8,6 +8,18 @@ metadata:
     {{- include "gbp.labels" . | nindent 4 }}
 spec:
   ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tlsSecretName }}
+  tls:
+    - hosts:
+        {{- range $key, $route := .Values.ingress.hosts }}
+        {{- if not (and (eq $key "mailpit") (not $.Values.mailpit.enabled)) }}
+        {{- if not $route.namespace }}
+        - {{ $route.host }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+      secretName: {{ .Values.ingress.tlsSecretName }}
+  {{- end }}
   rules:
     {{- range $key, $route := .Values.ingress.hosts }}
     {{- if not (and (eq $key "mailpit") (not $.Values.mailpit.enabled)) }}
@@ -40,6 +52,16 @@ metadata:
     {{- include "gbp.labels" . | nindent 4 }}
 spec:
   ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tlsSecretName }}
+  tls:
+    - hosts:
+        {{- range $key, $route := .Values.ingress.hosts }}
+        {{- if eq $route.namespace "observability" }}
+        - {{ $route.host }}
+        {{- end }}
+        {{- end }}
+      secretName: {{ .Values.ingress.tlsSecretName }}
+  {{- end }}
   rules:
     {{- range $key, $route := .Values.ingress.hosts }}
     {{- if eq $route.namespace "observability" }}
