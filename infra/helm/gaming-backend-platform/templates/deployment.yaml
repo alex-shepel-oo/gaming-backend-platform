@@ -17,6 +17,23 @@ spec:
   {{- if not (and $svc.hpa $svc.hpa.enabled) }}
   replicas: {{ $svc.replicas }}
   {{- end }}
+  {{- /* A PVC-backed single replica on local-path-provisioner is a hostPath
+  under the hood, single-node here, so the default RollingUpdate strategy
+  starts the new pod before killing the old one -- both processes then see
+  the same on-disk directory at once. Found live: prometheus's own TSDB lock
+  file refused a second writer and crash-looped instead of ever becoming
+  ready, while the old pod carried on, unnoticed, until it was pointed out.
+  Recreate trades a few seconds of downtime for that not happening. */}}
+  {{- $hasPvc := false }}
+  {{- range $svc.volumes }}
+  {{- if .persistentVolumeClaim }}
+  {{- $hasPvc = true }}
+  {{- end }}
+  {{- end }}
+  {{- if $hasPvc }}
+  strategy:
+    type: Recreate
+  {{- end }}
   selector:
     matchLabels:
       app: {{ $name }}
