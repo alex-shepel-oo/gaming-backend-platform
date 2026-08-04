@@ -1,10 +1,11 @@
 # Gaming Backend Platform
 
-This is a portfolio project designed to demonstrate practical experience in building modern backend systems using a microservices architecture. It showcases backend development, frontend integration, infrastructure design, deployment, and the operation of distributed applications in a production-like environment.
-
-The project implements a multi-tenant backend platform for games. Each game has its own economy, inventory, progression, and validation rules while leveraging a shared set of backend services and infrastructure. Games integrate through an SDK, enabling them to reuse common functionality while remaining logically isolated.
-
-> **Status:** Slice 3 in progress — permission-based RBAC, admin panel, NotificationService (SignalR), auth improvements (3a); InventoryService + cross-service choreography saga (3b)
+A multi-tenant backend platform for games: one shared set of services — identity, economy,
+notifications — that several independent games plug into via SDK, each with its own currency,
+progression, and rules, without re-implementing auth, wallets, or admin tooling per game. Built
+as a portfolio project end to end, infrastructure included: Kubernetes, GitOps deployment,
+distributed tracing, and structured logging, running for real on a public VPS rather than only
+on `localhost`.
 
 [![identity-ci](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/identity-ci.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/identity-ci.yml)
 [![gateway-ci](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/gateway-ci.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/gateway-ci.yml)
@@ -17,31 +18,125 @@ The project implements a multi-tenant backend platform for games. Each game has 
 [![k8s-validate](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/k8s-validate.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/k8s-validate.yml)
 [![gitleaks](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/gitleaks.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/gitleaks.yml)
 
+## Contents
+
+- [Tech stack](#tech-stack)
+- [Live demo](#live-demo)
+- [Architecture](#architecture)
+- [CD](#cd)
+- [CI](#ci)
+- [Running locally](#running-locally)
+- [Running on Kubernetes](#running-on-kubernetes)
+- [Local automation](#local-automation)
+- [Identity API](#identity-api)
+- [Permission-based RBAC](#permission-based-rbac)
+- [Economy API](#economy-api)
+- [NotificationService](#notificationservice)
+- [Player-client (Angular)](#player-client-angular)
+- [Admin-client (Angular)](#admin-client-angular)
+- [Messaging](#messaging)
+- [Platform.Worker](#platformworker)
+- [Architecture decisions](#architecture-decisions)
+- [Known limitations / what's next](#known-limitations--whats-next)
+
 ## Tech stack
 
-**Backend**
-![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet)
-![ASP.NET Core](https://img.shields.io/badge/ASP.NET%20Core-Minimal%20APIs-512BD4?logo=dotnet)
-![Ocelot](https://img.shields.io/badge/Ocelot-API%20Gateway-008080)
+| | |
+|---|---|
+| **Backend** | ![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet) ![ASP.NET Core](https://img.shields.io/badge/ASP.NET%20Core-Minimal%20APIs-512BD4?logo=dotnet) ![Ocelot](https://img.shields.io/badge/Ocelot-API%20Gateway-008080) |
+| **Frontend** | ![Angular](https://img.shields.io/badge/Angular-20-DD0031?logo=angular) |
+| **Data & messaging** | ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-336791?logo=postgresql) ![RabbitMQ](https://img.shields.io/badge/RabbitMQ-FF6600?logo=rabbitmq) |
+| **Observability** | ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-425CC7?logo=opentelemetry&logoColor=white) ![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?logo=prometheus&logoColor=white) ![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white) ![Loki](https://img.shields.io/badge/Loki-Log%20Aggregation-F46800?logo=grafana&logoColor=white) ![Tempo](https://img.shields.io/badge/Tempo-Distributed%20Tracing-F46800?logo=grafana&logoColor=white) ![Grafana Faro](https://img.shields.io/badge/Faro-Frontend%20Tracing-F46800?logo=grafana&logoColor=white) |
+| **Infrastructure** | ![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker) ![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?logo=kubernetes) ![Helm](https://img.shields.io/badge/Helm-0F1689?logo=helm) ![Argo CD](https://img.shields.io/badge/Argo%20CD-EF7B4D?logo=argo) ![Traefik](https://img.shields.io/badge/Traefik-24A1C1?logo=traefikproxy&logoColor=white) |
 
-**Frontend**
-![Angular](https://img.shields.io/badge/Angular-20-DD0031?logo=angular)
+## Live demo
 
-**Data & messaging**
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-336791?logo=postgresql)
-![RabbitMQ](https://img.shields.io/badge/RabbitMQ-FF6600?logo=rabbitmq)
+Running on a real VPS behind Cloudflare, not just locally.
 
-**Observability**
-![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-425CC7?logo=opentelemetry&logoColor=white)
-![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?logo=prometheus&logoColor=white)
-![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white)
-![Loki](https://img.shields.io/badge/Loki-Log%20Aggregation-F46800?logo=grafana&logoColor=white)
-![Tempo](https://img.shields.io/badge/Tempo-Distributed%20Tracing-F46800?logo=grafana&logoColor=white)
-![Grafana Faro](https://img.shields.io/badge/Faro-Frontend%20Tracing-F46800?logo=grafana&logoColor=white)
+| | |
+|---|---|
+| [shepel.dev](https://shepel.dev) | Welcome page — links to everything below, plus a short bio |
+| [gbplatform.shepel.dev](https://gbplatform.shepel.dev) | Player-facing app — register a real account (email confirmation goes through a real SMTP relay) or explore as a guest: `xosime2935@copawoke.com` / `GuestUser123` |
+| [gbgrafana.shepel.dev](https://gbgrafana.shepel.dev) | Observability — dashboards, traces, logs, including [live node/pod resource usage](infra/grafana/dashboards/node-resources.json) and, on the main dashboard, a query that finds real cross-service traces crossing RabbitMQ. Guest login: `viewer` / `GbpDemo2026Viewer!` (read-only) |
 
-**Infrastructure**
-![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker)
-![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?logo=kubernetes)
+`gbargocd.shepel.dev` runs the real GitOps deployment behind this demo (see [CD](#cd) below) but
+isn't linked with a shared login: Argo CD only enforces RBAC on write actions for
+cluster/repository-level resources, so any read-only role — anonymous or a named viewer account
+alike — ends up able to see cluster endpoints, repo URLs and SSH known-hosts fingerprints
+regardless of policy. `gbadmin.shepel.dev` (the admin panel) similarly isn't linked with a shared
+login, since it has no built-in read-only guest mode of its own and a public account would mean
+real write access to live demo data, not just a view of it.
+
+<details>
+<summary>Screenshots</summary>
+
+Not yet added — planned:
+
+- [ ] player-client — login screen
+- [ ] player-client — wallet, showing a live balance update arrive over SignalR
+- [ ] player-client — game picker / ecosystem-first login
+- [ ] admin-client — user search and role assignment
+- [ ] admin-client — game management
+- [ ] Grafana — service overview dashboard under real traffic
+- [ ] Grafana — [node & pod resources dashboard](infra/grafana/dashboards/node-resources.json)
+- [ ] Grafana — the messaging trace query on the main dashboard, opened in Explore, showing one real trace crossing IdentityService -> RabbitMQ -> EconomyService
+- [ ] Argo CD — application sync view after a real deploy
+- [ ] Scalar — interactive API reference (`/scalar/identity`)
+
+</details>
+
+> **Status:** Slice 3 in progress — styling the UI and improving page UX, adding InventoryService
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Player[player-client] --> GW[ApiGateway]
+    Admin[admin-client] --> GW
+
+    GW --> ID[IdentityService]
+    GW --> EC[EconomyService]
+    GW -.-> NS[NotificationService]
+
+    ID -->|user.email_confirmed| MQ[(RabbitMQ)]
+    MQ -->|welcome grant| EC
+    EC -->|balance.changed| MQ
+    MQ -.->|SignalR push| NS
+    ID -->|email_verification.requested| MQ
+    MQ --> ES[EmailService]
+
+    ID --> IDDB[(identity_db)]
+    EC --> ECDB[(economy_db)]
+    W[Platform.Worker] --> IDDB
+    W --> ECDB
+```
+
+Every service also pushes OTLP traces and metrics to an otel-collector (not drawn above, to keep
+the request-flow diagram readable) — see [CD](#cd) below for how a change actually reaches this
+diagram in production, and [docs/architecture.md](docs/architecture.md) for the full breakdown,
+including local-vs-Kubernetes differences and every implemented-vs-planned distinction.
+
+## CD
+
+Argo CD watches `main` and deploys the Helm chart from
+[`infra/helm/gaming-backend-platform/`](infra/helm/gaming-backend-platform/) — see
+[`scripts/k8s/argocd-application-production.yaml`](scripts/k8s/argocd-application-production.yaml)
+for the `Application` itself. It only reacts to `main`, never to `develop` or an open PR, and only
+to an actual git commit — not to a fresh image landing in GHCR under the same tag, which by
+itself changes nothing about the rendered manifest.
+
+That second part is why each service in
+[`values-production.yaml`](infra/helm/gaming-backend-platform/values-production.yaml) pins its
+own `imageTag` rather than the chart sharing one global tag: CI is path-filtered (touching
+`backend/EconomyService/` doesn't rebuild `identity-service`, see [CI](#ci) below), so a single
+shared tag bumped on every merge would have every service pull an image that was never actually
+rebuilt under that tag for the ones the commit didn't touch. Instead,
+[`.github/actions/bump-image-tag`](.github/actions/bump-image-tag/action.yml) runs as the last
+step of each service's own CI workflow, only on a push to `main`, and only after that workflow's
+own image build succeeded — it points that one service's `imageTag` at the commit SHA that was
+just built and pushes the change back to `main`, which is the commit Argo CD's auto-sync actually
+reacts to. A push to `main` that only touches, say, `EconomyService` therefore redeploys exactly
+`economy-service` (and `economy-migrator`), not the other seven images sitting untouched.
 
 ## CI
 
@@ -76,10 +171,19 @@ as a step inside `economy-ci`, `platform-worker-ci` and `player-client-ci`
 (`.github/actions/trivy-scan`), right after each one pushes its image, so
 what gets scanned is the image that would actually reach the cluster.
 
-## Architecture
-[docs/architecture.md](docs/architecture.md).
-
 ## Running locally
+
+```
+scripts/all/deploy.sh
+```
+
+One command: `scripts/all/setup-env.sh` creates `infra/.env` from the example first (generating a
+real local JWT signing key if it's still the placeholder), then brings up the whole stack — both
+Postgres instances, Consul, RabbitMQ, Mailpit, IdentityService, EconomyService, Platform.Worker,
+ApiGateway, player-client and admin-client. See [Local automation](#local-automation) below for
+the rest of `scripts/` — this is one entry point among several, not the only thing in there.
+
+Or the same result spelled out manually, without the script:
 
 ```
 cp infra/.env.example infra/.env
@@ -87,13 +191,10 @@ cd infra
 docker compose up
 ```
 
-This brings up the whole stack in one command: both Postgres instances,
-Consul, RabbitMQ, Mailpit, IdentityService, EconomyService, Platform.Worker,
-ApiGateway, player-client and admin-client. The player browser client is at
-`http://localhost:8080`, the admin one at `http://localhost:8081`; anything
-hitting the API directly goes through the gateway at `http://localhost:5100`.
-Mailpit's UI (for reading verification emails without a real mailbox) is at
-`http://localhost:8025`.
+The player browser client is at `http://localhost:8080`, the admin one at
+`http://localhost:8081`; anything hitting the API directly goes through the
+gateway at `http://localhost:5100`. Mailpit's UI (for reading verification
+emails without a real mailbox) is at `http://localhost:8025`.
 
 Almost every value in `infra/.env.example` is committed on purpose and isn't a
 production secret: the stack only binds to `localhost`, so nothing in it is
