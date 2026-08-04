@@ -3,20 +3,19 @@
 # nothing (`kubectl get applications -n argocd` came back empty). This is
 # what turns it into real GitOps for this repo's own chart.
 #
-# syncPolicy.automated is deliberately left OUT below. main doesn't yet carry
-# the changes this Application would need to deploy (per-service imageTag,
-# the observability RBAC/dashboards, node-exporter/kube-state-metrics scrape
-# jobs) -- turning auto-sync on before that lands would have Argo CD revert
-# the live cluster back to whatever main currently has, undoing today's work
-# the moment this Application is created. Apply this as-is first (manual
-# sync only, so it just reports diff/health), confirm the diff looks like
-# "everything main is missing," merge develop -> main, then flip
-# automated: {prune: true, selfHeal: true} on and re-apply. From then on a
-# push to main is a real deploy: see .github/actions/bump-image-tag and
-# values-production.yaml's own imageTag comment for the other half of that
-# loop -- Argo CD reacts to the git commit the CI bump step makes, not to a
-# registry push under a floating tag, which by itself changes nothing this
-# Application would notice.
+# syncPolicy.automated was deliberately left out until develop merged into
+# main and the first sync was verified by hand (a manual `argocd app sync`,
+# clean diff -- see the commit history here for the RBAC snag that surfaced
+# doing that: policy.default's role turned out to apply to every
+# authenticated subject, including the local admin account, not just
+# unmapped ones, so a leftover readonly policy.csv from the anonymous-access
+# incident was silently blocking admin from syncing anything at all).
+# main now carries this chart for real and a clean sync has already run, so
+# auto-sync is on: a push to main is a real deploy from here. See
+# .github/actions/bump-image-tag and values-production.yaml's own imageTag
+# comment for the other half of that loop -- Argo CD reacts to the git
+# commit the CI bump step makes, not to a registry push under a floating
+# tag, which by itself changes nothing this Application would notice.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -65,5 +64,8 @@ spec:
     server: https://kubernetes.default.svc
     namespace: gaming-platform
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
