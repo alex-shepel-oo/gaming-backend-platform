@@ -54,7 +54,7 @@ deployments:
     hpa:
       maxReplicas: 3
   gateway:
-    imageTag: a69b3e629f1471d213566a18e83792aea00b7adc
+    imageTag: 16b6adb8d3aedb8d44645836b469200370ff2a85
     hpa:
       maxReplicas: 3
   notification-service:
