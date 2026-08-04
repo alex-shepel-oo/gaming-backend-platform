@@ -17,6 +17,11 @@ spec:
   {{- if not (and $svc.hpa $svc.hpa.enabled) }}
   replicas: {{ $svc.replicas }}
   {{- end }}
+  {{- /* Kubernetes' own default (10) keeps every old ReplicaSet around,
+  scaled to 0, for that many revisions back -- harmless on its own (no pods,
+  next to nothing in etcd) but noticeable after enough redeploys pile up.
+  3 is still enough for a real rollback, not a permanent history. */}}
+  revisionHistoryLimit: 3
   {{- /* A PVC-backed single replica on local-path-provisioner is a hostPath
   under the hood, single-node here, so the default RollingUpdate strategy
   starts the new pod before killing the old one -- both processes then see
