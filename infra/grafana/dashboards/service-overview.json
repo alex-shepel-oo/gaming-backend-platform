@@ -55,6 +55,16 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "id": 4,
+      "title": "Messaging trace (RabbitMQ)",
+      "type": "text",
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 24 },
+      "options": {
+        "mode": "markdown",
+        "content": "Each result of the query below is one real request that crossed a service boundary asynchronously, through RabbitMQ, rather than a direct call: a service writes an outbox row and opens an `outbox publish` producer span, `OutboxDispatcherService` relays it to the broker, and the receiving service's inbox consumer opens a `{routing key} process` span as its child once delivery happens. The clearest example in this platform is the welcome grant: registering and confirming an email in IdentityService publishes `user.email_confirmed`, and EconomyService's `UserEmailConfirmedConsumer` reacts to it on the other end to grant the starting balance -- two independent services, connected only by the queue.\n\nThis panel is a link rather than an inline trace list on purpose: Grafana's Tempo datasource plugin doesn't support TraceQL search queries through the dashboard panel API in this version (`backend TraceQL search queries are not supported` -- an upstream limitation, not a misconfiguration here), only through [**Explore**](/explore), which uses a different code path. Open Explore, pick the **Tempo** datasource, and paste this query:\n\n```\n{ name = \"outbox publish\" } >> { name =~ \".* process\" }\n```"
+      }
     }
   ]
 }
