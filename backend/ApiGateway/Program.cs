@@ -127,7 +127,15 @@ app.UseHealthChecks("/health");
 #pragma warning disable ASP0014
 app.UseRouting();
 app.UseEndpoints(endpoints => endpoints.MapScalarApiReference(options =>
-    options.AddDocument("identity", "Identity API", "/openapi/identity/v1.json", isDefault: true)));
+{
+    // AddDocument's own per-document routePattern argument doesn't actually override
+    // anything in this Scalar.AspNetCore version -- it silently keeps fetching the
+    // default openapi/{documentName}.json regardless of what's passed there (a known
+    // upstream issue, scalar/scalar#8540). Setting the route pattern globally, with the
+    // {documentName} placeholder Scalar substitutes itself, is what actually works.
+    options.WithOpenApiRoutePattern("/openapi/{documentName}/v1.json");
+    options.AddDocument("identity", "Identity API", isDefault: true);
+}));
 #pragma warning restore ASP0014
 
 await app.UseOcelot(pipelineConfiguration =>
