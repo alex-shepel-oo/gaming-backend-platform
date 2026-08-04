@@ -16,10 +16,8 @@
 # once, most of them pulling an image that never actually changed.
 image:
   tag: develop
-
 mailpit:
   enabled: false
-
 # The base chart's hpa.maxReplicas: 10 (per service) is sized for a real multi-node
 # cluster, not this single small VPS -- proven live: identity-service hit all 10 replicas
 # during a startup crash-loop, which then exhausted the node's inotify watch limit
@@ -56,7 +54,7 @@ deployments:
     hpa:
       maxReplicas: 3
   gateway:
-    imageTag: develop
+    imageTag: a69b3e629f1471d213566a18e83792aea00b7adc
     hpa:
       maxReplicas: 3
   notification-service:
@@ -93,13 +91,11 @@ deployments:
     env:
       - name: GF_PUBLIC_DASHBOARDS_ENABLED
         value: "true"
-
 migrationJobs:
   identity-migrator:
     imageTag: develop
   economy-migrator:
     imageTag: develop
-
 ingress:
   tlsSecretName: cloudflare-origin-tls
   hosts:
