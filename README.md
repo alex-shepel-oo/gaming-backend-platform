@@ -169,7 +169,9 @@ Argo CD's resource tree after a real sync — every object this chart manages, h
 <details>
 <summary>API</summary>
 
-- [ ] Scalar — interactive API reference (`/scalar/identity`)
+Interactive OpenAPI reference for IdentityService, served through the gateway.
+
+<img src="docs/screenshots/scalar/scala-api.png" width="700">
 
 </details>
 
