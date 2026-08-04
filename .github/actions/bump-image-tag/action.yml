@@ -1,0 +1,57 @@
+name: Bump image tag
+description: >
+  Points values-production.yaml's imageTag(s) at the commit that was just
+  built, and pushes that change back to main. Argo CD's Application (see
+  scripts/k8s/argocd-application-production.yaml) watches this file with
+  auto-sync on, so this commit is the actual trigger for a production
+  deploy -- a rebuilt image under the same floating tag would not be, since
+  nothing about the rendered manifest would have changed.
+
+inputs:
+  yaml-paths:
+    description: >
+      Space-separated yq paths to bump, e.g.
+      ".deployments.identity-service.imageTag .migrationJobs.identity-migrator.imageTag"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install yq
+      shell: bash
+      run: |
+        sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+        sudo chmod +x /usr/local/bin/yq
+
+    - name: Set imageTag
+      shell: bash
+      run: |
+        for path in ${{ inputs.yaml-paths }}; do
+          yq eval "${path} = \"${{ github.sha }}\"" -i infra/helm/gaming-backend-platform/values-production.yaml
+        done
+
+    - name: Commit and push
+      shell: bash
+      # player-client-ci and admin-client-ci both fire on the same frontend/**
+      # push and both land here around the same time, each bumping a
+      # different line of the same file -- the retry loop is for that race,
+      # not for a real conflict, since a rebase of two different lines always
+      # applies cleanly.
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add infra/helm/gaming-backend-platform/values-production.yaml
+        if git diff --cached --quiet; then
+          exit 0
+        fi
+        git commit -m "chore(k8s): deploy ${{ github.sha }}"
+        for attempt in 1 2 3 4 5; do
+          if git push; then
+            exit 0
+          fi
+          git fetch origin main
+          git rebase origin/main
+          sleep $((attempt * 3))
+        done
+        echo "::error::Failed to push the imageTag bump after 5 attempts"
+        exit 1

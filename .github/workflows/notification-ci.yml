@@ -19,7 +19,7 @@ on:
       - 'global.json'
 
 permissions:
-  contents: read
+  contents: write
   packages: write
   security-events: write
   actions: read
@@ -76,3 +76,9 @@ jobs:
           scan-type: image
           target: ghcr.io/${{ github.repository_owner }}/notification-service:${{ github.sha }}
           category: trivy-image
+
+      - name: Deploy to production
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: ./.github/actions/bump-image-tag
+        with:
+          yaml-paths: .deployments.notification-service.imageTag

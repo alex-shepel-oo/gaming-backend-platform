@@ -19,7 +19,7 @@ on:
       - 'global.json'
 
 permissions:
-  contents: read
+  contents: write
   packages: write
   security-events: write
   actions: read
@@ -88,3 +88,11 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/economy-migrator:${{ github.sha }}
             ghcr.io/${{ github.repository_owner }}/economy-migrator:${{ github.ref_name }}
+
+      - name: Deploy to production
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: ./.github/actions/bump-image-tag
+        with:
+          yaml-paths: >-
+            .deployments.economy-service.imageTag
+            .migrationJobs.economy-migrator.imageTag
