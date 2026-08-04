@@ -139,6 +139,7 @@ observability:
   grafanaDatasourcesYaml: ""
   grafanaDashboardsProviderYaml: ""
   grafanaDashboardJson: ""
+  grafanaNodeResourcesDashboardJson: ""
 
 # One entry per Deployment. `service.name` defaults to the map key; only
 # gateway needs the override (Deployment "gateway", Service "api-gateway").
@@ -564,6 +565,11 @@ deployments:
     # own data directory itself before dropping privileges.
     securityContext:
       fsGroup: 65534
+    # Only Deployment in the chart that needs one -- the cadvisor scrape job
+    # in prometheus.yml proxies through the API server's node subresource,
+    # which needs the RBAC grant templates/prometheus-rbac.yaml ties to this
+    # ServiceAccount specifically, not the namespace's default one.
+    serviceAccountName: prometheus
     args:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
@@ -662,6 +668,9 @@ deployments:
       - name: config
         mountPath: /etc/grafana/dashboards/service-overview.json
         subPath: service-overview.json
+      - name: config
+        mountPath: /etc/grafana/dashboards/node-resources.json
+        subPath: node-resources.json
       - name: data
         mountPath: /var/lib/grafana
     volumes:
@@ -672,6 +681,7 @@ deployments:
             - {key: datasources.yml, path: datasources.yml}
             - {key: dashboards.yml, path: dashboards.yml}
             - {key: service-overview.json, path: service-overview.json}
+            - {key: node-resources.json, path: node-resources.json}
       - name: data
         persistentVolumeClaim: {claimName: grafana-data}
     readinessProbe:

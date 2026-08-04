@@ -66,6 +66,9 @@ spec:
         {{- end }}
     spec:
       terminationGracePeriodSeconds: {{ $svc.terminationGracePeriodSeconds | default $.Values.terminationGracePeriodSeconds }}
+      {{- if $svc.serviceAccountName }}
+      serviceAccountName: {{ $svc.serviceAccountName }}
+      {{- end }}
       {{- if $svc.securityContext }}
       securityContext:
         {{- $svc.securityContext | toYaml | nindent 8 }}

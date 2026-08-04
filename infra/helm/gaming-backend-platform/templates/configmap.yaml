@@ -60,6 +60,8 @@ data:
     {{- $.Values.observability.grafanaDashboardsProviderYaml | nindent 4 }}
   service-overview.json: |
     {{- $.Values.observability.grafanaDashboardJson | nindent 4 }}
+  node-resources.json: |
+    {{- $.Values.observability.grafanaNodeResourcesDashboardJson | nindent 4 }}
   {{- end }}
 {{- end }}
 {{- end }}

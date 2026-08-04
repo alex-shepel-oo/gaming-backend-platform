@@ -28,6 +28,7 @@ helm upgrade --install "$RELEASE" "$CHART" \
   --set-file observability.grafanaDatasourcesYaml=infra/grafana/provisioning/datasources/datasources.yml \
   --set-file observability.grafanaDashboardsProviderYaml=infra/grafana/provisioning/dashboards/dashboards.yml \
   --set-file observability.grafanaDashboardJson=infra/grafana/dashboards/service-overview.json \
+  --set-file observability.grafanaNodeResourcesDashboardJson=infra/grafana/dashboards/node-resources.json \
   --set-file emailService.templates.emailVerificationHtml=backend/EmailService/Templates/EmailVerification.html \
   --set-file emailService.templates.passwordResetHtml=backend/EmailService/Templates/PasswordReset.html \
   --set-file emailService.templates.duplicateRegistrationNoticeHtml=backend/EmailService/Templates/DuplicateRegistrationNotice.html
