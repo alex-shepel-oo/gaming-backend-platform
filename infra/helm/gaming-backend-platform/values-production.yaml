@@ -58,7 +58,7 @@ deployments:
     hpa:
       maxReplicas: 3
   notification-service:
-    imageTag: develop
+    imageTag: a69b3e629f1471d213566a18e83792aea00b7adc
     configMap:
       ASPNETCORE_ENVIRONMENT: "Production"
   # Real Resend SMTP relay instead of mailpit. shepel.dev is verified with Resend now
