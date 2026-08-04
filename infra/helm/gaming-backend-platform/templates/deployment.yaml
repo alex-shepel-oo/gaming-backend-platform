@@ -88,7 +88,7 @@ spec:
         {{- end }}
         - name: {{ $name }}
           {{- if $internal }}
-          image: {{ printf "%s/%s:%s" $.Values.image.registry $svc.image $.Values.image.tag }}
+          image: {{ printf "%s/%s:%s" $.Values.image.registry $svc.image ($svc.imageTag | default $.Values.image.tag) }}
           imagePullPolicy: {{ $.Values.image.pullPolicy }}
           {{- else }}
           image: {{ $svc.image }}

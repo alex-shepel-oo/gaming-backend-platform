@@ -42,7 +42,7 @@ spec:
           command: ["sh", "-c", "until pg_isready -h {{ $svc.dbHost }} -p 5432; do sleep 2; done"]
       containers:
         - name: {{ $name }}
-          image: {{ printf "%s/%s:%s" $.Values.image.registry $svc.image $.Values.image.tag }}
+          image: {{ printf "%s/%s:%s" $.Values.image.registry $svc.image ($svc.imageTag | default $.Values.image.tag) }}
           imagePullPolicy: {{ $.Values.image.pullPolicy }}
           env:
             - name: {{ $svc.connectionStringKey }}

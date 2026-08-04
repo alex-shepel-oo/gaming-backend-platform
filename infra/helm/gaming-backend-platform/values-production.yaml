@@ -7,6 +7,13 @@
 # Secret (the Origin Certificate's cert+key) in both gaming-platform and observability
 # namespaces before this actually serves HTTPS -- not created by this chart itself.
 #
+# Fallback only -- every CI-built service below pins its own imageTag instead
+# (see deployments.*.imageTag and migrationJobs.*.imageTag). Argo CD tracks
+# main and auto-syncs on every commit to it; a shared floating tag here would
+# mean a plain image rebuild (same tag, new digest under it) deploys nothing
+# new until something else forces a rollout, and a real merge to main that
+# only touched one service would otherwise redeploy all eight services at
+# once, most of them pulling an image that never actually changed.
 image:
   tag: develop
 
@@ -19,6 +26,13 @@ mailpit:
 # (each replica's FileSystemWatcher on appsettings.json needs one), turning a transient
 # CPU spike into a much worse cascade of new crashes. 3 is enough headroom for real demo
 # traffic on this box without repeating that.
+#
+# imageTag on every entry below: bumped to that service's own commit SHA by
+# the CI workflow's deploy step on a push to main that actually rebuilt it
+# (.github/workflows/*-ci.yml), not hand-edited here. Starts pinned to
+# "develop" -- the tag already proven working in this environment -- so nothing
+# moves until the first real main-branch build for that service lands and
+# bumps it to a real SHA.
 deployments:
   # ASPNETCORE_ENVIRONMENT=Production (not the chart's own Development default) and
   # Seeding__Enabled=false: found live on the first real deploy that leaving these
@@ -28,21 +42,25 @@ deployments:
   # violated by the default. Production also gets the refresh cookie's Secure flag
   # right, which only appsettings.json (not appsettings.Development.json) sets.
   identity-service:
+    imageTag: develop
     configMap:
       ASPNETCORE_ENVIRONMENT: "Production"
       Seeding__Enabled: "false"
     hpa:
       maxReplicas: 3
   economy-service:
+    imageTag: develop
     configMap:
       ASPNETCORE_ENVIRONMENT: "Production"
       Seeding__Enabled: "false"
     hpa:
       maxReplicas: 3
   gateway:
+    imageTag: develop
     hpa:
       maxReplicas: 3
   notification-service:
+    imageTag: develop
     configMap:
       ASPNETCORE_ENVIRONMENT: "Production"
   # Real Resend SMTP relay instead of mailpit. shepel.dev is verified with Resend now
@@ -51,16 +69,36 @@ deployments:
   # only ever delivers to the account owner's own inbox. Credentials themselves live in
   # secrets.enc/email-service.enc.yaml, not here.
   email-service:
+    imageTag: develop
     configMap:
       Email__Smtp__Host: "smtp.resend.com"
       Email__Smtp__Port: "587"
       Email__Smtp__UseStartTls: "true"
       Email__From: "no-reply@shepel.dev"
-  # Recruiter-facing read access goes through Grafana's own Public Dashboards feature
-  # instead (share a specific curated dashboard via its own unique URL, no login, no
-  # Cloudflare Access seat) -- narrower than instance-wide anonymous access would have
-  # been, and doesn't hit Cloudflare Access's 50-seat free-tier ceiling. Nothing to
-  # configure here for that; it's a per-dashboard toggle in the UI as the real admin.
+  platform-worker:
+    imageTag: develop
+  player-client:
+    imageTag: develop
+  admin-client:
+    imageTag: develop
+  # Recruiter-facing read access is a real Grafana Viewer-role account
+  # (created once via the Admin HTTP API, not tracked here), not the Public
+  # Dashboards feature this used to say -- that feature's own "Share
+  # externally" UI turned out to be broken in this Grafana version (the
+  # request the drawer needs never resolves), so it was abandoned in favor of
+  # a login that actually works. GF_PUBLIC_DASHBOARDS_ENABLED stays set
+  # regardless, in case a future Grafana upgrade fixes the drawer and this
+  # gets revisited.
+  grafana:
+    env:
+      - name: GF_PUBLIC_DASHBOARDS_ENABLED
+        value: "true"
+
+migrationJobs:
+  identity-migrator:
+    imageTag: develop
+  economy-migrator:
+    imageTag: develop
 
 ingress:
   tlsSecretName: cloudflare-origin-tls
