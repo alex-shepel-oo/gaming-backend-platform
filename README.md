@@ -70,18 +70,108 @@ real write access to live demo data, not just a view of it.
 <details>
 <summary>Screenshots</summary>
 
-Not yet added — planned:
+<details>
+<summary>Player Client</summary>
 
-- [ ] player-client — login screen
-- [ ] player-client — wallet, showing a live balance update arrive over SignalR
-- [ ] player-client — game picker / ecosystem-first login
-- [ ] admin-client — user search and role assignment
-- [ ] admin-client — game management
-- [ ] Grafana — service overview dashboard under real traffic
-- [ ] Grafana — [node & pod resources dashboard](infra/grafana/dashboards/node-resources.json)
-- [ ] Grafana — the messaging trace query on the main dashboard, opened in Explore, showing one real trace crossing IdentityService -> RabbitMQ -> EconomyService
-- [ ] Argo CD — application sync view after a real deploy
+### Login
+
+Authentication screen for the player client.
+
+<img src="docs/screenshots/player/gifs/player-login-register.gif" width="700">
+
+### Wallet
+
+Real-time wallet balance updates delivered through SignalR.
+
+<img src="docs/screenshots/player/gifs/player-wallet.gif" width="700">
+
+### Convert
+
+Converting platform credits to a game currency, with the resulting balance update delivered through SignalR.
+
+<img src="docs/screenshots/player/gifs/player-convert.gif" width="700">
+
+### Games
+
+Game catalog and detail view.
+
+<img src="docs/screenshots/player/player-game-datail.png" width="700">
+
+### Profile
+
+Player profile — account details, member-since date, and avatar.
+
+<img src="docs/screenshots/player/player-account.png" width="700">
+
+</details>
+
+<details>
+<summary>Admin Client</summary>
+
+### Login
+
+Authentication screen for the admin client.
+
+<img src="docs/screenshots/admin/admin-login.png" width="700">
+
+### Game Edits
+
+Editing a game's metadata as a platform admin.
+
+<img src="docs/screenshots/admin/gifs/admin-game-edit.gif" width="700">
+
+### Users
+
+Searching users and viewing their account details.
+
+<img src="docs/screenshots/admin/gifs/admin-players.gif" width="700">
+
+</details>
+
+<details>
+<summary>Observability</summary>
+
+### Dashboard - main board
+
+Service overview dashboard under real traffic.
+
+<img src="docs/screenshots/grafana/grafana-dash.png" width="700">
+
+### Dashboard - node & pod resources
+
+Node & pod resources dashboard under real traffic.
+
+<img src="docs/screenshots/grafana/gifs/grafana-node-pod_resources.gif" width="700">
+
+### Trace
+
+A real registration trace in Explore, crossing `IdentityService → RabbitMQ → EconomyService` through the welcome-grant flow.
+
+<img src="docs/screenshots/grafana/grafana-trace.png" width="700">
+
+### Tracking by user ID
+
+Filtering traces to everything a specific player triggered, by their `enduser.id`.
+
+<img src="docs/screenshots/grafana/grafana-by-userID.png" width="700">
+
+</details>
+
+<details>
+<summary>Deployment</summary>
+
+Argo CD's resource tree after a real sync — every object this chart manages, healthy.
+
+<img src="docs/screenshots/argocd/gifs/argocd-showcase.gif" width="700">
+
+</details>
+
+<details>
+<summary>API</summary>
+
 - [ ] Scalar — interactive API reference (`/scalar/identity`)
+
+</details>
 
 </details>
 

@@ -33,26 +33,18 @@ configs:
     # cluster endpoints, repo URLs and SSH known-hosts fingerprints. Stays admin-login
     # only.
     users.anonymous.enabled: "false"
-  rbac:
-    # Kept as-is even though it doesn't achieve safe public access (see above) -- it's
-    # still a reasonable baseline for the admin-login role hierarchy itself, and
-    # documents which resource types were checked.
-    policy.csv: |
-      p, role:readonly, applications, get, */*, allow
-      p, role:readonly, applications, action/*, */*, deny
-      p, role:readonly, applications, sync, */*, deny
-      p, role:readonly, applications, delete, */*, deny
-      p, role:readonly, applicationsets, *, */*, deny
-      p, role:readonly, certificates, *, */*, deny
-      p, role:readonly, clusters, *, */*, deny
-      p, role:readonly, projects, *, */*, deny
-      p, role:readonly, repositories, *, */*, deny
-      p, role:readonly, accounts, *, */*, deny
-      p, role:readonly, gpgkeys, *, */*, deny
-      p, role:readonly, logs, get, */*, deny
-      p, role:readonly, exec, create, */*, deny
-      g, readonly, role:readonly
-    policy.default: role:readonly
+    # No configs.rbac (policy.csv/policy.default) here anymore -- both existed
+    # only to scope down anonymous read access, and anonymous is permanently
+    # disabled above, so there's no unauthenticated subject left for either
+    # to apply to. Found the hard way that they didn't stay inert once
+    # anonymous went away: policy.default's role applies to every
+    # authenticated subject as a baseline, not just ones with no other role,
+    # and Argo CD's effect model is deny-overrides-allow -- so the readonly
+    # policy's explicit `applications sync deny` was blocking the real admin
+    # account from syncing anything at all, regardless of also being granted
+    # role:admin. Falling back to Argo CD's own default RBAC (unrestricted
+    # local admin, no anonymous) is simpler and correct with only one real
+    # user of this instance.
 
 server:
   ingress:

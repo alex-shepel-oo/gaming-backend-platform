@@ -23,35 +23,43 @@ runs:
         sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
         sudo chmod +x /usr/local/bin/yq
 
-    - name: Set imageTag
+    - name: Bump, commit, and push
       shell: bash
-      run: |
-        for path in ${{ inputs.yaml-paths }}; do
-          yq eval "${path} = \"${{ github.sha }}\"" -i infra/helm/gaming-backend-platform/values-production.yaml
-        done
-
-    - name: Commit and push
-      shell: bash
-      # player-client-ci and admin-client-ci both fire on the same frontend/**
-      # push and both land here around the same time, each bumping a
-      # different line of the same file -- the retry loop is for that race,
-      # not for a real conflict, since a rebase of two different lines always
-      # applies cleanly.
+      # Re-derives the edit from a freshly fetched main on every attempt instead of
+      # committing once and rebasing a stale local commit on conflict. Several of these
+      # workflows can fire on the same push to main and land here within seconds of each
+      # other, each bumping a different line of the same file -- a rebase can hit a real
+      # conflict on nearby lines rather than a clean auto-merge (found live: two
+      # concurrent runs raced, one lost, and the rebase it fell back to conflicted and
+      # aborted the whole step instead of retrying). Resetting to the latest main and
+      # reapplying the yq edit fresh each attempt means two concurrent bumps can never
+      # conflict with each other structurally, whatever line either one touches.
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add infra/helm/gaming-backend-platform/values-production.yaml
-        if git diff --cached --quiet; then
-          exit 0
-        fi
-        git commit -m "chore(k8s): deploy ${{ github.sha }}"
+
+        values_file=infra/helm/gaming-backend-platform/values-production.yaml
+
         for attempt in 1 2 3 4 5; do
-          if git push; then
+          git fetch origin main
+          git reset --hard origin/main
+
+          for path in ${{ inputs.yaml-paths }}; do
+            yq eval "${path} = \"${{ github.sha }}\"" -i "$values_file"
+          done
+
+          git add "$values_file"
+          if git diff --cached --quiet; then
             exit 0
           fi
-          git fetch origin main
-          git rebase origin/main
+          git commit -m "chore(k8s): deploy ${{ github.sha }}"
+
+          if git push origin HEAD:main; then
+            exit 0
+          fi
+
           sleep $((attempt * 3))
         done
+
         echo "::error::Failed to push the imageTag bump after 5 attempts"
         exit 1
