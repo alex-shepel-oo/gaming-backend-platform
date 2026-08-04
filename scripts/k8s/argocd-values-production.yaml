@@ -1,0 +1,66 @@
+# Argo CD on the real VPS -- same trimming as argocd-values-local.yaml (dex,
+# notifications, applicationSet all off, same reasoning). Traefik still terminates TLS,
+# but now with the real Cloudflare Origin Certificate instead of plain HTTP -- the
+# cloudflare-origin-tls Secret must already exist in this namespace (copied from
+# gaming-platform's copy, same cert covers *.shepel.dev).
+dex:
+  enabled: false
+
+notifications:
+  enabled: false
+
+applicationSet:
+  replicas: 0
+
+configs:
+  params:
+    server.insecure: true
+  cm:
+    # Permanently disabled -- not a "not yet verified" placeholder, a settled decision.
+    # Tried the obvious fix first: an explicit deny rule per RBAC resource type
+    # (applicationsets/certificates/clusters/projects/repositories/accounts/gpgkeys)
+    # instead of leaving them uncovered. Verified live via direct unauthenticated curl
+    # against every /api/v1/* endpoint with anonymous re-enabled for the test: every
+    # deny rule was silently ignored, clusters/repositories/certificates/accounts all
+    # still returned full data. Root cause isn't a policy.csv authoring mistake -- Argo
+    # CD only runs RBAC enforcement on write actions (sync/delete/create/update) for
+    # these resource types; list/get is unfiltered for any authenticated session
+    # regardless of role, and policy.default's role applies to anonymous sessions the
+    # same way it would to a real named viewer account. There is no policy.csv shape
+    # that fixes this -- it would leak the same data to any low-priv login, not just
+    # anonymous ones. Argo CD has no safe public-read mode here; unlike Grafana's Public
+    # Dashboards, recruiter access to this instance isn't possible without exposing
+    # cluster endpoints, repo URLs and SSH known-hosts fingerprints. Stays admin-login
+    # only.
+    users.anonymous.enabled: "false"
+  rbac:
+    # Kept as-is even though it doesn't achieve safe public access (see above) -- it's
+    # still a reasonable baseline for the admin-login role hierarchy itself, and
+    # documents which resource types were checked.
+    policy.csv: |
+      p, role:readonly, applications, get, */*, allow
+      p, role:readonly, applications, action/*, */*, deny
+      p, role:readonly, applications, sync, */*, deny
+      p, role:readonly, applications, delete, */*, deny
+      p, role:readonly, applicationsets, *, */*, deny
+      p, role:readonly, certificates, *, */*, deny
+      p, role:readonly, clusters, *, */*, deny
+      p, role:readonly, projects, *, */*, deny
+      p, role:readonly, repositories, *, */*, deny
+      p, role:readonly, accounts, *, */*, deny
+      p, role:readonly, gpgkeys, *, */*, deny
+      p, role:readonly, logs, get, */*, deny
+      p, role:readonly, exec, create, */*, deny
+      g, readonly, role:readonly
+    policy.default: role:readonly
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hostname: gbargocd.shepel.dev
+    tls: true
+    extraTls:
+      - hosts:
+          - gbargocd.shepel.dev
+        secretName: cloudflare-origin-tls

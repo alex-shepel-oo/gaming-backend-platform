@@ -1,0 +1,6 @@
+apiVersion: v2
+name: gaming-backend-platform
+description: Gaming Backend Platform - identity, economy, notification, gateway and their supporting infrastructure for one namespace
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

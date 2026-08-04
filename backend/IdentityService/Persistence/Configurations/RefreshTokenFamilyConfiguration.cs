@@ -14,6 +14,7 @@ public sealed class RefreshTokenFamilyConfiguration : IEntityTypeConfiguration<R
         builder.Property(f => f.Id).HasColumnName("id").ValueGeneratedNever();
         builder.Property(f => f.UserId).HasColumnName("user_id").IsRequired();
         builder.Property(f => f.GameId).HasColumnName("game_id");
+        builder.Property(f => f.Scope).HasColumnName("scope").HasConversion<short>();
         builder.Property(f => f.CreatedAt).HasColumnName("created_at");
         builder.Property(f => f.ExpiresAt).HasColumnName("expires_at");
         builder.Property(f => f.RevokedAt).HasColumnName("revoked_at");

@@ -1,0 +1,47 @@
+# Every backend service exports traces and metrics here via OTLP (BuildingBlocks.Telemetry's
+# AddPlatformTelemetry). This is the one hub that fans them out: traces to Tempo over OTLP,
+# metrics as a Prometheus-scrapeable endpoint. Neither Tempo nor Prometheus is reachable by any
+# service directly - only this collector is.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        # player-client/admin-client's Faro tracing instrumentation posts OTLP/HTTP spans straight
+        # here from the browser - without this, the browser's own CORS check blocks it before the
+        # request ever leaves, silently (no server-side log, just a browser console error). Ports
+        # match PLAYER_CLIENT_PORT/ADMIN_CLIENT_PORT's dev defaults; hardcoded rather than templated
+        # via .env like retention is, since this file (unlike docker-compose.yml) is a static mount
+        # with no env-substitution wired up, and every other value here is already a dev-only
+        # literal.
+        cors:
+          allowed_origins:
+            - http://localhost:8080
+            - http://localhost:8081
+
+processors:
+  batch: {}
+
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+  # Prometheus scrapes this collector's own :8889/metrics rather than each service exposing its
+  # own endpoint - one scrape target instead of five, and it means the collector's "scrape"
+  # choice (vs. remote-write) is the only place that decision lives.
+  prometheus:
+    endpoint: 0.0.0.0:8889
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/tempo]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus]

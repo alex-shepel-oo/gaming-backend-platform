@@ -18,7 +18,8 @@ public sealed class CurrentUser(IHttpContextAccessor httpContextAccessor) : ICur
 
     public Guid? GameId => Principal.FindFirstValue(IdentityClaims.GameId) is { } value ? Guid.Parse(value) : null;
 
-    public PlatformRole Role => Enum.Parse<PlatformRole>(RequireClaim(IdentityClaims.Role));
+    public PlatformRole? Role =>
+        Principal.FindFirstValue(IdentityClaims.Role) is { } value ? Enum.Parse<PlatformRole>(value) : null;
 
     public Guid FamilyId => Guid.Parse(RequireClaim(IdentityClaims.FamilyId));
 
@@ -26,6 +27,8 @@ public sealed class CurrentUser(IHttpContextAccessor httpContextAccessor) : ICur
 
     public DateTimeOffset ExpiresAt =>
         DateTimeOffset.FromUnixTimeSeconds(long.Parse(RequireClaim(JwtRegisteredClaimNames.Exp), CultureInfo.InvariantCulture));
+
+    public IReadOnlyList<string> Perms => Principal.FindAll(IdentityClaims.Perms).Select(c => c.Value).ToArray();
 
     private string RequireClaim(string claimType) =>
         Principal.FindFirstValue(claimType)

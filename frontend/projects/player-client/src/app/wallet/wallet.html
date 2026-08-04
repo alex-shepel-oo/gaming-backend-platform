@@ -27,7 +27,12 @@
             <ul class="balance-list">
               @for (balance of platformBalances(); track balance.currencyId) {
                 <li>
-                  <span class="balance-code">{{ balance.currencyCode }}</span>
+                  <span class="balance-label">
+                    @if (balance.iconUrl) {
+                      <img class="currency-icon" [src]="balance.iconUrl" [alt]="balance.currencyCode" />
+                    }
+                    <span class="balance-code">{{ balance.currencyCode }}</span>
+                  </span>
                   <span class="balance-amount">{{ balance.amount }}</span>
                 </li>
               }
@@ -36,16 +41,21 @@
         </mat-card>
       }
 
-      @if (gameBalances().length > 0) {
+      @for (group of gameBalanceGroups(); track group.gameId) {
         <mat-card class="balance-group">
           <mat-card-header>
-            <mat-card-title>In-game</mat-card-title>
+            <mat-card-title>{{ group.gameName }}</mat-card-title>
           </mat-card-header>
           <mat-card-content>
             <ul class="balance-list">
-              @for (balance of gameBalances(); track balance.currencyId) {
+              @for (balance of group.balances; track balance.currencyId) {
                 <li>
-                  <span class="balance-code">{{ balance.currencyCode }}</span>
+                  <span class="balance-label">
+                    @if (balance.iconUrl) {
+                      <img class="currency-icon" [src]="balance.iconUrl" [alt]="balance.currencyCode" />
+                    }
+                    <span class="balance-code">{{ balance.currencyCode }}</span>
+                  </span>
                   <span class="balance-amount">{{ balance.amount }}</span>
                 </li>
               }
@@ -89,7 +99,7 @@
             <tr>
               <td>{{ transaction.createdAt }}</td>
               <td>{{ transactionLabel(transaction) }}</td>
-              <td>{{ transaction.currencyId }}</td>
+              <td>{{ transactionCurrencyCode(transaction) }}</td>
               <td>{{ transaction.amount }}</td>
             </tr>
           }

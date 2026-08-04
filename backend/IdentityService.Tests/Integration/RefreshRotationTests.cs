@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using IdentityService.Auth;
 using IdentityService.Domain;
 using IdentityService.Domain.Enums;
 using IdentityService.Exceptions;
@@ -7,6 +8,7 @@ using IdentityService.Services;
 using IdentityService.Tests.Integration.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Xunit;
 
 namespace IdentityService.Tests.Integration;
@@ -64,6 +66,43 @@ public sealed class RefreshRotationTests(IdentityApiFactory factory) : IClassFix
         family.RevokedAt.Should().BeNull();
     }
 
+    [Fact]
+    public async Task Rotate_AfterRolePermissionsChangeInDatabase_NewAccessTokenReflectsUpdatedPermissions()
+    {
+        var (userId, gameId) = await SeedPlayerAsync();
+        var issued = await IssueFamilyAsync(userId, gameId);
+
+        var firstRotation = await RotateAsync(issued.RawToken);
+        var firstJwt = new JsonWebTokenHandler().ReadJsonWebToken(firstRotation.AccessToken);
+        firstJwt.Claims.Where(c => c.Type == IdentityClaims.Perms).Should().BeEmpty();
+
+        await GrantRolePermissionAsync(gameId, Permissions.GameBalanceAdjust);
+
+        var secondRotation = await RotateAsync(firstRotation.RawRefreshToken);
+        var secondJwt = new JsonWebTokenHandler().ReadJsonWebToken(secondRotation.AccessToken);
+
+        secondJwt.Claims.Where(c => c.Type == IdentityClaims.Perms).Select(c => c.Value).Should()
+            .BeEquivalentTo([Permissions.GameBalanceAdjust]);
+    }
+
+    private async Task GrantRolePermissionAsync(Guid gameId, string permission)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var now = factory.TimeProvider.GetUtcNow();
+
+        dbContext.RolePermissions.Add(new RolePermission
+        {
+            Id = Guid.CreateVersion7(),
+            Role = PlatformRole.Player,
+            GameId = gameId,
+            Permission = permission,
+            GrantedAt = now,
+        });
+
+        await dbContext.SaveChangesAsync();
+    }
+
     private async Task<(Guid UserId, Guid GameId)> SeedPlayerAsync()
     {
         await using var scope = factory.Services.CreateAsyncScope();
@@ -113,7 +152,7 @@ public sealed class RefreshRotationTests(IdentityApiFactory factory) : IClassFix
         await using var scope = factory.Services.CreateAsyncScope();
         var refreshTokenService = scope.ServiceProvider.GetRequiredService<IRefreshTokenService>();
 
-        return await refreshTokenService.IssueFamilyAsync(userId, gameId, "127.0.0.1", "test-agent");
+        return await refreshTokenService.IssueFamilyAsync(userId, gameId, TokenScope.Game, "127.0.0.1", "test-agent");
     }
 
     private async Task<RefreshRotationResult> RotateAsync(string rawToken)
@@ -121,7 +160,7 @@ public sealed class RefreshRotationTests(IdentityApiFactory factory) : IClassFix
         await using var scope = factory.Services.CreateAsyncScope();
         var refreshTokenService = scope.ServiceProvider.GetRequiredService<IRefreshTokenService>();
 
-        return await refreshTokenService.RotateAsync(rawToken, "127.0.0.1");
+        return await refreshTokenService.RotateAsync(rawToken, "127.0.0.1", TokenAudiences.Player);
     }
 
     private async Task<RefreshToken> FindTokenAsync(Guid id)

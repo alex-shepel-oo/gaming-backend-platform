@@ -42,3 +42,14 @@
     }
   </div>
 }
+
+@if (entering()) {
+  <div class="state-panel">
+    <mat-spinner diameter="24" />
+    <p>Entering game…</p>
+  </div>
+} @else if (enterError()) {
+  <div class="state-panel">
+    <p class="state-error" role="alert">We couldn't enter that game. Please try again.</p>
+  </div>
+}

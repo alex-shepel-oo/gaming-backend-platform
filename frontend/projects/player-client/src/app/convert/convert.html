@@ -28,10 +28,10 @@
     @if (showGamePicker()) {
       <mat-form-field appearance="outline">
         <mat-label>Convert into game</mat-label>
-        <select matNativeControl formControlName="targetGameId" required>
+        <select matNativeControl formControlName="targetGameId">
           <option value="" disabled>Select a game</option>
-          @for (gameId of toGameOptions(); track gameId) {
-            <option [value]="gameId">{{ gameNameFor(gameId) }}</option>
+          @for (game of toGameOptions(); track game.id) {
+            <option [value]="game.id">{{ game.name }}</option>
           }
         </select>
       </mat-form-field>
@@ -41,8 +41,8 @@
       <mat-label>To currency</mat-label>
       <select matNativeControl formControlName="toCurrencyId" required>
         <option value="" disabled>Select a currency</option>
-        @for (currency of toCurrencyOptions(); track currency.currencyId) {
-          <option [value]="currency.currencyId">{{ currency.currencyCode }}</option>
+        @for (currency of toCurrencyOptions(); track currency.id) {
+          <option [value]="currency.id">{{ currency.code }}</option>
         }
       </select>
     </mat-form-field>
@@ -57,7 +57,11 @@
 
     <p class="convert-receive-preview">
       You'll receive:
-      <app-not-available message="shown after you confirm the conversion" />
+      @if (preview(); as currentPreview) {
+        <strong>{{ currentPreview.amount }} {{ currentPreview.code }}</strong>
+      } @else {
+        <app-not-available message="shown after you confirm the conversion" />
+      }
     </p>
 
     @if (error() === 'insufficient-funds') {

@@ -1,0 +1,29 @@
+# Real secret values, encrypted at rest with SOPS (see .sops.yaml). Decrypt
+# with `sops -d` before applying -- never commit the decrypted form. The
+# plain secrets.example/grafana.yaml template alongside this file still
+# documents the shape for anyone who hasn't set up an age key yet. Lives in
+# the observability namespace, not gaming-platform, same as its template.
+apiVersion: v1
+kind: Secret
+metadata:
+    name: grafana-secrets
+    namespace: observability
+type: Opaque
+stringData:
+    GF_SECURITY_ADMIN_USER: ENC[AES256_GCM,data:ZZ4P3OQ=,iv:ZfQOHvEa8m873jEHdjB5jzLHCCk+CY5Z7L/gCGPnq0A=,tag:kvkNM5IJunWjLXxEmkWqlA==,type:str]
+    GF_SECURITY_ADMIN_PASSWORD: ENC[AES256_GCM,data:hG3dJ1J8u4A02m2QNnhnpkJMC+8tdffgvQbXQVncDXQ=,iv:eRixLu7hBEFmqr8mc3W57Kjk6YxGuRumknxTkyLFQn0=,tag:db8bHJrIXtDV/VdmFISBPA==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBhb3YrcWpHYlRmVzYxSk1p
+            K3dHeDR2RWhVRGZHUUF0T3RPVFdPMC9LYmtVCkM3NUIvKzlPbi9ncVZ5ZXBzQndw
+            VWgzSTRPMlU5aHlCS2x2ejNqS200dFkKLS0tIFBaMllmTUZodExNUmswRlNaS2dw
+            WHNmaFVsckEzdTFzQTduUkZCYXJub28K9HOaD5uRkkSN6Byxdb7i+1PS0okHcziW
+            HhE/DLXLKm/ArnXt8whFVcVxyfDKxg1IpHFoiIFv8bPhiE5x1uc69A==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1kl06atlam4ngyp0x8h6d4hv58p7m6qv8xa6gnpewsa64srem9c2q65pvjc
+    encrypted_regex: ^(stringData|data)$
+    lastmodified: "2026-08-01T15:46:53Z"
+    mac: ENC[AES256_GCM,data:jZ3OegJeX28SL57tB4l5p145qSVDRBIpcgtvAJ9QrqwUxaiIv24BXH9oG9CNwPHGHNM5Qj8U8ZTVF0ZdQsVGShznFgpRwd3KCnKaPMjVRkkd99PHIoMHEk5vurjKDS2TwApSZ12OgKegy0nhoLxwoJszKoL3Ut/3KsgLsl9yh+U=,iv:qsgC4XmdbMHlVfCQ3w+j/zOSaiD+dNFUIyiO+1V/kYc=,tag:jrCCPZEQK2HQCwCBbYPU9Q==,type:str]
+    version: 3.13.2

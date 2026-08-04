@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: shared-config
-  namespace: gaming-platform
-data:
-  Jwt__Issuer: "gaming-backend-platform/identity"
-  Jwt__Audience: "gaming-backend-platform"
-  Jwt__ClockSkewSeconds: "30"

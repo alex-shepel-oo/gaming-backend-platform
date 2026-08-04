@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
+using IdentityService.Auth;
 using IdentityService.Contracts.Requests;
 using IdentityService.Contracts.Responses;
 using IdentityService.Domain;
@@ -12,6 +13,7 @@ using IdentityService.Services;
 using IdentityService.Tests.Integration.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Xunit;
 
 namespace IdentityService.Tests.Integration;
@@ -22,6 +24,8 @@ public sealed class PublicGamesEndpointTests(IdentityApiFactory factory) : IClas
     private const string Password = "correct-horse-battery";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    private static readonly JsonWebTokenHandler TokenHandler = new();
 
     public ValueTask InitializeAsync() => new(factory.ResetAsync());
 
@@ -52,6 +56,28 @@ public sealed class PublicGamesEndpointTests(IdentityApiFactory factory) : IClas
     }
 
     [Fact]
+    public async Task ListPublicGames_ReturnsDescriptionAndIconUrlWhenSetAndNullWhenNot()
+    {
+        var gameWithMetadata = await SeedGameAsync(
+            isActive: true, description: "A great game", iconUrl: "https://cdn.example.com/icon.png");
+        var gameWithoutMetadata = await SeedGameAsync(isActive: true);
+        var player = await SeedUserAsync(gameWithMetadata.Id);
+        var (client, accessToken) = await LoginAsync(player.Id, gameWithMetadata.Id);
+
+        var response = await GetAuthorizedAsync(client, "/api/identity/games/public", accessToken);
+
+        var games = (await response.Content.ReadFromJsonAsync<PublicGameDto[]>(JsonOptions, TestContext.Current.CancellationToken))!;
+
+        var withMetadata = games.Single(g => g.Id == gameWithMetadata.Id);
+        withMetadata.Description.Should().Be("A great game");
+        withMetadata.IconUrl.Should().Be("https://cdn.example.com/icon.png");
+
+        var withoutMetadata = games.Single(g => g.Id == gameWithoutMetadata.Id);
+        withoutMetadata.Description.Should().BeNull();
+        withoutMetadata.IconUrl.Should().BeNull();
+    }
+
+    [Fact]
     public async Task ListPublicGames_Anonymous_Returns401()
     {
         using var client = factory.CreateClient();
@@ -59,6 +85,22 @@ public sealed class PublicGamesEndpointTests(IdentityApiFactory factory) : IClas
         var response = await client.GetAsync(new Uri("/api/identity/games/public", UriKind.Relative), TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task ListPublicGames_AccountScopedSession_Returns200()
+    {
+        var game = await SeedGameAsync(isActive: true);
+        var player = await SeedUserAsync(game.Id);
+        var (client, accessToken) = await LoginAccountScopedAsync(player.Email);
+
+        var jwt = TokenHandler.ReadJsonWebToken(accessToken);
+        jwt.GetClaim(IdentityClaims.Scope).Value.Should().Be(nameof(TokenScope.Account));
+        jwt.TryGetClaim(IdentityClaims.Role, out _).Should().BeFalse();
+
+        var response = await GetAuthorizedAsync(client, "/api/identity/games/public", accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]
@@ -116,7 +158,21 @@ public sealed class PublicGamesEndpointTests(IdentityApiFactory factory) : IClas
         return (client, tokens!.AccessToken);
     }
 
-    private async Task<Game> SeedGameAsync(bool isActive)
+    private async Task<(HttpClient Client, string AccessToken)> LoginAccountScopedAsync(string email)
+    {
+        var client = factory.CreateClient();
+        var response = await client.PostAsJsonAsync(
+            "/api/identity/auth/login",
+            new LoginRequest(null, email, Password),
+            JsonOptions,
+            TestContext.Current.CancellationToken);
+
+        var tokens = await response.Content.ReadFromJsonAsync<TokenPairResponse>(JsonOptions, TestContext.Current.CancellationToken);
+
+        return (client, tokens!.AccessToken);
+    }
+
+    private async Task<Game> SeedGameAsync(bool isActive, string? description = null, string? iconUrl = null)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
@@ -129,6 +185,8 @@ public sealed class PublicGamesEndpointTests(IdentityApiFactory factory) : IClas
             Name = "Test Game",
             IsActive = isActive,
             CreatedAt = now,
+            Description = description,
+            IconUrl = iconUrl,
         };
 
         dbContext.Games.Add(game);

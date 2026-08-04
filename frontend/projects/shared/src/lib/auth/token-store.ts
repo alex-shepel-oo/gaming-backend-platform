@@ -4,8 +4,10 @@ export interface AccessTokenClaims {
   userId: string;
   email: string;
   displayName: string;
-  role: string;
+  role: string | null;
+  scope: string;
   gameId: string | null;
+  permissions: string[];
 }
 
 // Decodes the payload segment only, for display purposes -- this is UX, not
@@ -30,14 +32,26 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
   }
 }
 
-function toClaims(payload: Record<string, unknown>): AccessTokenClaims | null {
-  const { sub, email, name, role, game_id: gameId } = payload as Record<string, unknown>;
+function toPermissions(value: unknown): string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string') ? value : [];
+}
 
-  if (typeof sub !== 'string' || typeof email !== 'string' || typeof name !== 'string' || typeof role !== 'string') {
+function toClaims(payload: Record<string, unknown>): AccessTokenClaims | null {
+  const { sub, email, name, role, scope, game_id: gameId, perms } = payload as Record<string, unknown>;
+
+  if (typeof sub !== 'string' || typeof email !== 'string' || typeof name !== 'string' || typeof scope !== 'string') {
     return null;
   }
 
-  return { userId: sub, email, displayName: name, role, gameId: typeof gameId === 'string' ? gameId : null };
+  return {
+    userId: sub,
+    email,
+    displayName: name,
+    role: typeof role === 'string' ? role : null,
+    scope,
+    gameId: typeof gameId === 'string' ? gameId : null,
+    permissions: toPermissions(perms),
+  };
 }
 
 @Injectable({ providedIn: 'root' })

@@ -1,0 +1,29 @@
+# Real secret values, encrypted at rest with SOPS (see .sops.yaml). Decrypt
+# with `sops -d` before applying -- never commit the decrypted form. The
+# plain secrets.example/identity.yaml template alongside this file still
+# documents the shape for anyone who hasn't set up an age key yet.
+apiVersion: v1
+kind: Secret
+metadata:
+    name: identity-secrets
+    namespace: gaming-platform
+type: Opaque
+stringData:
+    POSTGRES_PASSWORD: ENC[AES256_GCM,data:Pa+BIQDh+ygBZhuZDUDKF5aYlcyxcKEDhgg0/z54NhQ=,iv:jzLCPCSgVjJSo/4vzou21ExwJzMRw+Izuo1xgSAqS6c=,tag:eldBlDvchO6CHDeb5tV4RA==,type:str]
+    ConnectionStrings__IdentityDb: ENC[AES256_GCM,data:MiojiFr5P889noVqkyuudNjYUNPEbl3zojYsp9P8t/zVtHUUyfZAFZzrCvbAQNvFVu8xQ/3F4iEjdzqwz5atUc952y53+/iyQnKMLkyRgXToKh4XcwA8jwCPBe50m5frTwIiCOWNZSWzdSEK/758MbO2b73AOP3uClhcsTWxV0G0hoB0a+9g3yUevn2d,iv:vq2cF07ynnu7F8zVKflqwv/xJA6B+/wDqiwt+jCx0XM=,tag:/tRzZ80KYoF56sbvhHRnug==,type:str]
+    Jwt__PrivateKeyPem: ENC[AES256_GCM,data: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,iv:yNZxT/sbl03BGBQI5iZ4sMI70oMcpg+mSYqNcM+06GM=,tag:rz5nr2QLwrQvjnA1iciCCg==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAxYXRKWGZGanBHTzJieVVS
+            R01xZ3hqRjNjNmJTK0RiVGZCVDQzS0M1ZG40Cm9xUUxrakJaY3dNTytiRDRDcUth
+            OUx5TWcrNUZiQU1zOTZPcWVTdDhjWTgKLS0tIHdud2YzVUpZTU5SZDdZYkx1WlBn
+            Y1pkSFB3ZEFXUjRUeVVreVR3UnRJdHcKw7XQnm0tRwogJRtwb1Yeoo5SZcM3eh1U
+            MARpCMvW7/Kejm7qgp8mLRfHkfw2sDMPo1oz84Btveiuco1c9W3lrQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1kl06atlam4ngyp0x8h6d4hv58p7m6qv8xa6gnpewsa64srem9c2q65pvjc
+    encrypted_regex: ^(stringData|data)$
+    lastmodified: "2026-08-03T10:00:06Z"
+    mac: ENC[AES256_GCM,data:cBEuWu0pZqcAMuW+8TnyIHkSr+tT1tl7872RD7HsNMAu4b4jF9bHfYsVjyi89Ac0LMi7NoGdZeEdKa/Qvb+754a28iHxV6KROFIvb/WaZ8gcSi3PhoC1lq57O8B8a/DeCl14r9sjFOa9ltRChL1UR0zkv0hPsK+Rxg6owB4fd2k=,iv:qeT9MImzo6N5MiNc01/L7b5zW9Vbx4KWRXFpI4LgKQQ=,tag:5HyJnM8ZCE+6kSHnbq/zUw==,type:str]
+    version: 3.13.2

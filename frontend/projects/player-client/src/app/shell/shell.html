@@ -10,7 +10,12 @@
   <span class="shell-spacer"></span>
 
   @for (balance of platformBalances(); track balance.currencyId) {
-    <span class="shell-balance" title="Platform balance">{{ balance.amount }} {{ balance.currencyCode }}</span>
+    <span class="shell-balance" title="Platform balance">
+      @if (balance.iconUrl) {
+        <img class="shell-balance-icon" [src]="balance.iconUrl" [alt]="balance.currencyCode" />
+      }
+      {{ balance.amount }}
+    </span>
   }
 
   @if (gameSelection.selected(); as game) {
@@ -28,7 +33,11 @@
 
   @if (tokenStore.claims(); as claims) {
     <a routerLink="/profile" class="shell-avatar-link" title="Profile">
-      <app-avatar [name]="claims.displayName" style="--avatar-size: 32px" />
+      <app-avatar
+        [name]="claims.displayName"
+        [avatarUrl]="profileService.profile()?.avatarUrl ?? null"
+        style="--avatar-size: 32px"
+      />
     </a>
   }
 

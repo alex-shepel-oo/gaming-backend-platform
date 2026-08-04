@@ -2,6 +2,7 @@ import { HttpClient, HttpErrorResponse, provideHttpClient, withInterceptors } fr
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { authInterceptor } from './auth.interceptor';
+import { CLIENT_TYPE } from './client-type';
 import { IdentityAuthEndpoints } from './identity-auth-endpoints';
 import { TokenStore } from './token-store';
 
@@ -72,6 +73,33 @@ describe('authInterceptor', () => {
     expect((error as HttpErrorResponse).status).toBe(401);
     expect(tokenStore.read()).toBeNull();
     // httpMock.verify() in afterEach fails the test if any further refresh/retry request was made.
+  });
+
+  it('sends the injected CLIENT_TYPE, not a hardcoded value, on the refresh-retry call', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(withInterceptors([authInterceptor])),
+        provideHttpClientTesting(),
+        { provide: CLIENT_TYPE, useValue: 'admin' },
+      ],
+    });
+
+    http = TestBed.inject(HttpClient);
+    httpMock = TestBed.inject(HttpTestingController);
+    tokenStore = TestBed.inject(TokenStore);
+
+    tokenStore.set('expired-token');
+
+    http.get(protectedUrl).subscribe();
+
+    httpMock.expectOne(protectedUrl).flush(null, { status: 401, statusText: 'Unauthorized' });
+
+    const refreshRequest = httpMock.expectOne(IdentityAuthEndpoints.refresh);
+    expect(refreshRequest.request.headers.get('X-Client-Type')).toBe('admin');
+    refreshRequest.flush({ accessToken: 'new-access-token' });
+
+    httpMock.expectOne(protectedUrl).flush({});
   });
 
   it('never writes the access token to the console', () => {

@@ -10,7 +10,7 @@ namespace IdentityService.Tests.Unit;
 public class JwtOptionsValidationTests
 {
     [Fact]
-    public async Task Host_KeyShorterThanMinimumLength_FailsToStartInsteadOfOnFirstRequest()
+    public async Task Host_MissingPrivateKeyPem_FailsToStartInsteadOfOnFirstRequest()
     {
         using var host = Host.CreateDefaultBuilder()
             .ConfigureServices(services => services
@@ -18,8 +18,8 @@ public class JwtOptionsValidationTests
                 .Configure(options =>
                 {
                     options.Issuer = "gaming-backend-platform/identity";
-                    options.Audience = "gaming-backend-platform";
-                    options.Key = "too-short-key";
+                    options.Audiences = ["gaming-backend-platform"];
+                    options.PrivateKeyPem = string.Empty;
                     options.AccessTokenLifetimeMinutes = 15;
                     options.ClockSkewSeconds = 30;
                 })

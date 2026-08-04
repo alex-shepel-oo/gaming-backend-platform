@@ -1,3 +1,4 @@
+using IdentityService.Auth;
 using IdentityService.Domain;
 using IdentityService.Domain.Enums;
 using IdentityService.Exceptions;
@@ -13,6 +14,7 @@ public sealed partial class RefreshTokenService(
     IdentityDbContext dbContext,
     IRefreshTokenGenerator generator,
     ITokenService tokenService,
+    IPermissionResolver permissionResolver,
     IOptions<RefreshTokenOptions> options,
     TimeProvider timeProvider,
     ILogger<RefreshTokenService> logger) : IRefreshTokenService
@@ -22,6 +24,7 @@ public sealed partial class RefreshTokenService(
     public async Task<RefreshTokenIssueResult> IssueFamilyAsync(
         Guid userId,
         Guid? gameId,
+        TokenScope scope,
         string? createdByIp,
         string? userAgent,
         CancellationToken cancellationToken = default)
@@ -33,6 +36,7 @@ public sealed partial class RefreshTokenService(
             Id = Guid.CreateVersion7(),
             UserId = userId,
             GameId = gameId,
+            Scope = scope,
             CreatedAt = now,
             ExpiresAt = now.AddDays(_options.FamilyAbsoluteLifetimeDays),
             CreatedByIp = createdByIp,
@@ -62,6 +66,7 @@ public sealed partial class RefreshTokenService(
     public async Task<RefreshRotationResult> RotateAsync(
         string rawToken,
         string? createdByIp,
+        string audience,
         CancellationToken cancellationToken = default)
     {
         var now = timeProvider.GetUtcNow();
@@ -106,8 +111,13 @@ public sealed partial class RefreshTokenService(
             throw new InvalidRefreshTokenException();
         }
 
-        var role = await dbContext.UserGameRoles
-            .SingleAsync(r => r.UserId == family.UserId && r.GameId == family.GameId, cancellationToken);
+        UserGameRole? role = null;
+
+        if (family.Scope != TokenScope.Account)
+        {
+            role = await dbContext.UserGameRoles
+                .SingleAsync(r => r.UserId == family.UserId && r.GameId == family.GameId, cancellationToken);
+        }
 
         var newTokenId = Guid.CreateVersion7();
         var newRawToken = generator.GenerateRaw();
@@ -146,7 +156,11 @@ public sealed partial class RefreshTokenService(
 
         await transaction.CommitAsync(cancellationToken);
 
-        var accessToken = tokenService.IssueAccessToken(user, family.GameId, role.Role, family.Id);
+        var permissions = role is not null
+            ? await permissionResolver.ResolveAsync(role.Role, family.GameId, cancellationToken)
+            : AccountPermissions.All;
+
+        var accessToken = tokenService.IssueAccessToken(user, family.GameId, role?.Role, family.Id, family.Scope, permissions, audience);
 
         return new RefreshRotationResult(accessToken, newRawToken, newToken, family);
     }

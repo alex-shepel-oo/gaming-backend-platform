@@ -7,8 +7,9 @@ public interface ICurrentUser
     Guid UserId { get; }
     string Email { get; }
     Guid? GameId { get; }
-    PlatformRole Role { get; }
+    PlatformRole? Role { get; }
     Guid FamilyId { get; }
     Guid Jti { get; }
     DateTimeOffset ExpiresAt { get; }
+    IReadOnlyList<string> Perms { get; }
 }

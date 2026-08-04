@@ -53,8 +53,8 @@ describe('Login', () => {
     expect(request.request.body).toEqual({
       email: 'player@example.com',
       password: 'correct-password',
-      gameSlug: 'demo-shooter',
     });
+    expect(request.request.body).not.toHaveProperty('gameSlug');
     request.flush({ accessToken: 'the-access-token' });
 
     expect(navigateSpy).toHaveBeenCalledWith('/games');
@@ -89,5 +89,28 @@ describe('Login', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('confirm your email');
     expect(text).not.toContain('Invalid email or password.');
+  });
+
+  it('toggles the password field between hidden and visible', () => {
+    const fixture = TestBed.createComponent(Login);
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    const passwordInput = element.querySelector('input[autocomplete="current-password"]') as HTMLInputElement;
+    const toggleButton = element.querySelector('button[aria-label="Show password"]') as HTMLButtonElement;
+
+    expect(passwordInput.type).toBe('password');
+
+    toggleButton.click();
+    fixture.detectChanges();
+
+    expect(passwordInput.type).toBe('text');
+    expect(element.querySelector('button[aria-label="Hide password"]')).toBe(toggleButton);
+
+    toggleButton.click();
+    fixture.detectChanges();
+
+    expect(passwordInput.type).toBe('password');
+    expect(element.querySelector('button[aria-label="Show password"]')).toBe(toggleButton);
   });
 });

@@ -1,0 +1,5 @@
+<h1>Admin Dashboard</h1>
+
+@if (tokenStore.claims(); as claims) {
+  <p>Signed in as {{ claims.email }} ({{ claims.scope }}).</p>
+}

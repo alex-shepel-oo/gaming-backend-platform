@@ -1,6 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using IdentityService.Auth;
+using IdentityService.Contracts.Requests;
 using IdentityService.Contracts.Responses;
+using IdentityService.Domain.Enums;
 using IdentityService.Exceptions;
 using IdentityService.Persistence;
 using IdentityService.Services;
@@ -16,6 +18,8 @@ public static class UserEndpoints
         var group = app.MapGroup("/api/identity/users");
 
         group.MapGet("/me", GetMeAsync).RequireAuthorization();
+        group.MapPatch("/me", UpdateMeAsync).RequireAuthorization();
+        group.MapGet("/me/games", GetMyGamesAsync).RequireAuthorization();
         group.MapGet("/{userId:guid}", GetUserAsync).RequireAuthorization(Policies.ModeratorOrAbove);
         group.MapGet("", ListUsersAsync).RequireAuthorization(Policies.ModeratorOrAbove);
 
@@ -27,17 +31,80 @@ public static class UserEndpoints
         ICurrentUser currentUser, IdentityDbContext dbContext, CancellationToken cancellationToken)
     {
         var user = await dbContext.Users.SingleAsync(u => u.Id == currentUser.UserId, cancellationToken);
+        var gameSlug = currentUser.GameId is null
+            ? null
+            : await dbContext.Games.Where(g => g.Id == currentUser.GameId).Select(g => g.Slug).SingleOrDefaultAsync(cancellationToken);
 
         return TypedResults.Ok(new UserDto(
-            user.Id, user.Email, user.DisplayName, currentUser.GameId, currentUser.Role, user.CreatedAt));
+            user.Id, user.Email, user.DisplayName, currentUser.GameId, gameSlug, currentUser.Role, user.CreatedAt,
+            user.AvatarUrl, user.LastLoginAt));
+    }
+
+    private static async Task<Ok<UserDto>> UpdateMeAsync(
+        UpdateProfileRequest request,
+        ICurrentUser currentUser,
+        IdentityDbContext dbContext,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        var user = await dbContext.Users.SingleAsync(u => u.Id == currentUser.UserId, cancellationToken);
+
+        if (request.DisplayName is not null)
+        {
+            user.DisplayName = request.DisplayName;
+        }
+
+        if (request.AvatarUrl is not null)
+        {
+            if (!UrlValidation.TryNormalize(request.AvatarUrl, out var normalized))
+            {
+                throw new InvalidAvatarUrlException();
+            }
+
+            user.AvatarUrl = normalized;
+        }
+
+        user.UpdatedAt = timeProvider.GetUtcNow();
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var gameSlug = currentUser.GameId is null
+            ? null
+            : await dbContext.Games.Where(g => g.Id == currentUser.GameId).Select(g => g.Slug).SingleOrDefaultAsync(cancellationToken);
+
+        return TypedResults.Ok(new UserDto(
+            user.Id, user.Email, user.DisplayName, currentUser.GameId, gameSlug, currentUser.Role, user.CreatedAt,
+            user.AvatarUrl, user.LastLoginAt));
+    }
+
+    private static async Task<Ok<PublicGameDto[]>> GetMyGamesAsync(
+        ICurrentUser currentUser, IdentityDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var games = await dbContext.UserGameRoles
+            .Where(r => r.UserId == currentUser.UserId && r.GameId != null)
+            .Select(r => r.Game!)
+            .Distinct()
+            .OrderBy(g => g.Name)
+            .Select(g => new PublicGameDto(g.Id, g.Slug, g.Name, g.Description, g.IconUrl))
+            .ToArrayAsync(cancellationToken);
+
+        return TypedResults.Ok(games);
     }
 
     private static async Task<Ok<UserDto>> GetUserAsync(
-        Guid userId, ICurrentUser currentUser, IdentityDbContext dbContext, CancellationToken cancellationToken)
+        Guid userId,
+        Guid? gameId,
+        ICurrentUser currentUser,
+        IScopeAuthorityGuard guard,
+        IdentityDbContext dbContext,
+        CancellationToken cancellationToken)
     {
+        guard.EnsureScopeAuthority(currentUser, gameId, Permissions.PlatformUsersRead, Permissions.GamePlayersModerate);
+
         var role = await dbContext.UserGameRoles
             .Include(r => r.User)
-            .SingleOrDefaultAsync(r => r.UserId == userId && r.GameId == currentUser.GameId, cancellationToken);
+            .Include(r => r.Game)
+            .SingleOrDefaultAsync(r => r.UserId == userId && r.GameId == gameId, cancellationToken);
 
         if (role is null)
         {
@@ -45,18 +112,24 @@ public static class UserEndpoints
         }
 
         return TypedResults.Ok(new UserDto(
-            role.User!.Id, role.User.Email, role.User.DisplayName, role.GameId, role.Role, role.User.CreatedAt));
+            role.User!.Id, role.User.Email, role.User.DisplayName, role.GameId, role.Game?.Slug, role.Role, role.User.CreatedAt,
+            role.User.AvatarUrl, role.User.LastLoginAt));
     }
 
     private static async Task<Ok<PagedResult<UserSummaryDto>>> ListUsersAsync(
         string? search,
         ICurrentUser currentUser,
+        IScopeAuthorityGuard guard,
         IdentityDbContext dbContext,
         CancellationToken cancellationToken,
         [Range(1, int.MaxValue)] int page = 1,
         [Range(1, 100)] int pageSize = 20)
     {
-        var query = dbContext.UserGameRoles.Where(r => r.GameId == currentUser.GameId);
+        guard.EnsureScopeAuthority(currentUser, currentUser.GameId, Permissions.PlatformUsersRead, Permissions.GamePlayersModerate);
+
+        var query = currentUser.GameId is null
+            ? dbContext.UserGameRoles
+            : dbContext.UserGameRoles.Where(r => r.GameId == currentUser.GameId);
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -71,7 +144,9 @@ public static class UserEndpoints
             .OrderBy(r => r.User!.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(r => new UserSummaryDto(r.User!.Id, r.User.Email, r.User.DisplayName, r.Role, r.User.CreatedAt))
+            .Select(r => new UserSummaryDto(
+                r.User!.Id, r.User.Email, r.User.DisplayName, r.Role, r.User.CreatedAt, r.User.LastLoginAt,
+                r.GameId, r.GameId != null ? r.Game!.Slug : null))
             .ToListAsync(cancellationToken);
 
         return TypedResults.Ok(new PagedResult<UserSummaryDto>(items, page, pageSize, totalCount));
@@ -80,10 +155,14 @@ public static class UserEndpoints
     private static async Task<NoContent> RevokeSessionsAsync(
         Guid userId,
         Guid? gameId,
+        ICurrentUser currentUser,
+        IScopeAuthorityGuard guard,
         ISessionService sessionService,
         CancellationToken cancellationToken)
     {
-        await sessionService.RevokeAllSessionsAsync(userId, gameId, cancellationToken);
+        guard.EnsureScopeAuthority(currentUser, gameId, Permissions.PlatformRolesManage, Permissions.GameRolesManage);
+
+        await sessionService.RevokeAllSessionsAsync(userId, gameId, RevocationReason.AdminRevoke, cancellationToken);
 
         return TypedResults.NoContent();
     }

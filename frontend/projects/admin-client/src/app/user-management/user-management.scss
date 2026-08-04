@@ -1,0 +1,71 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.page-container {
+  flex: 1;
+  min-height: 0;
+  background: transparent;
+}
+
+.detail-sidenav {
+  width: 100%;
+  max-width: 400px;
+  padding: var(--app-space-lg);
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--app-space-md);
+}
+
+mat-sidenav-content {
+  max-width: var(--app-shell-max-width);
+  margin: 0 auto;
+  padding: var(--app-space-lg);
+}
+
+.search-field {
+  width: 100%;
+  max-width: 24rem;
+  margin-bottom: var(--app-space-md);
+}
+
+.users-table {
+  width: 100%;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-sm);
+  margin-top: var(--app-space-sm);
+}
+
+.assign-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--app-space-sm);
+  flex-wrap: wrap;
+}
+
+.state-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--app-space-sm);
+  padding: var(--app-space-lg) 0;
+}
+
+.state-error {
+  color: var(--mat-sys-error);
+}
+
+.state-success {
+  color: var(--mat-sys-primary);
+}

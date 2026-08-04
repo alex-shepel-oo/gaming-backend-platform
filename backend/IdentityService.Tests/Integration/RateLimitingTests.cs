@@ -96,6 +96,46 @@ public sealed class RateLimitingTests(IdentityApiFactory factory) : IClassFixtur
         response.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
     }
 
+    [Fact]
+    public async Task RequestPasswordReset_ExceedingIpLimit_Returns429WithRetryAfter()
+    {
+        using var scopedFactory = LowLimitFactory("RequestPasswordReset");
+        using var client = scopedFactory.CreateClient();
+
+        HttpResponseMessage response = null!;
+        for (var i = 0; i < 3; i++)
+        {
+            response = await client.PostAsJsonAsync(
+                "/api/identity/auth/request-password-reset",
+                new RequestPasswordResetRequest($"{Guid.NewGuid():N}@example.com"),
+                JsonOptions,
+                TestContext.Current.CancellationToken);
+        }
+
+        response.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        response.Headers.RetryAfter.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task ResetPassword_ExceedingIpLimit_Returns429WithRetryAfter()
+    {
+        using var scopedFactory = LowLimitFactory("ResetPassword");
+        using var client = scopedFactory.CreateClient();
+
+        HttpResponseMessage response = null!;
+        for (var i = 0; i < 3; i++)
+        {
+            response = await client.PostAsJsonAsync(
+                "/api/identity/auth/reset-password",
+                new ResetPasswordRequest("does-not-matter", "a-long-enough-password"),
+                JsonOptions,
+                TestContext.Current.CancellationToken);
+        }
+
+        response.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        response.Headers.RetryAfter.Should().NotBeNull();
+    }
+
     private WebApplicationFactory<Program> LowLimitFactory(string partition) =>
         factory.WithWebHostBuilder(builder => builder.ConfigureAppConfiguration(
             (_, configBuilder) => configBuilder.AddInMemoryCollection(new Dictionary<string, string?>

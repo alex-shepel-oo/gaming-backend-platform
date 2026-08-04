@@ -1,13 +1,18 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using AwesomeAssertions;
-using EconomyService.Inbox;
+using BuildingBlocks.Messaging;
+using BuildingBlocks.Messaging.Inbox;
 using EconomyService.Messaging;
-using EconomyService.Options;
 using EconomyService.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using NUnit.Framework;
+using OpenTelemetry;
+using OpenTelemetry.Trace;
 using RabbitMQ.Client;
 using Respawn;
 using Testcontainers.PostgreSql;
@@ -19,6 +24,12 @@ namespace EconomyService.Tests.Integration;
 public sealed class ConsumerDeduplicationTests : IAsyncDisposable
 {
     private const string RoutingKey = "balance.changed";
+
+    // A second exchange, entirely separate from _rabbitMqOptions.ExchangeName
+    // (gbp.economy) - exists only to prove a consumer can bind to an
+    // exchange it was handed explicitly rather than the one on its own
+    // publish-side options (A.3).
+    private const string OtherExchangeName = "gbp.test-other";
 
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17-alpine")
         .WithDatabase("economy_db")
@@ -60,6 +71,13 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
         await using var channel = await topologyConnection.CreateChannelAsync(TestContext.CurrentContext.CancellationToken);
         await channel.ExchangeDeclareAsync(
             _rabbitMqOptions.ExchangeName,
+            ExchangeType.Topic,
+            durable: true,
+            autoDelete: false,
+            cancellationToken: TestContext.CurrentContext.CancellationToken);
+
+        await channel.ExchangeDeclareAsync(
+            OtherExchangeName,
             ExchangeType.Topic,
             durable: true,
             autoDelete: false,
@@ -119,6 +137,109 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
         count.Count.Should().Be(1);
 
         await AssertQueueEmptyAsync(queueName, cancellationToken);
+    }
+
+    // Consumer-side half of the same trace-linking guarantee OutboxDispatcherServiceTests proves on
+    // the producer side: InboxConsumerBase.HandleDeliveryAsync must extract whatever traceparent rode
+    // along on the AMQP delivery and parent its own Consumer activity to that exact trace, not a new
+    // one - proven here with a real broker round trip and a live ActivityListener, not by asserting
+    // on internals in isolation.
+    [Test]
+    public async Task Deliver_MessageWithTraceParentHeader_ConsumerActivityIsParentedToSameTrace()
+    {
+        var cancellationToken = TestContext.CurrentContext.CancellationToken;
+        var messageId = Guid.CreateVersion7();
+
+        // Marked Recorded explicitly - see OutboxDispatcherServiceTests for why an unmarked legacy
+        // Activity's default "00" (unsampled) trace flags would make the default ParentBasedSampler
+        // correctly, but misleadingly for this test, decline to sample the consumer activity below.
+        using var seedActivity = new Activity("seed-publish").Start();
+        seedActivity.ActivityTraceFlags = ActivityTraceFlags.Recorded;
+        var traceParent = seedActivity.Id!;
+
+        // Propagators.DefaultTextMapPropagator is a Noop until a real TracerProvider has been built
+        // at least once in the process (see OutboxDispatcherServiceTests for the producer-side half
+        // of this same discovery) - without it, Extract silently fails to read the traceparent header
+        // back out, and the consumer activity would always root fresh instead of being parented.
+        using var tracerProvider = Sdk.CreateTracerProviderBuilder().AddSource("BuildingBlocks.Messaging").Build();
+
+        var capturedActivities = new ConcurrentBag<Activity>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "BuildingBlocks.Messaging",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+            ActivityStopped = capturedActivities.Add,
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        await using var provider = BuildProvider(new NoOpInboxFaultInjector());
+        using var consumer = CreateConsumer(provider, out var queueName);
+
+        await consumer.StartAsync(cancellationToken);
+        try
+        {
+            await WaitForConsumerReadyAsync(queueName, cancellationToken);
+            await PublishWithTraceParentAsync(messageId, traceParent, cancellationToken);
+
+            await WaitUntilAsync(
+                async () =>
+                {
+                    await using var verify = CreateDbContext();
+                    return await verify.ProcessedMessages.AnyAsync(m => m.MessageId == messageId, cancellationToken);
+                },
+                TimeSpan.FromSeconds(15));
+
+            // ActivityStopped fires asynchronously relative to the dedup-transaction commit above;
+            // give it a moment to land rather than racing the assertion below against it.
+            await WaitUntilAsync(
+                () => Task.FromResult(capturedActivities.Any(a => a.TraceId == seedActivity.TraceId)),
+                TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await consumer.StopAsync(cancellationToken);
+        }
+
+        capturedActivities.Should().Contain(a => a.TraceId == seedActivity.TraceId && a.Kind == ActivityKind.Consumer);
+    }
+
+    // The null/missing-header fallback path, explicitly: a delivery with no traceparent at all must
+    // not throw, and the existing dedup/side-effect/ack flow must keep working exactly as it does
+    // without any of this session's changes.
+    [Test]
+    public async Task Deliver_MessageWithNoTraceParentHeader_ProcessesNormallyWithoutThrowing()
+    {
+        var cancellationToken = TestContext.CurrentContext.CancellationToken;
+        var messageId = Guid.CreateVersion7();
+
+        await using var provider = BuildProvider(new NoOpInboxFaultInjector());
+        using var consumer = CreateConsumer(provider, out var queueName);
+
+        await consumer.StartAsync(cancellationToken);
+        try
+        {
+            await WaitForConsumerReadyAsync(queueName, cancellationToken);
+            await PublishAsync(messageId, cancellationToken);
+
+            await WaitUntilAsync(
+                async () =>
+                {
+                    await using var verify = CreateDbContext();
+                    return await verify.ProcessedMessages.AnyAsync(m => m.MessageId == messageId, cancellationToken);
+                },
+                TimeSpan.FromSeconds(15));
+        }
+        finally
+        {
+            await consumer.StopAsync(cancellationToken);
+        }
+
+        await using var final = CreateDbContext();
+        var processed = await final.ProcessedMessages.SingleAsync(m => m.MessageId == messageId, cancellationToken);
+        processed.ProcessedAt.Should().NotBe(default);
+
+        var count = await final.ProjectedEventCounts.SingleAsync(c => c.EventType == RoutingKey, cancellationToken);
+        count.Count.Should().Be(1);
     }
 
     [Test]
@@ -202,13 +323,88 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
         projectedCount.Count.Should().Be(1);
     }
 
+    [Test]
+    public async Task Deliver_MessageOnExplicitExchange_ConsumerBoundToThatExchangeReceivesItNotOptionsExchange()
+    {
+        var cancellationToken = TestContext.CurrentContext.CancellationToken;
+        var messageId = Guid.CreateVersion7();
+
+        await using var provider = BuildProvider(new NoOpInboxFaultInjector());
+        using var consumer = CreateOtherExchangeConsumer(provider, out var queueName);
+
+        await consumer.StartAsync(cancellationToken);
+        try
+        {
+            await WaitForConsumerReadyAsync(queueName, cancellationToken);
+            await PublishToOtherExchangeAsync(messageId, cancellationToken);
+
+            await WaitUntilAsync(
+                async () =>
+                {
+                    await using var verify = CreateDbContext();
+                    return await verify.ProcessedMessages.AnyAsync(m => m.MessageId == messageId, cancellationToken);
+                },
+                TimeSpan.FromSeconds(15));
+        }
+        finally
+        {
+            await consumer.StopAsync(cancellationToken);
+        }
+
+        await using var final = CreateDbContext();
+        var processed = await final.ProcessedMessages.SingleAsync(m => m.MessageId == messageId, cancellationToken);
+        processed.ProcessedAt.Should().NotBe(default);
+
+        var count = await final.ProjectedEventCounts.SingleAsync(c => c.EventType == OtherExchangeRoutingKey, cancellationToken);
+        count.Count.Should().Be(1);
+    }
+
     private async Task PublishAsync(Guid messageId, CancellationToken cancellationToken)
     {
         var payload = $$"""{"Id":"{{messageId}}","OccurredAt":"2026-07-19T00:00:00+00:00"}""";
 
         await using var connection = new RabbitMqConnection(MsOptions.Create(_rabbitMqOptions));
         var eventBus = new RabbitMqEventBus(connection, MsOptions.Create(_rabbitMqOptions));
-        await eventBus.PublishAsync(new EventEnvelope(RoutingKey, 1, payload), cancellationToken);
+        await eventBus.PublishAsync(new EventEnvelope(RoutingKey, 1, payload), cancellationToken: cancellationToken);
+    }
+
+    // Simulates what the outbox dispatcher's PublishOneAsync actually sends: the same envelope, plus
+    // the W3C traceparent header a real Producer activity would have injected.
+    private async Task PublishWithTraceParentAsync(Guid messageId, string traceParent, CancellationToken cancellationToken)
+    {
+        var payload = $$"""{"Id":"{{messageId}}","OccurredAt":"2026-07-19T00:00:00+00:00"}""";
+
+        await using var connection = new RabbitMqConnection(MsOptions.Create(_rabbitMqOptions));
+        var eventBus = new RabbitMqEventBus(connection, MsOptions.Create(_rabbitMqOptions));
+        await eventBus.PublishAsync(
+            new EventEnvelope(RoutingKey, 1, payload),
+            headers: new Dictionary<string, string> { ["traceparent"] = traceParent },
+            cancellationToken);
+    }
+
+    private const string OtherExchangeRoutingKey = "other-exchange.test-event";
+
+    private async Task PublishToOtherExchangeAsync(Guid messageId, CancellationToken cancellationToken)
+    {
+        var payload = $$"""{"Id":"{{messageId}}","OccurredAt":"2026-07-19T00:00:00+00:00"}""";
+
+        // Same broker connection details as _rabbitMqOptions, but a
+        // publish-side ExchangeName pointed at the second exchange - the
+        // consumer under test is bound to that exchange via its own explicit
+        // exchangeName argument, independent of this options object.
+        var otherExchangeOptions = new RabbitMqOptions
+        {
+            Host = _rabbitMqOptions.Host,
+            Port = _rabbitMqOptions.Port,
+            Username = _rabbitMqOptions.Username,
+            Password = _rabbitMqOptions.Password,
+            VirtualHost = _rabbitMqOptions.VirtualHost,
+            ExchangeName = OtherExchangeName,
+        };
+
+        await using var connection = new RabbitMqConnection(MsOptions.Create(otherExchangeOptions));
+        var eventBus = new RabbitMqEventBus(connection, MsOptions.Create(otherExchangeOptions));
+        await eventBus.PublishAsync(new EventEnvelope(OtherExchangeRoutingKey, 1, payload), cancellationToken: cancellationToken);
     }
 
     // BackgroundService.StartAsync returns once ExecuteAsync has been
@@ -278,6 +474,20 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
             queueName);
     }
 
+    private OtherExchangeConsumer CreateOtherExchangeConsumer(ServiceProvider provider, out string queueName)
+    {
+        queueName = $"gbp.test-other.consumer.test.{Guid.NewGuid():N}";
+
+        return new OtherExchangeConsumer(
+            new RabbitMqConnection(MsOptions.Create(_rabbitMqOptions)),
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            provider.GetRequiredService<IInboxFaultInjector>(),
+            TimeProvider.System,
+            NullLogger<OtherExchangeConsumer>.Instance,
+            OtherExchangeName,
+            queueName);
+    }
+
     private ServiceProvider BuildProvider(IInboxFaultInjector faultInjector)
     {
         var services = new ServiceCollection();
@@ -311,5 +521,34 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
 
             return Task.CompletedTask;
         }
+    }
+
+    // Minimal InboxConsumerBase subclass, test-only: exists only to prove
+    // exchangeName controls the bind, independent of options.Value.ExchangeName
+    // (which stays pointed at gbp.economy throughout). Side effect mirrors
+    // DeduplicatingEventConsumer.ApplySideEffectAsync - same upsert, nothing
+    // new to verify there.
+    private sealed class OtherExchangeConsumer(
+        IRabbitMqConnection connection,
+        IServiceScopeFactory scopeFactory,
+        IInboxFaultInjector faultInjector,
+        TimeProvider timeProvider,
+        ILogger<OtherExchangeConsumer> logger,
+        string exchangeName,
+        string queueName)
+        : InboxConsumerBase<EconomyDbContext>(
+            connection, scopeFactory, faultInjector, timeProvider, logger, exchangeName, queueName, RoutingKeys)
+    {
+        private static readonly string[] RoutingKeys = [OtherExchangeRoutingKey];
+
+        protected override async Task ApplySideEffectAsync(
+            EconomyDbContext dbContext, Guid messageId, string routingKey, ReadOnlyMemory<byte> body, CancellationToken cancellationToken) =>
+            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"""
+                INSERT INTO projected_event_counts (event_type, count)
+                VALUES ({routingKey}, 1)
+                ON CONFLICT (event_type) DO UPDATE SET count = projected_event_counts.count + 1
+                """,
+                cancellationToken);
     }
 }

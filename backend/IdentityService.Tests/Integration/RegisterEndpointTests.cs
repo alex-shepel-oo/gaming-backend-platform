@@ -1,12 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using AwesomeAssertions;
 using IdentityService.Contracts.Requests;
 using IdentityService.Contracts.Responses;
 using IdentityService.Domain;
 using IdentityService.Domain.Enums;
+using IdentityService.Messaging.Events;
 using IdentityService.Persistence;
 using IdentityService.Services;
 using IdentityService.Tests.Integration.Fixtures;
@@ -17,16 +17,13 @@ using Xunit;
 namespace IdentityService.Tests.Integration;
 
 [Collection(nameof(IdentityApiCollectionDefinition))]
-public sealed partial class RegisterEndpointTests(IdentityApiFactory factory) : IClassFixture<IdentityApiFactory>, IAsyncLifetime
+public sealed class RegisterEndpointTests(IdentityApiFactory factory) : IClassFixture<IdentityApiFactory>, IAsyncLifetime
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public ValueTask InitializeAsync() => new(factory.ResetAsync());
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-
-    [GeneratedRegex(@"\d{6}")]
-    private static partial Regex SixDigitCode();
 
     [Fact]
     public async Task Register_NewEmail_Returns202WithNoTokensAndIssuesCode()
@@ -71,15 +68,16 @@ public sealed partial class RegisterEndpointTests(IdentityApiFactory factory) : 
         var familyCount = await CountFamiliesAsync(user.Id);
         familyCount.Should().Be(0);
 
-        factory.EmailSender.Sent.Should().HaveCount(1);
-        var sent = factory.EmailSender.Sent.Single();
-        sent.To.Should().Be(email);
-        sent.Subject.Should().NotContain(SixDigitCode().Match(sent.HtmlBody).Value);
+        var verificationEvents = await factory.GetOutboxEventsAsync<EmailVerificationRequestedEvent>(
+            "email_verification.requested", TestContext.Current.CancellationToken);
+        verificationEvents.Should().ContainSingle();
+        var sent = verificationEvents.Single();
+        sent.Email.Should().Be(email);
+        sent.GameName.Should().Be(game.Name);
 
-        var rawCode = SixDigitCode().Match(sent.HtmlBody).Value;
         await using var scope = factory.Services.CreateAsyncScope();
         var verificationCodeGenerator = scope.ServiceProvider.GetRequiredService<IVerificationCodeGenerator>();
-        verificationCodeGenerator.Verify(rawCode, code.CodeHash).Should().BeTrue();
+        verificationCodeGenerator.Verify(sent.Code, code.CodeHash).Should().BeTrue();
     }
 
     [Fact]
@@ -110,7 +108,10 @@ public sealed partial class RegisterEndpointTests(IdentityApiFactory factory) : 
         var code = await FindActiveCodeAsync(userId);
         code.Should().BeNull();
 
-        factory.EmailSender.Sent.Should().BeEmpty();
+        (await factory.GetOutboxEventsAsync<EmailVerificationRequestedEvent>(
+            "email_verification.requested", TestContext.Current.CancellationToken)).Should().BeEmpty();
+        (await factory.GetOutboxEventsAsync<DuplicateRegistrationNoticeRequestedEvent>(
+            "duplicate_registration_notice.requested", TestContext.Current.CancellationToken)).Should().BeEmpty();
     }
 
     [Fact]
@@ -154,15 +155,64 @@ public sealed partial class RegisterEndpointTests(IdentityApiFactory factory) : 
         activeCode.Should().NotBeNull();
         activeCode!.Id.Should().NotBe(firstCode.Id);
 
-        factory.EmailSender.Sent.Should().HaveCount(2);
+        (await factory.GetOutboxEventsAsync<EmailVerificationRequestedEvent>(
+            "email_verification.requested", TestContext.Current.CancellationToken)).Should().HaveCount(2);
     }
 
     [Fact]
-    public async Task Register_ConfirmedEmailAlreadyHasRoleInGame_Returns409()
+    public async Task Register_UnconfirmedEmailSameGame_ReissuesCodeWithoutDuplicateNotice()
     {
         var game = await SeedGameAsync();
         var email = $"{Guid.NewGuid():N}@example.com";
-        await SeedConfirmedUserAsync(email, game.Id);
+        using var client = factory.CreateClient();
+
+        await client.PostAsJsonAsync(
+            "/api/identity/auth/register",
+            new RegisterRequest(game.Slug, email, "Player One", "correct-horse-battery"),
+            JsonOptions,
+            TestContext.Current.CancellationToken);
+
+        var user = await FindUserAsync(email);
+        var firstCode = await FindActiveCodeAsync(user!.Id);
+
+        var response = await client.PostAsJsonAsync(
+            "/api/identity/auth/register",
+            new RegisterRequest(game.Slug, email, "Player One", "correct-horse-battery"),
+            JsonOptions,
+            TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+        var body = await response.Content.ReadFromJsonAsync<RegistrationAcceptedResponse>(
+            JsonOptions, TestContext.Current.CancellationToken);
+        body!.VerificationRequired.Should().BeTrue();
+
+        var oldCode = await FindCodeAsync(firstCode!.Id);
+        oldCode!.ConsumedAt.Should().NotBeNull();
+
+        var activeCode = await FindActiveCodeAsync(user.Id);
+        activeCode.Should().NotBeNull();
+        activeCode!.Id.Should().NotBe(firstCode.Id);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var roles = await dbContext.UserGameRoles
+            .Where(r => r.UserId == user.Id && r.GameId == game.Id)
+            .ToListAsync(TestContext.Current.CancellationToken);
+        roles.Should().ContainSingle();
+
+        (await factory.GetOutboxEventsAsync<EmailVerificationRequestedEvent>(
+            "email_verification.requested", TestContext.Current.CancellationToken)).Should().HaveCount(2);
+        (await factory.GetOutboxEventsAsync<DuplicateRegistrationNoticeRequestedEvent>(
+            "duplicate_registration_notice.requested", TestContext.Current.CancellationToken)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Register_ConfirmedEmailAlreadyHasRoleInGame_Returns202()
+    {
+        var game = await SeedGameAsync();
+        var email = $"{Guid.NewGuid():N}@example.com";
+        var userId = await SeedConfirmedUserAsync(email, game.Id);
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
@@ -171,7 +221,22 @@ public sealed partial class RegisterEndpointTests(IdentityApiFactory factory) : 
             JsonOptions,
             TestContext.Current.CancellationToken);
 
-        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var roles = await dbContext.UserGameRoles
+            .Where(r => r.UserId == userId && r.GameId == game.Id)
+            .ToListAsync(TestContext.Current.CancellationToken);
+        roles.Should().ContainSingle();
+
+        var duplicateNoticeEvents = await factory.GetOutboxEventsAsync<DuplicateRegistrationNoticeRequestedEvent>(
+            "duplicate_registration_notice.requested", TestContext.Current.CancellationToken);
+        duplicateNoticeEvents.Should().ContainSingle();
+        duplicateNoticeEvents.Single().Email.Should().Be(email);
+
+        (await factory.GetOutboxEventsAsync<EmailVerificationRequestedEvent>(
+            "email_verification.requested", TestContext.Current.CancellationToken)).Should().BeEmpty();
     }
 
     [Fact]

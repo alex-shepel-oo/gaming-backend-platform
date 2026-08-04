@@ -1,14 +1,13 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using AwesomeAssertions;
 using IdentityService.Contracts.Requests;
 using IdentityService.Contracts.Responses;
 using IdentityService.Domain;
+using IdentityService.Messaging.Events;
 using IdentityService.Persistence;
 using IdentityService.Services;
-using IdentityService.Services.Email;
 using IdentityService.Tests.Integration.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,7 +16,7 @@ using Xunit;
 namespace IdentityService.Tests.Integration;
 
 [Collection(nameof(IdentityApiCollectionDefinition))]
-public sealed partial class ConfirmEmailTests(IdentityApiFactory factory) : IClassFixture<IdentityApiFactory>, IAsyncLifetime
+public sealed class ConfirmEmailTests(IdentityApiFactory factory) : IClassFixture<IdentityApiFactory>, IAsyncLifetime
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -25,15 +24,12 @@ public sealed partial class ConfirmEmailTests(IdentityApiFactory factory) : ICla
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-    [GeneratedRegex(@"\d{6}")]
-    private static partial Regex SixDigitCode();
-
     [Fact]
     public async Task Confirm_WithinTtl_Returns204AndMarksUserConfirmed()
     {
         using var client = factory.CreateClient();
         var (game, email, _) = await RegisterAsync(client);
-        var code = ExtractCode(factory.EmailSender.Sent.Single());
+        var code = await ExtractCodeAsync(email);
 
         var response = await client.PostAsJsonAsync(
             "/api/identity/auth/confirm-email",
@@ -55,7 +51,7 @@ public sealed partial class ConfirmEmailTests(IdentityApiFactory factory) : ICla
     {
         using var client = factory.CreateClient();
         var (_, email, _) = await RegisterAsync(client);
-        var code = ExtractCode(factory.EmailSender.Sent.Single());
+        var code = await ExtractCodeAsync(email);
 
         factory.TimeProvider.Advance(TimeSpan.FromMinutes(21));
 
@@ -76,7 +72,7 @@ public sealed partial class ConfirmEmailTests(IdentityApiFactory factory) : ICla
     {
         using var client = factory.CreateClient();
         var (_, email, _) = await RegisterAsync(client);
-        var code = ExtractCode(factory.EmailSender.Sent.Single());
+        var code = await ExtractCodeAsync(email);
         var user = await FindUserAsync(email);
         var codeRow = await FindActiveCodeAsync(user!.Id);
 
@@ -97,7 +93,7 @@ public sealed partial class ConfirmEmailTests(IdentityApiFactory factory) : ICla
     {
         using var client = factory.CreateClient();
         var (_, email, _) = await RegisterAsync(client);
-        var code = ExtractCode(factory.EmailSender.Sent.Single());
+        var code = await ExtractCodeAsync(email);
 
         var first = await client.PostAsJsonAsync(
             "/api/identity/auth/confirm-email",
@@ -146,7 +142,7 @@ public sealed partial class ConfirmEmailTests(IdentityApiFactory factory) : ICla
     {
         using var client = factory.CreateClient();
         var (_, email, _) = await RegisterAsync(client);
-        var correctCode = ExtractCode(factory.EmailSender.Sent.Single());
+        var correctCode = await ExtractCodeAsync(email);
         var wrongCode = correctCode == "000000" ? "000001" : "000000";
 
         for (var attempt = 0; attempt < 5; attempt++)
@@ -176,7 +172,7 @@ public sealed partial class ConfirmEmailTests(IdentityApiFactory factory) : ICla
     {
         using var client = factory.CreateClient();
         var (_, email, _) = await RegisterAsync(client);
-        var correctCode = ExtractCode(factory.EmailSender.Sent.Single());
+        var correctCode = await ExtractCodeAsync(email);
         var wrongCode = correctCode == "000000" ? "000001" : "000000";
 
         var wrongCodeResponse = await client.PostAsJsonAsync(
@@ -204,7 +200,7 @@ public sealed partial class ConfirmEmailTests(IdentityApiFactory factory) : ICla
     {
         using var client = factory.CreateClient();
         var (gameA, email, _) = await RegisterAsync(client);
-        var code = ExtractCode(factory.EmailSender.Sent.Single());
+        var code = await ExtractCodeAsync(email);
 
         var confirmResponse = await client.PostAsJsonAsync(
             "/api/identity/auth/confirm-email",
@@ -213,7 +209,6 @@ public sealed partial class ConfirmEmailTests(IdentityApiFactory factory) : ICla
             TestContext.Current.CancellationToken);
         confirmResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        factory.EmailSender.Clear();
         var gameB = await SeedGameAsync();
 
         var secondRegisterResponse = await client.PostAsJsonAsync(
@@ -226,12 +221,29 @@ public sealed partial class ConfirmEmailTests(IdentityApiFactory factory) : ICla
             JsonOptions, TestContext.Current.CancellationToken);
 
         body!.VerificationRequired.Should().BeFalse();
-        factory.EmailSender.Sent.Should().BeEmpty();
+
+        // Confirmed already and already has a role in gameA (this whole test's first registration);
+        // gameB adds a role in a brand-new game, which is the "!hasRoleInGame" branch in
+        // AuthenticationService.RegisterAsync, not the duplicate-notice one -- so still exactly the
+        // one verification event from gameA's original registration, and no duplicate notice at all.
+        var verificationEvents = await factory.GetOutboxEventsAsync<EmailVerificationRequestedEvent>(
+            "email_verification.requested", TestContext.Current.CancellationToken);
+        verificationEvents.Should().ContainSingle();
+
+        var duplicateNoticeEvents = await factory.GetOutboxEventsAsync<DuplicateRegistrationNoticeRequestedEvent>(
+            "duplicate_registration_notice.requested", TestContext.Current.CancellationToken);
+        duplicateNoticeEvents.Should().BeEmpty();
 
         _ = gameA;
     }
 
-    private static string ExtractCode(EmailMessage message) => SixDigitCode().Match(message.HtmlBody).Value;
+    private async Task<string> ExtractCodeAsync(string email)
+    {
+        var events = await factory.GetOutboxEventsAsync<EmailVerificationRequestedEvent>(
+            "email_verification.requested", TestContext.Current.CancellationToken);
+
+        return events.Last(e => e.Email == email).Code;
+    }
 
     private static async Task<string> NormalizedProblemBodyAsync(HttpResponseMessage response)
     {

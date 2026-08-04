@@ -1,7 +1,9 @@
 using AwesomeAssertions;
+using BuildingBlocks.Messaging.Outbox;
 using EconomyService.Domain;
 using EconomyService.Persistence;
 using IdentityService.Domain;
+using IdentityService.Domain.Enums;
 using IdentityService.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -194,6 +196,7 @@ public sealed class CleanupExpiredTokensJobTests : IAsyncDisposable
         {
             Id = Guid.NewGuid(),
             UserId = userId,
+            Scope = TokenScope.Platform,
             CreatedAt = DateTimeOffset.UtcNow,
             ExpiresAt = expiresAt,
             RevokedAt = revokedAt,

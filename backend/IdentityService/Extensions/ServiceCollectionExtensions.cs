@@ -1,15 +1,13 @@
 using System.Globalization;
 using System.Security.Claims;
-using System.Text;
 using System.Threading.RateLimiting;
+using BuildingBlocks.Messaging;
 using IdentityService.Auth;
 using IdentityService.Infrastructure;
 using IdentityService.Options;
 using IdentityService.Persistence;
 using IdentityService.RateLimiting;
 using IdentityService.Services;
-using IdentityService.Services.Email;
-using IdentityService.Services.Email.Templates;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -40,6 +38,10 @@ public static class ServiceCollectionExtensions
             .AddNpgSql(
                 sp => sp.GetRequiredService<IConfiguration>().GetConnectionString("IdentityDb")!,
                 name: "postgresql",
+                tags: ["ready"])
+            .AddRabbitMQ(
+                sp => sp.GetRequiredService<IRabbitMqConnection>().GetConnectionAsync(),
+                name: "rabbitmq",
                 tags: ["ready"]);
 
         return services;
@@ -80,15 +82,39 @@ public static class ServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddOptions<AdminRefreshCookieOptions>()
+            .Bind(configuration.GetSection(AdminRefreshCookieOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<PasswordResetOptions>()
+            .Bind(configuration.GetSection(PasswordResetOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<SeedingOptions>()
+            .Bind(configuration.GetSection(SeedingOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<ApiOptions>()
+            .Bind(configuration.GetSection(ApiOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
+        services.AddSingleton<IJwtSigningKeys, JwtSigningKeys>();
         services.AddSingleton<ITokenService, TokenService>();
         services.AddSingleton<IRefreshTokenGenerator, RefreshTokenGenerator>();
         services.AddSingleton<ICookieAuthWriter, CookieAuthWriter>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddSingleton<IVerificationCodeGenerator, VerificationCodeGenerator>();
         services.AddScoped<IEmailVerificationService, EmailVerificationService>();
+        services.AddScoped<IPasswordResetService, PasswordResetService>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<ISessionService, SessionService>();
+        services.AddScoped<IPermissionResolver, PermissionResolver>();
+        services.AddScoped<IScopeAuthorityGuard, ScopeAuthorityGuard>();
 
         return services;
     }
@@ -99,7 +125,7 @@ public static class ServiceCollectionExtensions
             .AddJwtBearer();
 
         services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
-            .Configure<IOptions<JwtOptions>>((bearerOptions, jwtOptions) =>
+            .Configure<IOptions<JwtOptions>, IJwtSigningKeys>((bearerOptions, jwtOptions, signingKeys) =>
             {
                 var options = jwtOptions.Value;
 
@@ -110,8 +136,9 @@ public static class ServiceCollectionExtensions
                 bearerOptions.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidIssuer = options.Issuer,
-                    ValidAudience = options.Audience,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.Key)),
+                    ValidAudiences = options.Audiences,
+                    IssuerSigningKey = signingKeys.SigningKey,
+                    ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
                     ClockSkew = TimeSpan.FromSeconds(options.ClockSkewSeconds),
                 };
 
@@ -143,30 +170,26 @@ public static class ServiceCollectionExtensions
             limiterOptions.AddPolicy(RateLimitPolicies.ConfirmEmail, IpPartition(o => (o.ConfirmEmailPermitLimit, o.ConfirmEmailWindowSeconds)));
             limiterOptions.AddPolicy(
                 RateLimitPolicies.ResendVerification, IpPartition(o => (o.ResendVerificationPermitLimit, o.ResendVerificationWindowSeconds)));
+            limiterOptions.AddPolicy(
+                RateLimitPolicies.RequestPasswordReset,
+                IpPartition(o => (o.RequestPasswordResetPermitLimit, o.RequestPasswordResetWindowSeconds)));
+            limiterOptions.AddPolicy(
+                RateLimitPolicies.ResetPassword,
+                IpPartition(o => (o.ResetPasswordPermitLimit, o.ResetPasswordWindowSeconds)));
         });
 
         return services;
     }
 
+    // Only FrontendBaseUrl lives here now -- actually sending email moved to EmailService, reached
+    // through the three outbox events written by EmailVerificationService/PasswordResetService/
+    // AuthenticationService, not a direct call from this service.
     public static IServiceCollection AddIdentityEmail(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<EmailOptions>()
             .Bind(configuration.GetSection(EmailOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
-
-        services.AddSingleton<IEmailTemplateRenderer, EmailTemplateRenderer>();
-
-        var provider = configuration.GetSection(EmailOptions.SectionName).Get<EmailOptions>()?.Provider;
-
-        if (string.Equals(provider, "Smtp", StringComparison.OrdinalIgnoreCase))
-        {
-            services.AddSingleton<IEmailSender, SmtpEmailSender>();
-        }
-        else
-        {
-            services.AddSingleton<IEmailSender, NoopEmailSender>();
-        }
 
         return services;
     }

@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: {{ .Values.deployments.prometheus.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "gbp.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gbp-prometheus
+  labels:
+    {{- include "gbp.labels" . | nindent 4 }}
+rules:
+  # The only Kubernetes API access Prometheus itself needs: proxying through
+  # to each node's kubelet for cAdvisor's per-container CPU/memory metrics
+  # (node-exporter and kube-state-metrics are both scraped as plain static
+  # HTTP targets instead, no API access needed for those two).
+  - apiGroups: [""]
+    resources: ["nodes", "nodes/proxy", "nodes/metrics"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gbp-prometheus
+  labels:
+    {{- include "gbp.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: gbp-prometheus
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: {{ .Values.deployments.prometheus.namespace | default .Release.Namespace }}

@@ -1,0 +1,73 @@
+<h1>Role permissions</h1>
+
+<div class="selectors">
+  <mat-form-field appearance="outline">
+    <mat-label>Role</mat-label>
+    <mat-select [value]="selectedRole()" (selectionChange)="onRoleChange($event)">
+      @for (role of roles; track role) {
+        <mat-option [value]="role">{{ role }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Scope</mat-label>
+    <mat-select [value]="selectedGameOption()" (selectionChange)="onGameOptionChange($event)">
+      <mat-option [value]="platformWide">Platform-wide</mat-option>
+      @for (game of games(); track game.id) {
+        <mat-option [value]="game.id">{{ game.name }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+</div>
+
+@if (loading()) {
+  <div class="state-panel">
+    <mat-spinner diameter="32" />
+    <p>Loading permission catalog…</p>
+  </div>
+} @else if (loadError()) {
+  <div class="state-panel">
+    <p class="state-error" role="alert">We couldn't load role permissions. Please try again later.</p>
+  </div>
+} @else {
+  <mat-card class="permissions-card">
+    <mat-card-content>
+      @if (grantsLoading()) {
+        <div class="state-panel">
+          <mat-spinner diameter="24" />
+        </div>
+      } @else {
+        <div class="permissions-list">
+          @for (permission of catalog(); track permission) {
+            <mat-checkbox
+              [checked]="isGranted(permission)"
+              [disabled]="isDisabled(permission)"
+              (change)="onToggle(permission, $event)"
+            >
+              {{ permission }}
+            </mat-checkbox>
+          }
+        </div>
+      }
+
+      @if (saveError()) {
+        <p class="state-error" role="alert">We couldn't save those permissions.</p>
+      }
+
+      <button
+        type="button"
+        mat-flat-button
+        color="primary"
+        [disabled]="grantsLoading() || saving()"
+        (click)="save()"
+      >
+        @if (saving()) {
+          <mat-spinner diameter="20" />
+        } @else {
+          Save
+        }
+      </button>
+    </mat-card-content>
+  </mat-card>
+}

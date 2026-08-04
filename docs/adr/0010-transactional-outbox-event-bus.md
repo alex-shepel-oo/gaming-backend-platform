@@ -124,3 +124,102 @@ async delivery.
 - No distributed transaction between the debit and credit steps; the compensating transaction is a
   business-level reversal, not a database rollback, and it runs after the failure is already visible.
 - The client learns the outcome by polling, not by push notification.
+
+
+## Addendum: cancellation and the concurrency guard it required
+
+### Context
+
+Slice 3 adds `POST /conversions/{id}/cancel`, so a caller can stop a non-terminal conversion instead of
+only ever polling one to completion. Every status transition above was written as an unconditional
+`UPDATE ... WHERE id = @id` — safe only because the background saga runner was the sole writer of
+`conversion_requests.status`. A cancel endpoint is a second writer against the same row, and without a
+guard that combination is a real money-loss path, not a theoretical one: the runner could debit the
+platform currency and flip the row to `DebitDone` while a concurrent cancel — reading a now-stale
+`Started` — overwrites the status straight to `Failed`, believing no debit had happened yet and skipping
+compensation. The debit stays gone; nothing ever gives it back.
+
+### Decision
+
+**Every transition in `ConversionSaga` is now a compare-and-swap on the row's expected prior status**
+(`UPDATE ... WHERE id = @id AND status = @expected`), not a bare `WHERE id = @id`. A transition that
+affects zero rows means another writer already moved the conversion on, and the callback throws rather
+than continuing — since the transition runs inside the same database transaction as the ledger entry it
+describes (the existing dual-write discipline this ADR already established), that throw rolls the ledger
+write back too. A losing writer never leaves a ledger entry with no status to match it.
+
+Cancellation reuses this same guard, not a parallel implementation: `Started → Failed` requires no
+compensation (nothing was ever debited); `DebitDone → Compensating` hands off to the exact compensating
+path the credit-failure branch already used, not a copy of it. If cancel loses the compare-and-swap
+either way — the runner got there first — it re-reads the now-current status and answers with that,
+rather than treating "someone else finished it first" as a client error.
+
+### Consequences
+
+**Gained:** a second writer can now safely touch a conversion mid-saga without a distributed lock or a
+serializable transaction — the existing per-transition commit boundary already gave every step a natural
+compare-and-swap point, it just wasn't used as one until a second writer existed to make that necessary.
+
+**Given up / accepted:**
+- This guard exists because a second writer was introduced, not preemptively — the gap it closes was
+  latent in the original saga from the moment it shipped, exposed only once cancellation gave it
+  something to race against.
+- A cancel that loses the race gets the actual outcome (the conversion completed, or was already
+  cancelled by a concurrent request), not a guaranteed "your cancellation took effect" — this is stated
+  as the correct behavior, not hedged as a limitation.
+
+
+## Addendum: the welcome grant, and Identity's first outbox
+
+### Context
+
+A confirmed email should leave a player with a starting balance, without a human granting it by hand.
+That balance lives in EconomyService (ADR-0001), and the confirmation itself happens in IdentityService
+— one service reacting to another service's state change, the exact shape this ADR already exists to
+solve. The difference this time is that the reacting side isn't the one publishing: Identity has never
+had an outbox, and Economy has never consumed a real external event — its own `DeduplicatingEventConsumer`
+listens to its own exchange, which proved the delivery loop but never a genuine second participant.
+
+### Decision
+
+**Identity gets its own outbox through the same `BuildingBlocks.Messaging` library, not a second
+implementation of one.** Its own `outbox_messages` table, its own topic exchange (`gbp.identity`), the
+same dispatcher and publisher this ADR already described for EconomyService. `UserEmailConfirmed` is
+written to that outbox inside the same call that flips `EmailConfirmed` — no new explicit transaction
+was needed for this, since that flip already goes through a single `SaveChangesAsync`, and the outbox
+writer's own save call folds into it for free.
+
+**The consumer base class gains an explicit exchange parameter and a name that says what it does.**
+Binding a queue to an exchange had quietly assumed that exchange was always the service's own — true by
+accident for Economy's self-consumption, false the moment a real cross-service consumer showed up.
+`DeduplicatingConsumerBase<TDbContext>` is renamed `InboxConsumerBase<TDbContext>` to match `Outbox*` on
+the other side of the same namespace, and now takes the exchange to bind as its own argument instead of
+reading it off the publish-side options.
+
+**The grant itself reuses `LedgerService.GrantAsync` unchanged, called from a separate scope than the
+one the inbox transaction owns.** The base class already holds an open transaction on the scope's
+`DbContext` when it calls into the side effect; a ledger post that opened a second transaction on the
+same context would fail outright. Resolving the grant service from its own scope sidesteps that, and it
+is safe specifically because the grant is idempotent on its own terms — `ledger_entries.idempotency_key
+= "welcome:{userId}"` — so a crash between the inbox's own bookkeeping and the grant just replays on
+redelivery instead of posting twice.
+
+**Seeded players get the same balance the event would have given them, seeded directly.** No event ever
+fires for a row inserted straight into the database, so `EconomyService.DevelopmentSeeder` grants it to
+every seeded confirmed user by a fixed, agreed `UserId` — the same trick already used for the seeded
+`Game.Id`s, extended to users for the first time.
+
+### Consequences
+
+**Gained:** a player sees a starting balance the moment they confirm, with no manual step and no new
+idempotency mechanism — the ledger's existing key does the job. The consumer base class is now ready
+for a genuine second consumer, not just the one that happened to share its own exchange.
+
+**Given up / accepted:**
+- Identity now has a real, hard runtime dependency on RabbitMQ it never had before — its whole
+  integration test suite needs a broker just to boot the host, not only the tests that touch messaging.
+- Economy's startup now waits on Identity's, the mirror image of the ordering NotificationService
+  already needed against Economy — the same accepted docker-compose/Kubernetes limitation, just pointed
+  the other way.
+- The grant and the inbox's own processed-message row are not committed atomically with each other —
+  deliberate, and covered entirely by the grant's own idempotency key.

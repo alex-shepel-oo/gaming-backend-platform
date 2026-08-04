@@ -1,10 +1,17 @@
 <Solution>
   <Project Path="ApiGateway.Tests/ApiGateway.Tests.csproj" />
   <Project Path="ApiGateway/ApiGateway.csproj" />
+  <Project Path="BuildingBlocks.Messaging/BuildingBlocks.Messaging.csproj" />
+  <Project Path="BuildingBlocks.Telemetry.Tests/BuildingBlocks.Telemetry.Tests.csproj" />
+  <Project Path="BuildingBlocks.Telemetry/BuildingBlocks.Telemetry.csproj" />
   <Project Path="EconomyService.Tests/EconomyService.Tests.csproj" />
   <Project Path="EconomyService/EconomyService.csproj" />
+  <Project Path="EmailService.Tests/EmailService.Tests.csproj" />
+  <Project Path="EmailService/EmailService.csproj" />
   <Project Path="IdentityService.Tests/IdentityService.Tests.csproj" />
   <Project Path="IdentityService/IdentityService.csproj" />
+  <Project Path="NotificationService.Tests/NotificationService.Tests.csproj" />
+  <Project Path="NotificationService/NotificationService.csproj" />
   <Project Path="Platform.Worker.Tests/Platform.Worker.Tests.csproj" />
   <Project Path="Platform.Worker/Platform.Worker.csproj" />
 </Solution>

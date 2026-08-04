@@ -1,0 +1,25 @@
+{{- range $name, $svc := .Values.deployments }}
+{{- if and $svc.service $svc.service.enabled }}
+{{- if not (and (eq $name "mailpit") (not $.Values.mailpit.enabled)) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $svc.service.name | default $name }}
+  namespace: {{ $svc.namespace | default $.Release.Namespace }}
+  labels:
+    {{- include "gbp.labels" $ | nindent 4 }}
+    app: {{ $name }}
+spec:
+  selector:
+    app: {{ $name }}
+  ports:
+    {{- if $svc.service.ports }}
+    {{- $svc.service.ports | toYaml | nindent 4 }}
+    {{- else }}
+    - port: {{ $svc.service.port }}
+      targetPort: {{ $svc.service.port }}
+    {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

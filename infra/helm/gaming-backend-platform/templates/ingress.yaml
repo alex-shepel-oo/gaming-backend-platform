@@ -1,0 +1,80 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gbp.labels" . | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tlsSecretName }}
+  tls:
+    - hosts:
+        {{- range $key, $route := .Values.ingress.hosts }}
+        {{- if not (and (eq $key "mailpit") (not $.Values.mailpit.enabled)) }}
+        {{- if not $route.namespace }}
+        - {{ $route.host }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+      secretName: {{ .Values.ingress.tlsSecretName }}
+  {{- end }}
+  rules:
+    {{- range $key, $route := .Values.ingress.hosts }}
+    {{- if not (and (eq $key "mailpit") (not $.Values.mailpit.enabled)) }}
+    {{- if not $route.namespace }}
+    - host: {{ $route.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $route.service }}
+                port:
+                  number: {{ $route.port }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+---
+# A Service's backend reference in an Ingress rule only ever resolves within
+# that Ingress object's own namespace -- Grafana/Prometheus/Loki/Tempo live in
+# the observability namespace (see values.yaml's observability.namespace
+# comment), so their host rules need a second Ingress object there rather
+# than a cross-namespace backend reference this resource kind can't express.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: observability
+  namespace: {{ .Values.observability.namespace }}
+  labels:
+    {{- include "gbp.labels" . | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tlsSecretName }}
+  tls:
+    - hosts:
+        {{- range $key, $route := .Values.ingress.hosts }}
+        {{- if eq $route.namespace "observability" }}
+        - {{ $route.host }}
+        {{- end }}
+        {{- end }}
+      secretName: {{ .Values.ingress.tlsSecretName }}
+  {{- end }}
+  rules:
+    {{- range $key, $route := .Values.ingress.hosts }}
+    {{- if eq $route.namespace "observability" }}
+    - host: {{ $route.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $route.service }}
+                port:
+                  number: {{ $route.port }}
+    {{- end }}
+    {{- end }}
+{{- end }}

@@ -1,3 +1,5 @@
+using BuildingBlocks.Messaging.Inbox;
+using BuildingBlocks.Messaging.Outbox;
 using EconomyService.Domain;
 using EconomyService.Inbox;
 using Microsoft.EntityFrameworkCore;
@@ -18,5 +20,6 @@ public sealed class EconomyDbContext(DbContextOptions<EconomyDbContext> options)
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(EconomyDbContext).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(OutboxMessageConfiguration).Assembly);
     }
 }

@@ -4,6 +4,7 @@ using System.Text.Json;
 using AwesomeAssertions;
 using IdentityService.Contracts.Requests;
 using IdentityService.Domain;
+using IdentityService.Messaging.Events;
 using IdentityService.Persistence;
 using IdentityService.Tests.Integration.Fixtures;
 using Microsoft.EntityFrameworkCore;
@@ -33,7 +34,8 @@ public sealed class ResendVerificationTests(IdentityApiFactory factory) : IClass
         first.StatusCode.Should().Be(HttpStatusCode.Accepted);
         second.StatusCode.Should().Be(HttpStatusCode.Accepted);
 
-        factory.EmailSender.Sent.Should().HaveCount(1);
+        (await factory.GetOutboxEventsAsync<EmailVerificationRequestedEvent>(
+            "email_verification.requested", TestContext.Current.CancellationToken)).Should().ContainSingle();
     }
 
     [Fact]
@@ -46,7 +48,8 @@ public sealed class ResendVerificationTests(IdentityApiFactory factory) : IClass
         var response = await ResendAsync(client, email, game.Slug);
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
-        factory.EmailSender.Sent.Should().HaveCount(2);
+        (await factory.GetOutboxEventsAsync<EmailVerificationRequestedEvent>(
+            "email_verification.requested", TestContext.Current.CancellationToken)).Should().HaveCount(2);
     }
 
     [Fact]
@@ -61,13 +64,15 @@ public sealed class ResendVerificationTests(IdentityApiFactory factory) : IClass
             await ResendAsync(client, email, game.Slug);
         }
 
-        factory.EmailSender.Sent.Should().HaveCount(5);
+        (await factory.GetOutboxEventsAsync<EmailVerificationRequestedEvent>(
+            "email_verification.requested", TestContext.Current.CancellationToken)).Should().HaveCount(5);
 
         factory.TimeProvider.Advance(TimeSpan.FromSeconds(61));
         var sixthAttempt = await ResendAsync(client, email, game.Slug);
 
         sixthAttempt.StatusCode.Should().Be(HttpStatusCode.Accepted);
-        factory.EmailSender.Sent.Should().HaveCount(5);
+        (await factory.GetOutboxEventsAsync<EmailVerificationRequestedEvent>(
+            "email_verification.requested", TestContext.Current.CancellationToken)).Should().HaveCount(5);
     }
 
     [Fact]
@@ -78,7 +83,8 @@ public sealed class ResendVerificationTests(IdentityApiFactory factory) : IClass
         var response = await ResendAsync(client, $"{Guid.NewGuid():N}@example.com", gameSlug: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
-        factory.EmailSender.Sent.Should().BeEmpty();
+        (await factory.GetOutboxEventsAsync<EmailVerificationRequestedEvent>(
+            "email_verification.requested", TestContext.Current.CancellationToken)).Should().BeEmpty();
     }
 
     [Fact]
@@ -91,7 +97,8 @@ public sealed class ResendVerificationTests(IdentityApiFactory factory) : IClass
         var response = await ResendAsync(client, email, gameSlug: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
-        factory.EmailSender.Sent.Should().BeEmpty();
+        (await factory.GetOutboxEventsAsync<EmailVerificationRequestedEvent>(
+            "email_verification.requested", TestContext.Current.CancellationToken)).Should().BeEmpty();
     }
 
     [Fact]

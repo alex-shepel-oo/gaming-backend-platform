@@ -1,24 +1,23 @@
 import { Routes } from '@angular/router';
 import { authGuard, guestGuard } from 'shared';
 import { AuthShell } from './auth-shell/auth-shell';
-import { Convert } from './convert/convert';
-import { Games } from './games/games';
-import { Profile } from './profile/profile';
 import { Shell } from './shell/shell';
-import { Wallet } from './wallet/wallet';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'login' },
+  // AuthShell is the screen every not-yet-authenticated visitor hits first, so it stays in the
+  // initial bundle; everything past it loads on demand.
   { path: 'login', component: AuthShell, canActivate: [guestGuard] },
+  { path: 'reset-password', loadComponent: () => import('./reset-password/reset-password').then((m) => m.ResetPassword) },
   {
     path: '',
     component: Shell,
     canActivate: [authGuard],
     children: [
-      { path: 'games', component: Games },
-      { path: 'wallet', component: Wallet },
-      { path: 'convert', component: Convert },
-      { path: 'profile', component: Profile },
+      { path: 'games', loadComponent: () => import('./games/games').then((m) => m.Games) },
+      { path: 'wallet', loadComponent: () => import('./wallet/wallet').then((m) => m.Wallet) },
+      { path: 'convert', loadComponent: () => import('./convert/convert').then((m) => m.Convert) },
+      { path: 'profile', loadComponent: () => import('./profile/profile').then((m) => m.Profile) },
     ],
   },
   { path: '**', redirectTo: '' },

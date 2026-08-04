@@ -34,6 +34,10 @@
     <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.19.2" />
     <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.19.2" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
+    <!-- Client-only: the SignalR server (AddSignalR/MapHub) ships inside the
+         Microsoft.AspNetCore.App shared framework and needs no NuGet reference;
+         this package is the test-side HubConnection client. -->
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.10" />
     <PackageVersion Include="MailKit" Version="4.17.0" />
     <!-- 7.x is a breaking async redesign (IChannel with CreateConnectionAsync/
          CreateChannelAsync/BasicPublishAsync) versus the 6.x synchronous IModel
@@ -77,5 +81,18 @@
     <PackageVersion Include="Quartz" Version="3.18.2" />
     <PackageVersion Include="Quartz.Extensions.DependencyInjection" Version="3.18.2" />
     <PackageVersion Include="Quartz.Extensions.Hosting" Version="3.18.2" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />
+    <!-- BuildingBlocks.Messaging only: the base API (ActivitySource, the W3C
+         Propagators/PropagationContext types) for the outbox/RabbitMQ/inbox
+         trace-linking below, without pulling in the full SDK or an exporter -
+         this project has no OTLP endpoint of its own to export to. -->
+    <PackageVersion Include="OpenTelemetry.Api" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.17.0" />
+    <!-- Beta-only upstream, see the comment on the PackageReference in
+         BuildingBlocks.Telemetry.csproj. -->
+    <PackageVersion Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" Version="1.17.0-beta.1" />
+    <PackageVersion Include="Serilog.Sinks.Grafana.Loki" Version="9.0.1" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,26 @@
+// Single source of truth for the admin-client visual language, mirroring
+// player-client's approach (see that app's _theme.scss): a single mat.theme
+// mixin, consumed via --mat-sys-* custom properties everywhere. A distinct
+// palette (violet, not azure) keeps the two apps visually distinguishable at
+// a glance -- there's no shared design system to invent here.
+@use '@angular/material' as mat;
+
+@mixin apply() {
+  @include mat.theme(
+    (
+      color: (
+        primary: mat.$violet-palette,
+        tertiary: mat.$magenta-palette,
+      ),
+      typography: Roboto,
+      density: 0,
+    )
+  );
+
+  --app-shell-max-width: 960px;
+  --app-space-xs: 4px;
+  --app-space-sm: 8px;
+  --app-space-md: 16px;
+  --app-space-lg: 24px;
+  --app-space-xl: 32px;
+}

@@ -1,8 +1,13 @@
 using System.Globalization;
+using System.Text.Json.Serialization;
+using BuildingBlocks.Messaging.Extensions;
+using BuildingBlocks.Telemetry.Extensions;
 using IdentityService.Endpoints;
 using IdentityService.Extensions;
 using IdentityService.Infrastructure;
+using IdentityService.Options;
 using IdentityService.Persistence;
+using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using Serilog;
 
@@ -11,8 +16,17 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((context, configuration) => configuration
     .Enrich.FromLogContext()
     .Enrich.WithEnvironmentName()
-    .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture));
+    .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture)
+    .WriteToPlatformLoki(context.Configuration, "identity-service"));
 
+// Comfortably below the Helm chart's terminationGracePeriodSeconds default (30s,
+// infra/helm/gaming-backend-platform/values.yaml) so the host always finishes an
+// in-flight request or outbox dispatch cycle and exits on its own, instead of
+// Kubernetes cutting it short with SIGKILL once the grace period runs out.
+builder.Host.ConfigureHostOptions(options => options.ShutdownTimeout = TimeSpan.FromSeconds(15));
+
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
 builder.Services.AddValidation();
 builder.Services.AddIdentityExceptionHandling();
@@ -23,6 +37,10 @@ builder.Services.AddIdentityServices(builder.Configuration);
 builder.Services.AddIdentityAuthentication();
 builder.Services.AddIdentityRateLimiting(builder.Configuration);
 builder.Services.AddIdentityEmail(builder.Configuration);
+builder.Services.AddRabbitMqEventBus(builder.Configuration);
+builder.Services.AddOutbox<IdentityDbContext>();
+builder.Services.AddOutboxDispatcher<IdentityDbContext>(builder.Configuration);
+builder.Services.AddPlatformTelemetry(builder.Configuration, "identity-service");
 builder.Services.AddScoped<DevelopmentSeeder>();
 
 var app = builder.Build();
@@ -33,23 +51,27 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<EnduserIdMiddleware>();
 
-if (app.Environment.IsDevelopment())
+if (app.Services.GetRequiredService<IOptions<ApiOptions>>().Value.ExposeOpenApi)
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
+}
 
-    using (var scope = app.Services.CreateScope())
-    {
-        var seeder = scope.ServiceProvider.GetRequiredService<DevelopmentSeeder>();
-        await seeder.SeedAsync();
-    }
+if (app.Services.GetRequiredService<IOptions<SeedingOptions>>().Value.Enabled)
+{
+    using var scope = app.Services.CreateScope();
+    var seeder = scope.ServiceProvider.GetRequiredService<DevelopmentSeeder>();
+    await seeder.SeedAsync();
 }
 
 app.MapHealthEndpoints();
 app.MapAuthEndpoints();
 app.MapUserEndpoints();
 app.MapGameEndpoints();
+app.MapRolePermissionEndpoints();
+app.MapJwksEndpoints();
 
 app.Run();
 

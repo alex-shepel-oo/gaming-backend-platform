@@ -109,6 +109,7 @@ public sealed class IdempotencyStoreTests : IAsyncDisposable
             DisplayName = "Test Credits",
             Scope = CurrencyScope.Platform,
             GameId = null,
+            Decimals = 2,
             CreatedAt = DateTimeOffset.UtcNow,
         };
         dbContext.Currencies.Add(currency);

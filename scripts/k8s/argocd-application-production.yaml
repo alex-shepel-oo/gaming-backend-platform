@@ -1,0 +1,69 @@
+# Argo CD's own Application CR -- the piece that was actually missing before
+# this file existed: Argo CD itself was installed and reachable, but tracking
+# nothing (`kubectl get applications -n argocd` came back empty). This is
+# what turns it into real GitOps for this repo's own chart.
+#
+# syncPolicy.automated is deliberately left OUT below. main doesn't yet carry
+# the changes this Application would need to deploy (per-service imageTag,
+# the observability RBAC/dashboards, node-exporter/kube-state-metrics scrape
+# jobs) -- turning auto-sync on before that lands would have Argo CD revert
+# the live cluster back to whatever main currently has, undoing today's work
+# the moment this Application is created. Apply this as-is first (manual
+# sync only, so it just reports diff/health), confirm the diff looks like
+# "everything main is missing," merge develop -> main, then flip
+# automated: {prune: true, selfHeal: true} on and re-apply. From then on a
+# push to main is a real deploy: see .github/actions/bump-image-tag and
+# values-production.yaml's own imageTag comment for the other half of that
+# loop -- Argo CD reacts to the git commit the CI bump step makes, not to a
+# registry push under a floating tag, which by itself changes nothing this
+# Application would notice.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gaming-backend-platform
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/alex-shepel-oo/gaming-backend-platform.git
+    targetRevision: main
+    path: infra/helm/gaming-backend-platform
+    helm:
+      valueFiles:
+        - values-local.yaml
+        - values-production.yaml
+      # --set-file's equivalent: a leading "/" is repo-root-relative rather
+      # than chart-path-relative, since every one of these lives outside
+      # infra/helm/gaming-backend-platform itself -- same files
+      # scripts/k8s/apply.sh passes in for the local cluster.
+      fileParameters:
+        - name: gateway.ocelotConfigJson
+          path: /backend/ApiGateway/ocelot.Kubernetes.json
+        - name: observability.otelCollectorConfigYaml
+          path: /infra/otel-collector/otel-collector-config.yaml
+        - name: observability.tempoConfigYaml
+          path: /infra/tempo/tempo-config.yaml
+        - name: observability.prometheusConfigYaml
+          path: /infra/prometheus/prometheus.yml
+        - name: observability.lokiConfigYaml
+          path: /infra/loki/loki-config.yaml
+        - name: observability.grafanaDatasourcesYaml
+          path: /infra/grafana/provisioning/datasources/datasources.yml
+        - name: observability.grafanaDashboardsProviderYaml
+          path: /infra/grafana/provisioning/dashboards/dashboards.yml
+        - name: observability.grafanaDashboardJson
+          path: /infra/grafana/dashboards/service-overview.json
+        - name: observability.grafanaNodeResourcesDashboardJson
+          path: /infra/grafana/dashboards/node-resources.json
+        - name: emailService.templates.emailVerificationHtml
+          path: /backend/EmailService/Templates/EmailVerification.html
+        - name: emailService.templates.passwordResetHtml
+          path: /backend/EmailService/Templates/PasswordReset.html
+        - name: emailService.templates.duplicateRegistrationNoticeHtml
+          path: /backend/EmailService/Templates/DuplicateRegistrationNotice.html
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gaming-platform
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

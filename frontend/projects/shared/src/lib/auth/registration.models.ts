@@ -21,3 +21,16 @@ export interface ResendVerificationRequest {
   email: string;
   gameSlug?: string;
 }
+
+export interface RequestPasswordResetRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  newPassword: string;
+}
+
+export interface ResetPasswordResponse {
+  email: string;
+}

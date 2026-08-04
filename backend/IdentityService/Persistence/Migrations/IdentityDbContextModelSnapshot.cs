@@ -22,6 +22,70 @@ namespace IdentityService.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("BuildingBlocks.Messaging.Inbox.ProcessedMessage", b =>
+                {
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_id");
+
+                    b.Property<DateTimeOffset>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at");
+
+                    b.HasKey("MessageId")
+                        .HasName("pk_processed_messages");
+
+                    b.ToTable("processed_messages", (string)null);
+                });
+
+            modelBuilder.Entity("BuildingBlocks.Messaging.Outbox.OutboxMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Attempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("attempts");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload");
+
+                    b.Property<DateTimeOffset?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at");
+
+                    b.Property<string>("TraceParent")
+                        .HasColumnType("text")
+                        .HasColumnName("trace_parent");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("type");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_outbox_messages");
+
+                    b.HasIndex("ProcessedAt")
+                        .HasDatabaseName("ix_outbox_messages_processed_at")
+                        .HasFilter("processed_at IS NULL");
+
+                    b.ToTable("outbox_messages", (string)null);
+                });
+
             modelBuilder.Entity("IdentityService.Domain.EmailVerificationCode", b =>
                 {
                     b.Property<Guid>("Id")
@@ -85,6 +149,43 @@ namespace IdentityService.Persistence.Migrations
                     b.ToTable("email_verification_codes", (string)null);
                 });
 
+            modelBuilder.Entity("IdentityService.Domain.ExternalLogin", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("LinkedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("linked_at");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("provider");
+
+                    b.Property<string>("ProviderUserId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("provider_user_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_external_logins");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_external_logins_user_id");
+
+                    b.HasIndex("Provider", "ProviderUserId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_external_logins_provider_provider_user_id");
+
+                    b.ToTable("external_logins", (string)null);
+                });
+
             modelBuilder.Entity("IdentityService.Domain.Game", b =>
                 {
                     b.Property<Guid>("Id")
@@ -94,6 +195,14 @@ namespace IdentityService.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<string>("IconUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("icon_url");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
@@ -119,6 +228,55 @@ namespace IdentityService.Persistence.Migrations
                         .HasDatabaseName("ix_games_slug");
 
                     b.ToTable("games", (string)null);
+                });
+
+            modelBuilder.Entity("IdentityService.Domain.PasswordResetToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("ConsumedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("consumed_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<byte[]>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("token_hash");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_password_reset_tokens");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_password_reset_tokens_expires_at");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_password_reset_tokens_token_hash");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_password_reset_tokens_user_id_active")
+                        .HasFilter("consumed_at IS NULL");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_password_reset_tokens_user_id_created_at");
+
+                    b.ToTable("password_reset_tokens", (string)null);
                 });
 
             modelBuilder.Entity("IdentityService.Domain.RefreshToken", b =>
@@ -213,6 +371,10 @@ namespace IdentityService.Persistence.Migrations
                         .HasColumnType("smallint")
                         .HasColumnName("revoked_reason");
 
+                    b.Property<short>("Scope")
+                        .HasColumnType("smallint")
+                        .HasColumnName("scope");
+
                     b.Property<string>("UserAgent")
                         .HasColumnType("text")
                         .HasColumnName("user_agent");
@@ -272,11 +434,67 @@ namespace IdentityService.Persistence.Migrations
                     b.ToTable("revoked_access_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("IdentityService.Domain.RolePermission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("GameId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("game_id");
+
+                    b.Property<DateTimeOffset>("GrantedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("granted_at");
+
+                    b.Property<Guid?>("GrantedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("granted_by");
+
+                    b.Property<string>("Permission")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("permission");
+
+                    b.Property<short>("Role")
+                        .HasColumnType("smallint")
+                        .HasColumnName("role");
+
+                    b.HasKey("Id")
+                        .HasName("pk_role_permissions");
+
+                    b.HasIndex("GameId")
+                        .HasDatabaseName("ix_role_permissions_game_id");
+
+                    b.HasIndex("Role", "GameId")
+                        .HasDatabaseName("ix_role_permissions_role_game_id");
+
+                    b.HasIndex("Role", "Permission")
+                        .IsUnique()
+                        .HasDatabaseName("ix_role_permissions_role_permission_platform")
+                        .HasFilter("game_id IS NULL");
+
+                    b.HasIndex("Role", "GameId", "Permission")
+                        .IsUnique()
+                        .HasDatabaseName("ix_role_permissions_role_game_id_permission")
+                        .HasFilter("game_id IS NOT NULL");
+
+                    b.ToTable("role_permissions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_role_permissions_platform_scope", "permission NOT LIKE 'platform.%' OR game_id IS NULL");
+                        });
+                });
+
             modelBuilder.Entity("IdentityService.Domain.User", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<string>("AvatarUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("avatar_url");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -307,6 +525,10 @@ namespace IdentityService.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(true)
                         .HasColumnName("is_active");
+
+                    b.Property<DateTimeOffset?>("LastLoginAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_login_at");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
@@ -384,6 +606,30 @@ namespace IdentityService.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("IdentityService.Domain.ExternalLogin", b =>
+                {
+                    b.HasOne("IdentityService.Domain.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_external_logins_users_user_id");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("IdentityService.Domain.PasswordResetToken", b =>
+                {
+                    b.HasOne("IdentityService.Domain.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_password_reset_tokens_users_user_id");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("IdentityService.Domain.RefreshToken", b =>
                 {
                     b.HasOne("IdentityService.Domain.RefreshTokenFamily", "Family")
@@ -422,6 +668,17 @@ namespace IdentityService.Persistence.Migrations
                     b.Navigation("Game");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("IdentityService.Domain.RolePermission", b =>
+                {
+                    b.HasOne("IdentityService.Domain.Game", "Game")
+                        .WithMany()
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_role_permissions_games_game_id");
+
+                    b.Navigation("Game");
                 });
 
             modelBuilder.Entity("IdentityService.Domain.UserGameRole", b =>

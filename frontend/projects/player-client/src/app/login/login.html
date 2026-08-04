@@ -6,8 +6,25 @@
 
   <mat-form-field appearance="outline">
     <mat-label>Password</mat-label>
-    <input matInput type="password" formControlName="password" autocomplete="current-password" required />
+    <input
+      matInput
+      [type]="hidePassword() ? 'password' : 'text'"
+      formControlName="password"
+      autocomplete="current-password"
+      required
+    />
+    <button
+      type="button"
+      mat-icon-button
+      matSuffix
+      (click)="togglePasswordVisibility()"
+      [attr.aria-label]="hidePassword() ? 'Show password' : 'Hide password'"
+    >
+      <mat-icon aria-hidden="true">{{ hidePassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
+    </button>
   </mat-form-field>
+
+  <a class="forgot-password-link" routerLink="/reset-password">Forgot password?</a>
 
   @if (error() === 'invalid-credentials') {
     <p class="auth-error" role="alert">Invalid email or password.</p>

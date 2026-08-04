@@ -1,0 +1,12 @@
+# Template only. The real Secret is never committed -- copy this file,
+# fill in real values, and apply it directly (kubectl apply -f) rather than
+# keeping the filled-in copy anywhere under version control.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: email-service-secrets
+  namespace: gaming-platform
+type: Opaque
+stringData:
+  Email__Smtp__UserName: "replace-with-smtp-username"
+  Email__Smtp__Password: "replace-with-smtp-password"

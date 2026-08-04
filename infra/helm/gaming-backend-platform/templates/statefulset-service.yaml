@@ -1,0 +1,30 @@
+# Headless (clusterIP: None), same reasoning for each entry below: a
+# single-instance backing service gets a stable pod DNS identity rather than
+# a load-balanced one -- there is exactly one writer to talk to.
+{{- range $name, $svc := .Values.statefulsets }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "gbp.labels" $ | nindent 4 }}
+    app: {{ $name }}
+  {{- if $svc.hook }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: {{ $svc.hook.weight | quote }}
+  {{- end }}
+spec:
+  clusterIP: None
+  selector:
+    app: {{ $name }}
+  ports:
+    {{- if $svc.svcPorts }}
+    {{- $svc.svcPorts | toYaml | nindent 4 }}
+    {{- else }}
+    - port: {{ $svc.port }}
+      targetPort: {{ $svc.port }}
+    {{- end }}
+{{- end }}

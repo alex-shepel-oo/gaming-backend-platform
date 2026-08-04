@@ -11,6 +11,14 @@ const balances = [
   { currencyId: 'currency-b', currencyCode: 'GEMS', scope: CurrencyScope.Game, gameId: 'game-1', amount: 50 },
 ];
 
+const currencyCatalog = [
+  { id: 'currency-a', code: 'GOLD', displayName: 'Gold', scope: CurrencyScope.Platform, gameId: null, decimals: 2 },
+  { id: 'currency-b', code: 'GEMS', displayName: 'Gems', scope: CurrencyScope.Game, gameId: 'game-1', decimals: 2 },
+];
+
+const myGames = [{ id: 'game-1', slug: 'demo-shooter', name: 'Demo Shooter', description: null, iconUrl: null }];
+const publicGames = myGames;
+
 function conversionResponse(conversionId: string, status: ConversionStatus, overrides: Partial<Conversion> = {}): Conversion {
   return {
     conversionId,
@@ -49,19 +57,43 @@ describe('Convert', () => {
     vi.useRealTimers();
   });
 
-  function flushGamesList(): void {
-    httpMock
-      .expectOne((req) => req.url === IdentityGameEndpoints.publicGames)
-      .flush([{ id: 'game-1', slug: 'demo-shooter', name: 'Demo Shooter' }]);
+  function flushCurrencyCatalog(catalog: unknown[] = currencyCatalog): void {
+    httpMock.expectOne((req) => req.url === EconomyEndpoints.currencies).flush(catalog);
   }
 
-  function createWithCurrencies(balancesResponse: unknown[] = balances): ComponentFixture<Convert> {
+  function flushGamesLists(myGamesResponse: unknown[] = myGames, publicGamesResponse: unknown[] = publicGames): void {
+    httpMock.expectOne((req) => req.url === IdentityGameEndpoints.myGames).flush(myGamesResponse);
+    httpMock.expectOne((req) => req.url === IdentityGameEndpoints.publicGames).flush(publicGamesResponse);
+  }
+
+  function createWithCurrencies(
+    balancesResponse: unknown[] = balances,
+    catalog: unknown[] = currencyCatalog,
+    myGamesResponse: unknown[] = myGames,
+    publicGamesResponse: unknown[] = publicGames,
+  ): ComponentFixture<Convert> {
     const currentFixture = TestBed.createComponent(Convert);
     httpMock.expectOne((req) => req.url === EconomyEndpoints.balances).flush(balancesResponse);
-    flushGamesList();
+    flushCurrencyCatalog(catalog);
+    flushGamesLists(myGamesResponse, publicGamesResponse);
     currentFixture.detectChanges();
 
     return currentFixture;
+  }
+
+  // Selecting a valid from/to/amount triple now also fires a GET for the
+  // rate preview (3f) -- drain it here so tests that don't care about the
+  // preview aren't left with an unflushed request tripping httpMock.verify().
+  function drainPendingRateRequests(): void {
+    // switchMap cancels a still-in-flight rate request the moment a newer
+    // from/to/amount combination comes in (e.g. re-selecting the same
+    // value still emits and triggers a fresh request) -- match() still
+    // returns those cancelled requests, but flushing one throws, so only
+    // the still-live ones need a response.
+    httpMock
+      .match((req) => req.url === EconomyEndpoints.conversionRate)
+      .filter((req) => !req.cancelled)
+      .forEach((req) => req.flush({ fromCurrencyId: 'currency-a', toCurrencyId: 'currency-b', rate: 100 }));
   }
 
   function fillAndSubmit(currentFixture: ComponentFixture<Convert>, amount = '10'): void {
@@ -81,6 +113,8 @@ describe('Convert', () => {
     amountInput.dispatchEvent(new Event('input'));
     currentFixture.detectChanges();
 
+    drainPendingRateRequests();
+
     element.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
     currentFixture.detectChanges();
   }
@@ -88,7 +122,8 @@ describe('Convert', () => {
   it('shows an empty state when the player has no currencies to convert', () => {
     fixture = TestBed.createComponent(Convert);
     httpMock.expectOne((req) => req.url === EconomyEndpoints.balances).flush([]);
-    flushGamesList();
+    flushCurrencyCatalog();
+    flushGamesLists();
     fixture.detectChanges();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
@@ -138,6 +173,50 @@ describe('Convert', () => {
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).not.toContain('Convert into game');
+  });
+
+  it('includes a game currency the player has zero balance in among the To currency options', () => {
+    // The reported bug: the player holds only platform currency and has never
+    // transacted in Demo Shooter's currency, yet it must still be offered as
+    // a conversion target because it now comes from the full catalog, not
+    // from held balances.
+    const onlyPlatformBalance = [balances[0]];
+
+    fixture = createWithCurrencies(onlyPlatformBalance, currencyCatalog, myGames, publicGames);
+
+    const element = fixture.nativeElement as HTMLElement;
+    const fromSelect = element.querySelector('select[formcontrolname="fromCurrencyId"]') as HTMLSelectElement;
+    fromSelect.value = 'currency-a';
+    fromSelect.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    const toSelect = element.querySelector('select[formcontrolname="toCurrencyId"]') as HTMLSelectElement;
+    const toOptionValues = Array.from(toSelect.options).map((option) => option.value);
+
+    expect(toOptionValues).toContain('currency-b');
+  });
+
+  it("orders the game picker with the player's own games first, then other public games", () => {
+    const secondGame = { id: 'game-2', slug: 'demo-puzzle', name: 'Demo Puzzle', description: null, iconUrl: null };
+    const catalogWithTwoGames = [
+      ...currencyCatalog,
+      { id: 'currency-c', code: 'PUZZLE_GEMS', displayName: 'Puzzle Gems', scope: CurrencyScope.Game, gameId: 'game-2', decimals: 2 },
+    ];
+
+    fixture = createWithCurrencies(balances, catalogWithTwoGames, myGames, [...publicGames, secondGame]);
+
+    const element = fixture.nativeElement as HTMLElement;
+    const fromSelect = element.querySelector('select[formcontrolname="fromCurrencyId"]') as HTMLSelectElement;
+    fromSelect.value = 'currency-a';
+    fromSelect.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    const gameSelect = element.querySelector('select[formcontrolname="targetGameId"]') as HTMLSelectElement;
+    const gameOptionLabels = Array.from(gameSelect.options)
+      .filter((option) => option.value !== '')
+      .map((option) => option.textContent?.trim());
+
+    expect(gameOptionLabels).toEqual(['Demo Shooter', 'Demo Puzzle']);
   });
 
   it('polls the conversion status until it reaches Completed, refreshing balances, then stops', () => {
@@ -235,5 +314,205 @@ describe('Convert', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('This conversion could not be started. Please try again.');
     expect(text).not.toContain('Status:');
+  });
+
+  const secondGame = { id: 'game-2', slug: 'demo-puzzle', name: 'Demo Puzzle', description: null, iconUrl: null };
+  const catalogWithTwoGames = [
+    ...currencyCatalog,
+    { id: 'currency-c', code: 'PUZZLE_GEMS', displayName: 'Puzzle Gems', scope: CurrencyScope.Game, gameId: 'game-2', decimals: 2 },
+  ];
+  const balancesWithTwoGames = [
+    ...balances,
+    { currencyId: 'currency-c', currencyCode: 'PUZZLE_GEMS', scope: CurrencyScope.Game, gameId: 'game-2', amount: 5 },
+  ];
+
+  function selectFrom(currentFixture: ComponentFixture<Convert>, currencyId: string): void {
+    const element = currentFixture.nativeElement as HTMLElement;
+    const fromSelect = element.querySelector('select[formcontrolname="fromCurrencyId"]') as HTMLSelectElement;
+    fromSelect.value = currencyId;
+    fromSelect.dispatchEvent(new Event('change'));
+    currentFixture.detectChanges();
+  }
+
+  function selectTargetGame(currentFixture: ComponentFixture<Convert>, gameId: string): void {
+    const element = currentFixture.nativeElement as HTMLElement;
+    const gameSelect = element.querySelector('select[formcontrolname="targetGameId"]') as HTMLSelectElement;
+    gameSelect.value = gameId;
+    gameSelect.dispatchEvent(new Event('change'));
+    currentFixture.detectChanges();
+  }
+
+  it('narrows to-currency to exactly the platform currency, with no game picker, when from is a game currency', () => {
+    fixture = createWithCurrencies(balancesWithTwoGames, catalogWithTwoGames, myGames, [...publicGames, secondGame]);
+
+    selectFrom(fixture, 'currency-b');
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent ?? '').not.toContain('Convert into game');
+
+    const toSelect = element.querySelector('select[formcontrolname="toCurrencyId"]') as HTMLSelectElement;
+    const toOptionValues = Array.from(toSelect.options)
+      .map((option) => option.value)
+      .filter((value) => value !== '');
+    expect(toOptionValues).toEqual(['currency-a']);
+
+    // Auto-selected, per 3c -- a single-candidate set is not a real choice.
+    expect(toSelect.value).toBe('currency-a');
+  });
+
+  it('auto-selects the only currency of a game with exactly one currency, once that game is picked', () => {
+    fixture = createWithCurrencies(balancesWithTwoGames, catalogWithTwoGames, myGames, [...publicGames, secondGame]);
+
+    selectFrom(fixture, 'currency-a');
+    selectTargetGame(fixture, 'game-2');
+
+    const toSelect = (fixture.nativeElement as HTMLElement).querySelector(
+      'select[formcontrolname="toCurrencyId"]',
+    ) as HTMLSelectElement;
+    expect(toSelect.value).toBe('currency-c');
+  });
+
+  it('clears the stale target-game and to-currency selections when from changes to a different currency', () => {
+    fixture = createWithCurrencies(balancesWithTwoGames, catalogWithTwoGames, myGames, [...publicGames, secondGame]);
+
+    selectFrom(fixture, 'currency-a');
+    selectTargetGame(fixture, 'game-2');
+
+    // eslint-disable-next-line @typescript-eslint/dot-notation
+    expect(fixture.componentInstance['form'].value.toCurrencyId).toBe('currency-c');
+
+    // Switching from to a game currency invalidates both the previous game
+    // pick and the previous to-currency pick -- neither is a live option
+    // for this new from anymore, so both must be back to empty (then
+    // re-populated by auto-select, which for this from narrows to platform).
+    selectFrom(fixture, 'currency-b');
+
+    // eslint-disable-next-line @typescript-eslint/dot-notation
+    expect(fixture.componentInstance['form'].value.targetGameId).toBe('');
+    // eslint-disable-next-line @typescript-eslint/dot-notation
+    expect(fixture.componentInstance['form'].value.toCurrencyId).toBe('currency-a');
+  });
+
+  it('re-enables submit after the game picker is hidden by a from-is-game-currency switch, once an amount is entered', () => {
+    // Regression case: the game picker's native `required` attribute gets
+    // picked up by Angular's RequiredValidator directive, which composes
+    // Validators.required onto targetGameId's control -- and that stays
+    // attached even after the picker's element is removed from the DOM,
+    // since Angular doesn't clear directive-contributed validators on
+    // destroy. Resetting targetGameId back to '' in that state used to
+    // permanently fail that orphaned validator, leaving the form invalid
+    // forever even though targetGameId is never required by the component
+    // (it has no Validators.required of its own) and is no longer shown.
+    fixture = createWithCurrencies(balancesWithTwoGames, catalogWithTwoGames, myGames, [...publicGames, secondGame]);
+
+    selectFrom(fixture, 'currency-a');
+    selectTargetGame(fixture, 'game-2');
+    selectFrom(fixture, 'currency-b');
+
+    const element = fixture.nativeElement as HTMLElement;
+    const amountInput = element.querySelector('input[type="number"]') as HTMLInputElement;
+    amountInput.value = '10';
+    amountInput.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    drainPendingRateRequests();
+
+    const submitButton = element.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(submitButton.disabled).toBe(false);
+  });
+
+  it('disables submit when toCurrencyId no longer matches a live option even though the control still has a value', () => {
+    fixture = createWithCurrencies();
+    fillAndSubmitPrep(fixture);
+    drainPendingRateRequests();
+
+    const submitButton = (fixture.nativeElement as HTMLElement).querySelector(
+      'button[type="submit"]',
+    ) as HTMLButtonElement;
+    expect(submitButton.disabled).toBe(false);
+
+    // eslint-disable-next-line @typescript-eslint/dot-notation
+    const toCurrencyControl = fixture.componentInstance['form'].controls.toCurrencyId;
+    toCurrencyControl.setValue('no-longer-offered', { emitEvent: false });
+    toCurrencyControl.updateValueAndValidity({ emitEvent: false });
+    fixture.detectChanges();
+
+    expect(submitButton.disabled).toBe(true);
+  });
+
+  function fillAndSubmitPrep(currentFixture: ComponentFixture<Convert>, amount = '10'): void {
+    selectFrom(currentFixture, 'currency-a');
+
+    const element = currentFixture.nativeElement as HTMLElement;
+    const toSelect = element.querySelector('select[formcontrolname="toCurrencyId"]') as HTMLSelectElement;
+    toSelect.value = 'currency-b';
+    toSelect.dispatchEvent(new Event('change'));
+
+    const amountInput = element.querySelector('input[type="number"]') as HTMLInputElement;
+    amountInput.value = amount;
+    amountInput.dispatchEvent(new Event('input'));
+    currentFixture.detectChanges();
+  }
+
+  describe('conversion rate preview', () => {
+    function flushRate(rate: number): void {
+      httpMock.expectOne((req) => req.url === EconomyEndpoints.conversionRate).flush({
+        fromCurrencyId: 'currency-a',
+        toCurrencyId: 'currency-b',
+        rate,
+      });
+    }
+
+    it('shows the not-available placeholder before from, to, and an amount are all set', () => {
+      fixture = createWithCurrencies();
+
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('shown after you confirm the conversion');
+    });
+
+    it('fetches and shows the computed preview once from, to, and amount are all set', () => {
+      fixture = createWithCurrencies();
+
+      fillAndSubmitPrep(fixture, '10');
+      flushRate(100);
+      fixture.detectChanges();
+
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('1000.00 GEMS');
+    });
+
+    it('recomputes the preview when fromAmount changes', () => {
+      fixture = createWithCurrencies();
+
+      fillAndSubmitPrep(fixture, '10');
+      flushRate(100);
+      fixture.detectChanges();
+
+      const amountInput = (fixture.nativeElement as HTMLElement).querySelector(
+        'input[type="number"]',
+      ) as HTMLInputElement;
+      amountInput.value = '5';
+      amountInput.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      flushRate(100);
+      fixture.detectChanges();
+
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('500.00 GEMS');
+    });
+
+    it('falls back to hiding the preview, without crashing, when the rate request fails', () => {
+      fixture = createWithCurrencies();
+
+      fillAndSubmitPrep(fixture, '10');
+      httpMock
+        .expectOne((req) => req.url === EconomyEndpoints.conversionRate)
+        .flush({ status: 400, title: 'Unsupported conversion pair' }, { status: 400, statusText: 'Bad Request' });
+      fixture.detectChanges();
+
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('shown after you confirm the conversion');
+    });
   });
 });

@@ -2,7 +2,9 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AwesomeAssertions;
+using IdentityService.Auth;
 using IdentityService.Contracts.Requests;
 using IdentityService.Contracts.Responses;
 using IdentityService.Domain;
@@ -21,7 +23,10 @@ public sealed class TenantIsolationTests(IdentityApiFactory factory) : IClassFix
 {
     private const string Password = "correct-horse-battery";
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter() },
+    };
 
     public ValueTask InitializeAsync() => new(factory.ResetAsync());
 
@@ -35,6 +40,7 @@ public sealed class TenantIsolationTests(IdentityApiFactory factory) : IClassFix
         var moderatorA = await SeedUserAsync(gameA.Id, PlatformRole.Moderator);
         var playerA = await SeedUserAsync(gameA.Id, PlatformRole.Player);
         var playerB = await SeedUserAsync(gameB.Id, PlatformRole.Player);
+        await SeedRolePermissionsAsync(PlatformRole.Moderator, gameA.Id, Permissions.GamePlayersModerate);
 
         var (client, accessToken) = await LoginAsync(moderatorA.Id, gameA.Id);
 
@@ -55,12 +61,29 @@ public sealed class TenantIsolationTests(IdentityApiFactory factory) : IClassFix
         var gameB = await SeedGameAsync();
         var moderatorA = await SeedUserAsync(gameA.Id, PlatformRole.Moderator);
         var playerB = await SeedUserAsync(gameB.Id, PlatformRole.Player);
+        await SeedRolePermissionsAsync(PlatformRole.Moderator, gameA.Id, Permissions.GamePlayersModerate);
 
         var (client, accessToken) = await LoginAsync(moderatorA.Id, gameA.Id);
 
-        var response = await GetAuthorizedAsync(client, $"/api/identity/users/{playerB.Id}", accessToken);
+        var response = await GetAuthorizedAsync(client, $"/api/identity/users/{playerB.Id}?gameId={gameA.Id}", accessToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GetUserById_ModeratorOfGameATargetsGameBId_Returns403()
+    {
+        var gameA = await SeedGameAsync();
+        var gameB = await SeedGameAsync();
+        var moderatorA = await SeedUserAsync(gameA.Id, PlatformRole.Moderator);
+        var playerB = await SeedUserAsync(gameB.Id, PlatformRole.Player);
+        await SeedRolePermissionsAsync(PlatformRole.Moderator, gameA.Id, Permissions.GamePlayersModerate);
+
+        var (client, accessToken) = await LoginAsync(moderatorA.Id, gameA.Id);
+
+        var response = await GetAuthorizedAsync(client, $"/api/identity/users/{playerB.Id}?gameId={gameB.Id}", accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     private static Task<HttpResponseMessage> GetAuthorizedAsync(HttpClient client, string url, string accessToken)
@@ -145,5 +168,23 @@ public sealed class TenantIsolationTests(IdentityApiFactory factory) : IClassFix
         await dbContext.SaveChangesAsync();
 
         return user;
+    }
+
+    private async Task SeedRolePermissionsAsync(PlatformRole role, Guid? gameId, params string[] permissions)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var now = factory.TimeProvider.GetUtcNow();
+
+        dbContext.RolePermissions.AddRange(permissions.Select(permission => new RolePermission
+        {
+            Id = Guid.CreateVersion7(),
+            Role = role,
+            GameId = gameId,
+            Permission = permission,
+            GrantedAt = now,
+        }));
+
+        await dbContext.SaveChangesAsync();
     }
 }

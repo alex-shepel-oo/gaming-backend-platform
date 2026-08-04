@@ -40,7 +40,7 @@ public sealed class CurrencyEndpointsTests : IAsyncDisposable
     }
 
     [Test]
-    public async Task GetCurrencies_ReturnsPlatformCurrenciesAndOwnGameCurrency_NotOtherGamesCurrency()
+    public async Task GetCurrencies_ReturnsEveryGamesCurrency_RegardlessOfCallerScope()
     {
         var gameA = Guid.CreateVersion7();
         var gameB = Guid.CreateVersion7();
@@ -48,6 +48,9 @@ public sealed class CurrencyEndpointsTests : IAsyncDisposable
         var gameACurrency = await SeedCurrencyAsync("GAME_A_GOLD", CurrencyScope.Game, gameA);
         var gameBCurrency = await SeedCurrencyAsync("GAME_B_GOLD", CurrencyScope.Game, gameB);
 
+        // Caller's token is scoped to gameA only, yet gameB's currency -- one the
+        // caller has never entered -- must still appear: this is the read-only
+        // catalog, not a per-user balance, so there is nothing to scope it by.
         var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), gameA);
         using var client = _factory.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Get, "/currencies");
@@ -60,8 +63,66 @@ public sealed class CurrencyEndpointsTests : IAsyncDisposable
             JsonOptions, TestContext.CurrentContext.CancellationToken);
 
         var ids = body!.Select(c => c.Id).ToArray();
-        ids.Should().Contain([platform.Id, gameACurrency.Id]);
-        ids.Should().NotContain(gameBCurrency.Id);
+        ids.Should().Contain([platform.Id, gameACurrency.Id, gameBCurrency.Id]);
+        body!.Should().OnlyContain(c => c.Decimals == 2);
+    }
+
+    [Test]
+    public async Task GetCurrencies_CurrencyWithNonDefaultDecimals_ReturnsConfiguredValue()
+    {
+        var currency = await SeedCurrencyAsync("HIGH_PRECISION", CurrencyScope.Platform, null, decimals: 4);
+
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), Guid.NewGuid());
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/currencies");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.SendAsync(request, TestContext.CurrentContext.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<CurrencyDto[]>(
+            JsonOptions, TestContext.CurrentContext.CancellationToken);
+
+        body!.Single(c => c.Id == currency.Id).Decimals.Should().Be(4);
+    }
+
+    [Test]
+    public async Task GetCurrencies_CurrencyWithIconUrl_ReturnsIt()
+    {
+        var currency = await SeedCurrencyAsync(
+            "ICON_CURRENCY", CurrencyScope.Platform, null, iconUrl: "https://placehold.co/64x64?text=Icon");
+
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), Guid.NewGuid());
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/currencies");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.SendAsync(request, TestContext.CurrentContext.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<CurrencyDto[]>(
+            JsonOptions, TestContext.CurrentContext.CancellationToken);
+
+        body!.Single(c => c.Id == currency.Id).IconUrl.Should().Be("https://placehold.co/64x64?text=Icon");
+    }
+
+    [Test]
+    public async Task GetCurrencies_CurrencyWithNoIconUrl_ReturnsNullNotAnError()
+    {
+        var currency = await SeedCurrencyAsync("NO_ICON_CURRENCY", CurrencyScope.Platform, null);
+
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), Guid.NewGuid());
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/currencies");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.SendAsync(request, TestContext.CurrentContext.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<CurrencyDto[]>(
+            JsonOptions, TestContext.CurrentContext.CancellationToken);
+
+        body!.Single(c => c.Id == currency.Id).IconUrl.Should().BeNull();
     }
 
     [Test]
@@ -74,7 +135,8 @@ public sealed class CurrencyEndpointsTests : IAsyncDisposable
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    private async Task<Currency> SeedCurrencyAsync(string code, CurrencyScope scope, Guid? gameId)
+    private async Task<Currency> SeedCurrencyAsync(
+        string code, CurrencyScope scope, Guid? gameId, short decimals = 2, string? iconUrl = null)
     {
         await using var scope1 = _factory.Services.CreateAsyncScope();
         var dbContext = scope1.ServiceProvider.GetRequiredService<EconomyDbContext>();
@@ -86,7 +148,9 @@ public sealed class CurrencyEndpointsTests : IAsyncDisposable
             DisplayName = code,
             Scope = scope,
             GameId = gameId,
+            Decimals = decimals,
             CreatedAt = DateTimeOffset.UtcNow,
+            IconUrl = iconUrl,
         };
 
         dbContext.Currencies.Add(currency);

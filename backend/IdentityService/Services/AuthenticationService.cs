@@ -1,6 +1,9 @@
+using BuildingBlocks.Messaging.Outbox;
+using IdentityService.Auth;
 using IdentityService.Domain;
 using IdentityService.Domain.Enums;
 using IdentityService.Exceptions;
+using IdentityService.Messaging.Events;
 using IdentityService.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,6 +15,8 @@ public sealed class AuthenticationService(
     IEmailVerificationService emailVerificationService,
     IRefreshTokenService refreshTokenService,
     ITokenService tokenService,
+    IPermissionResolver permissionResolver,
+    IOutboxWriter outboxWriter,
     TimeProvider timeProvider) : IAuthenticationService
 {
     public async Task<RegistrationResult> RegisterAsync(
@@ -63,15 +68,14 @@ public sealed class AuthenticationService(
             var hasRoleInGame = await dbContext.UserGameRoles
                 .AnyAsync(r => r.UserId == user.Id && r.GameId == game.Id, cancellationToken);
 
-            if (user.EmailConfirmed && hasRoleInGame)
-            {
-                throw new EmailAlreadyExistsException();
-            }
-
             if (!hasRoleInGame)
             {
                 dbContext.UserGameRoles.Add(NewPlayerRole(user.Id, game.Id, now));
                 await dbContext.SaveChangesAsync(cancellationToken);
+            }
+            else if (user.EmailConfirmed)
+            {
+                await SendDuplicateRegistrationNoticeAsync(user.Email, game.Name, cancellationToken);
             }
 
             if (user.EmailConfirmed)
@@ -92,6 +96,7 @@ public sealed class AuthenticationService(
         string password,
         string? ip,
         string? userAgent,
+        string audience,
         CancellationToken cancellationToken = default)
     {
         Guid? gameId = null;
@@ -131,16 +136,68 @@ public sealed class AuthenticationService(
             throw new EmailNotConfirmedException();
         }
 
+        user.LastLoginAt = timeProvider.GetUtcNow();
+
         var role = await dbContext.UserGameRoles
             .SingleOrDefaultAsync(r => r.UserId == user.Id && r.GameId == gameId, cancellationToken);
 
         if (role is null)
         {
-            throw new NoAccessToGameException();
+            if (gameId is not null)
+            {
+                throw new NoAccessToGameException();
+            }
+
+            var accountIssued = await refreshTokenService.IssueFamilyAsync(
+                user.Id, null, TokenScope.Account, ip, userAgent, cancellationToken);
+            var accountAccessToken = tokenService.IssueAccessToken(
+                user, null, null, accountIssued.Family.Id, TokenScope.Account, AccountPermissions.All, audience);
+
+            return new LoginResult(accountAccessToken, accountIssued.RawToken);
         }
 
-        var issued = await refreshTokenService.IssueFamilyAsync(user.Id, gameId, ip, userAgent, cancellationToken);
-        var accessToken = tokenService.IssueAccessToken(user, gameId, role.Role, issued.Family.Id);
+        var scope = gameId is null ? TokenScope.Platform : TokenScope.Game;
+        var permissions = await permissionResolver.ResolveAsync(role.Role, gameId, cancellationToken);
+
+        var issued = await refreshTokenService.IssueFamilyAsync(user.Id, gameId, scope, ip, userAgent, cancellationToken);
+        var accessToken = tokenService.IssueAccessToken(user, gameId, role.Role, issued.Family.Id, scope, permissions, audience);
+
+        return new LoginResult(accessToken, issued.RawToken);
+    }
+
+    public async Task<LoginResult> SelectGameAsync(
+        Guid userId,
+        Guid gameId,
+        string? ip,
+        string? userAgent,
+        string audience,
+        CancellationToken cancellationToken = default)
+    {
+        var game = await dbContext.Games
+            .SingleOrDefaultAsync(g => g.Id == gameId && g.IsActive, cancellationToken);
+
+        if (game is null)
+        {
+            throw new GameNotFoundException();
+        }
+
+        var user = await dbContext.Users.SingleAsync(u => u.Id == userId, cancellationToken);
+
+        var role = await dbContext.UserGameRoles
+            .SingleOrDefaultAsync(r => r.UserId == userId && r.GameId == gameId, cancellationToken);
+
+        var now = timeProvider.GetUtcNow();
+
+        if (role is null)
+        {
+            role = NewPlayerRole(userId, gameId, now);
+            dbContext.UserGameRoles.Add(role);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        var permissions = await permissionResolver.ResolveAsync(role.Role, gameId, cancellationToken);
+        var issued = await refreshTokenService.IssueFamilyAsync(userId, gameId, TokenScope.Game, ip, userAgent, cancellationToken);
+        var accessToken = tokenService.IssueAccessToken(user, gameId, role.Role, issued.Family.Id, TokenScope.Game, permissions, audience);
 
         return new LoginResult(accessToken, issued.RawToken);
     }
@@ -153,4 +210,15 @@ public sealed class AuthenticationService(
         Role = PlatformRole.Player,
         GrantedAt = now,
     };
+
+    private async Task SendDuplicateRegistrationNoticeAsync(string email, string gameName, CancellationToken cancellationToken) =>
+        await outboxWriter.WriteAsync(
+            new DuplicateRegistrationNoticeRequestedEvent
+            {
+                Id = Guid.CreateVersion7(),
+                OccurredAt = timeProvider.GetUtcNow(),
+                Email = email,
+                GameName = gameName,
+            },
+            cancellationToken);
 }

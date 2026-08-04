@@ -1,0 +1,53 @@
+# Scrapes the otel-collector's own Prometheus exporter (see
+# infra/otel-collector/otel-collector-config.yaml), not each service directly - every service
+# pushes OTLP metrics to the collector, and the collector is the one thing this scrapes.
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: otel-collector
+    # Without this, Prometheus's own job/instance (both "otel-collector", the only
+    # scrape target) wins on collision and the real per-service job/instance -- the
+    # thing this dashboard actually groups by -- gets renamed to exported_job/
+    # exported_instance instead. honor_labels keeps the scraped values authoritative.
+    honor_labels: true
+    static_configs:
+      - targets: ["otel-collector:8889"]
+
+  # Host-level CPU/memory/disk for the node itself -- installed as a cluster
+  # addon (scripts/k8s/install-node-exporter.sh), not part of this chart, same
+  # relationship Argo CD and Traefik have to it.
+  - job_name: node-exporter
+    static_configs:
+      - targets: ["node-exporter.observability.svc:9100"]
+
+  # Kubernetes object state (pod phase, restart counts, deployment replica
+  # availability) -- also a cluster addon
+  # (scripts/k8s/install-kube-state-metrics.sh), not container resource usage
+  # itself; that's the cadvisor job below.
+  - job_name: kube-state-metrics
+    static_configs:
+      - targets: ["kube-state-metrics.observability.svc:8080"]
+
+  # Per-container CPU/memory straight from cAdvisor, which every kubelet
+  # already serves -- no separate DaemonSet needed, unlike node-exporter
+  # above. Reached through the API server's node proxy rather than the
+  # kubelet directly, since that's the one path RBAC can actually scope (see
+  # templates/prometheus-rbac.yaml): ClusterRole grants get/list/watch on
+  # nodes/proxy, nothing broader.
+  - job_name: cadvisor
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - target_label: __address__
+        replacement: kubernetes.default.svc:443
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__
+        replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor

@@ -1,0 +1,36 @@
+<mat-toolbar class="shell-toolbar">
+  <span class="shell-brand">Gaming Backend Platform — Admin</span>
+
+  <nav class="shell-nav" aria-label="Main navigation">
+    @if (tokenStore.claims()?.permissions?.includes('platform.games.manage')) {
+      <a mat-button routerLink="/games">Games</a>
+    }
+
+    @if (tokenStore.claims()?.permissions?.includes('platform.roles.manage')) {
+      <a mat-button routerLink="/roles">Roles</a>
+    }
+
+    @if (tokenStore.claims()?.gameId && tokenStore.claims()?.permissions?.includes('game.metadata.edit')) {
+      <a mat-button routerLink="/my-game">My Game</a>
+    }
+
+    @if (tokenStore.claims()?.role === 'Moderator' || tokenStore.claims()?.role === 'Admin') {
+      <a mat-button routerLink="/users">Users</a>
+    }
+  </nav>
+
+  <span class="shell-spacer"></span>
+
+  @if (tokenStore.claims(); as claims) {
+    <span class="shell-identity" title="Signed in as">{{ claims.email }} · {{ claims.scope }}</span>
+  }
+
+  <button type="button" mat-button (click)="logout()">
+    <mat-icon aria-hidden="true">logout</mat-icon>
+    Log out
+  </button>
+</mat-toolbar>
+
+<main class="shell-content">
+  <router-outlet />
+</main>

@@ -30,7 +30,13 @@ describe('TokenStore claims', () => {
 
   it('decodes email, display name and role from the access token', () => {
     tokenStore.set(
-      buildFakeToken({ sub: 'user-1', email: 'player@example.com', name: 'Player One', role: 'Player' }),
+      buildFakeToken({
+        sub: 'user-1',
+        email: 'player@example.com',
+        name: 'Player One',
+        role: 'Player',
+        scope: 'game',
+      }),
     );
 
     expect(tokenStore.claims()).toEqual({
@@ -38,7 +44,9 @@ describe('TokenStore claims', () => {
       email: 'player@example.com',
       displayName: 'Player One',
       role: 'Player',
+      scope: 'game',
       gameId: null,
+      permissions: [],
     });
   });
 
@@ -49,11 +57,28 @@ describe('TokenStore claims', () => {
         email: 'player@example.com',
         name: 'Player One',
         role: 'Player',
+        scope: 'game',
         game_id: 'game-1',
       }),
     );
 
     expect(tokenStore.claims()?.gameId).toBe('game-1');
+  });
+
+  it('decodes an account-scoped token with no role claim as role: null', () => {
+    tokenStore.set(
+      buildFakeToken({ sub: 'user-1', email: 'player@example.com', name: 'Player One', scope: 'account' }),
+    );
+
+    expect(tokenStore.claims()).toEqual({
+      userId: 'user-1',
+      email: 'player@example.com',
+      displayName: 'Player One',
+      role: null,
+      scope: 'account',
+      gameId: null,
+      permissions: [],
+    });
   });
 
   it('returns null for a malformed token instead of throwing', () => {
@@ -62,8 +87,52 @@ describe('TokenStore claims', () => {
     expect(tokenStore.claims()).toBeNull();
   });
 
+  it('decodes the perms claim into permissions', () => {
+    tokenStore.set(
+      buildFakeToken({
+        sub: 'user-1',
+        email: 'admin@example.com',
+        name: 'Admin One',
+        scope: 'platform',
+        perms: ['platform.games.manage', 'platform.roles.manage'],
+      }),
+    );
+
+    expect(tokenStore.claims()?.permissions).toEqual(['platform.games.manage', 'platform.roles.manage']);
+  });
+
+  it('defaults permissions to an empty array when the perms claim is missing', () => {
+    tokenStore.set(
+      buildFakeToken({ sub: 'user-1', email: 'player@example.com', name: 'Player One', scope: 'account' }),
+    );
+
+    expect(tokenStore.claims()?.permissions).toEqual([]);
+  });
+
+  it('defaults permissions to an empty array when the perms claim is the wrong type', () => {
+    tokenStore.set(
+      buildFakeToken({
+        sub: 'user-1',
+        email: 'player@example.com',
+        name: 'Player One',
+        scope: 'account',
+        perms: 'not-an-array',
+      }),
+    );
+
+    expect(tokenStore.claims()?.permissions).toEqual([]);
+  });
+
   it('clears claims on clear()', () => {
-    tokenStore.set(buildFakeToken({ sub: 'user-1', email: 'player@example.com', name: 'Player One', role: 'Player' }));
+    tokenStore.set(
+      buildFakeToken({
+        sub: 'user-1',
+        email: 'player@example.com',
+        name: 'Player One',
+        role: 'Player',
+        scope: 'game',
+      }),
+    );
 
     tokenStore.clear();
 

@@ -1,0 +1,51 @@
+<div class="auth-page">
+  <mat-card class="auth-card">
+    <mat-card-header>
+      <mat-card-title>Admin sign in</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <form class="auth-form" [formGroup]="form" (ngSubmit)="submit()">
+        <mat-form-field appearance="outline">
+          <mat-label>Email</mat-label>
+          <input matInput type="email" formControlName="email" autocomplete="email" required />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Password</mat-label>
+          <input
+            matInput
+            [type]="hidePassword() ? 'password' : 'text'"
+            formControlName="password"
+            autocomplete="current-password"
+            required
+          />
+          <button
+            type="button"
+            mat-icon-button
+            matSuffix
+            (click)="togglePasswordVisibility()"
+            [attr.aria-label]="hidePassword() ? 'Show password' : 'Hide password'"
+          >
+            <mat-icon aria-hidden="true">{{ hidePassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
+          </button>
+        </mat-form-field>
+
+        @if (error() === 'invalid-credentials') {
+          <p class="auth-error" role="alert">Invalid email or password.</p>
+        }
+
+        @if (error() === 'email-not-confirmed') {
+          <p class="auth-error" role="alert">Please confirm your email address before logging in.</p>
+        }
+
+        <button type="submit" mat-flat-button color="primary" [disabled]="form.invalid || submitting()">
+          @if (submitting()) {
+            <mat-spinner diameter="20" />
+          } @else {
+            Log in
+          }
+        </button>
+      </form>
+    </mat-card-content>
+  </mat-card>
+</div>

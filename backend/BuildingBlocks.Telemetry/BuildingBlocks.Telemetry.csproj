@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <!-- No stable release of this package exists yet upstream (open-telemetry-dotnet-contrib
+         has kept it in beta for years, currently 1.17.0-beta.1), the same forward-compatible
+         situation this solution already accepts for AspNetCore.HealthChecks.NpgSql and Quartz
+         above in Directory.Packages.props. EF Core query spans are worth having regardless;
+         the instrumentation only subscribes to EF Core's own diagnostic events; it doesn't hold
+         the connection or change query behavior. -->
+    <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" />
+    <PackageReference Include="Serilog.Sinks.Grafana.Loki" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+  </ItemGroup>
+
+</Project>

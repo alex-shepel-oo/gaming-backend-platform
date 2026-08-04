@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: email-service-secrets
+    namespace: gaming-platform
+type: Opaque
+stringData:
+    Email__Smtp__UserName: ENC[AES256_GCM,data:OcHKDtRT,iv:N9hmD18F7YIBj/k+TLaN/wDJS8OwJlDRMs3EMjP9e1E=,tag:VcRU+PLQR7QaxGBLN9BAIA==,type:str]
+    Email__Smtp__Password: ENC[AES256_GCM,data:wPKsJHiabHgJybkKRuZBhpmrK2itb9pAuhhHkMxSewZV1qDH,iv:1hdyGDkhkjVmyLX09ROzNwf6xAO95lX1m1dMZg3OYSw=,tag:MC0kJfmE9UMDmNo7jpKfXQ==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB0TFh5TWNxVlBKSTBpQzZI
+            UDRmR3FUeVpvd3hodDVkQ0Q3L0J4Y2cwK2kwCmlpNERCUzRobTZJVlRIeE9jSlpP
+            WkRSV2xZcU5EL3NidnFEWHdUWnpXNmcKLS0tIGFuOUV4Qy8zYVZkNGpkUGF5UFBx
+            WjJINnlzMFdMbmRWVjd6WUkrSExqK28Kwm14JcAyeSrNvTg7lzPUvLTRwnNtvVSw
+            CrXKvzNy4Sc6J3Syr7mneLv7gmXzznkLryG939/taN3niaP9jYnMzQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1kl06atlam4ngyp0x8h6d4hv58p7m6qv8xa6gnpewsa64srem9c2q65pvjc
+    encrypted_regex: ^(stringData|data)$
+    lastmodified: "2026-08-03T21:20:30Z"
+    mac: ENC[AES256_GCM,data:I6qx4WwRFxy/EmANoAXBMRMNTb9/cYhoU+Rs/sEgXmjorLwKsaLPrJyVY6Wk2nuGilV5AiXGyz3tT1P3EMPvmpYiSRoGFdCp9uRGUkr/M5dBxmBmKHhTyL2wzoakP8RaKcwTtU1TUez5Hap5k+9fhgbseA1ifmgwLDlV3MGH/9A=,iv:GcUaJRdWsKWIY4nerrVm/zo7lV4D0u9FQo/slJdvgcI=,tag:oYOrsbkxkxBBsKhGTbjl8g==,type:str]
+    version: 3.13.2

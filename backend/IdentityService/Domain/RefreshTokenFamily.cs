@@ -7,6 +7,7 @@ public sealed class RefreshTokenFamily
     public required Guid Id { get; init; }
     public required Guid UserId { get; init; }
     public Guid? GameId { get; init; }
+    public required TokenScope Scope { get; init; }
     public required DateTimeOffset CreatedAt { get; init; }
     public required DateTimeOffset ExpiresAt { get; set; }
     public DateTimeOffset? RevokedAt { get; set; }

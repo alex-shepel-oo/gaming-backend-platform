@@ -77,6 +77,7 @@ public sealed class SchemaTests : IAsyncDisposable
             DisplayName = "Bad Platform Currency",
             Scope = CurrencyScope.Platform,
             GameId = Guid.NewGuid(),
+            Decimals = 2,
             CreatedAt = DateTimeOffset.UtcNow,
         });
 
@@ -96,6 +97,7 @@ public sealed class SchemaTests : IAsyncDisposable
             DisplayName = "Bad Game Currency",
             Scope = CurrencyScope.Game,
             GameId = null,
+            Decimals = 2,
             CreatedAt = DateTimeOffset.UtcNow,
         });
 
@@ -115,6 +117,7 @@ public sealed class SchemaTests : IAsyncDisposable
             DisplayName = "Test Credits",
             Scope = CurrencyScope.Platform,
             GameId = null,
+            Decimals = 2,
             CreatedAt = DateTimeOffset.UtcNow,
         };
         dbContext.Currencies.Add(currency);
@@ -133,6 +136,32 @@ public sealed class SchemaTests : IAsyncDisposable
         var act = () => dbContext.SaveChangesAsync();
 
         await act.Should().ThrowAsync<DbUpdateException>();
+    }
+
+    [Test]
+    public async Task SaveChanges_CurrencyInsertedWithoutDecimals_DefaultsToTwo()
+    {
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync();
+        var currencyId = Guid.CreateVersion7();
+
+        await using (var insertCommand = new NpgsqlCommand(
+            """
+            INSERT INTO currencies (id, code, display_name, scope, game_id, created_at)
+            VALUES (@id, 'LEGACY_CREDITS', 'Legacy Credits', 0, NULL, now());
+            """,
+            connection))
+        {
+            insertCommand.Parameters.AddWithValue("id", currencyId);
+            await insertCommand.ExecuteNonQueryAsync();
+        }
+
+        await using var selectCommand = new NpgsqlCommand(
+            "SELECT decimals FROM currencies WHERE id = @id;", connection);
+        selectCommand.Parameters.AddWithValue("id", currencyId);
+        var decimals = (short)(await selectCommand.ExecuteScalarAsync())!;
+
+        decimals.Should().Be(2);
     }
 
     private EconomyDbContext CreateDbContext()

@@ -17,9 +17,12 @@ public static class AuthEndpoints
         group.MapPost("/register", RegisterAsync).RequireRateLimiting(RateLimitPolicies.Register);
         group.MapPost("/confirm-email", ConfirmEmailAsync).RequireRateLimiting(RateLimitPolicies.ConfirmEmail);
         group.MapPost("/resend-verification", ResendVerificationAsync).RequireRateLimiting(RateLimitPolicies.ResendVerification);
+        group.MapPost("/request-password-reset", RequestPasswordResetAsync).RequireRateLimiting(RateLimitPolicies.RequestPasswordReset);
+        group.MapPost("/reset-password", ResetPasswordAsync).RequireRateLimiting(RateLimitPolicies.ResetPassword);
         group.MapPost("/login", LoginAsync).RequireRateLimiting(RateLimitPolicies.Login);
         group.MapPost("/refresh", RefreshAsync);
         group.MapPost("/logout", LogoutAsync).RequireAuthorization();
+        group.MapPost("/select-game", SelectGameAsync).RequireAuthorization();
     }
 
     private static async Task<Accepted<RegistrationAcceptedResponse>> RegisterAsync(
@@ -56,6 +59,26 @@ public static class AuthEndpoints
         return TypedResults.Accepted((string?)null);
     }
 
+    private static async Task<Accepted> RequestPasswordResetAsync(
+        RequestPasswordResetRequest request,
+        IPasswordResetService passwordResetService,
+        CancellationToken cancellationToken)
+    {
+        await passwordResetService.RequestResetAsync(request.Email, cancellationToken);
+
+        return TypedResults.Accepted((string?)null);
+    }
+
+    private static async Task<Ok<ResetPasswordResponse>> ResetPasswordAsync(
+        ResetPasswordRequest request,
+        IPasswordResetService passwordResetService,
+        CancellationToken cancellationToken)
+    {
+        var email = await passwordResetService.CompleteResetAsync(request.Token, request.NewPassword, cancellationToken);
+
+        return TypedResults.Ok(new ResetPasswordResponse(email));
+    }
+
     private static async Task<Results<Ok<TokenPairResponse>, Ok<AccessTokenResponse>>> LoginAsync(
         LoginRequest request,
         IAuthenticationService authenticationService,
@@ -65,13 +88,14 @@ public static class AuthEndpoints
     {
         var ip = httpContext.Connection.RemoteIpAddress?.ToString();
         var userAgent = httpContext.Request.Headers.UserAgent.ToString();
+        var surface = ClientMode.Resolve(httpContext);
 
         var result = await authenticationService.LoginAsync(
-            request.GameSlug, request.Email, request.Password, ip, userAgent, cancellationToken);
+            request.GameSlug, request.Email, request.Password, ip, userAgent, ClientMode.ResolveAudience(httpContext), cancellationToken);
 
-        if (ClientMode.IsWeb(httpContext))
+        if (surface != ClientSurface.None)
         {
-            cookieAuthWriter.WriteRefresh(httpContext.Response, result.RefreshToken);
+            cookieAuthWriter.WriteRefresh(httpContext.Response, result.RefreshToken, surface);
 
             return TypedResults.Ok(new AccessTokenResponse(result.AccessToken));
         }
@@ -87,20 +111,45 @@ public static class AuthEndpoints
         CancellationToken cancellationToken)
     {
         var ip = httpContext.Connection.RemoteIpAddress?.ToString();
-        var isWeb = ClientMode.IsWeb(httpContext);
+        var surface = ClientMode.Resolve(httpContext);
+        var isWeb = surface != ClientSurface.None;
 
-        var rawToken = (isWeb ? cookieAuthWriter.ReadRefresh(httpContext.Request) : request?.RefreshToken) ?? string.Empty;
+        var rawToken = (isWeb ? cookieAuthWriter.ReadRefresh(httpContext.Request, surface) : request?.RefreshToken) ?? string.Empty;
 
-        var result = await refreshTokenService.RotateAsync(rawToken, ip, cancellationToken);
+        var result = await refreshTokenService.RotateAsync(rawToken, ip, ClientMode.ResolveAudience(httpContext), cancellationToken);
 
         if (isWeb)
         {
-            cookieAuthWriter.WriteRefresh(httpContext.Response, result.RawRefreshToken);
+            cookieAuthWriter.WriteRefresh(httpContext.Response, result.RawRefreshToken, surface);
 
             return TypedResults.Ok(new AccessTokenResponse(result.AccessToken));
         }
 
         return TypedResults.Ok(new TokenPairResponse(result.AccessToken, result.RawRefreshToken));
+    }
+
+    private static async Task<Results<Ok<TokenPairResponse>, Ok<AccessTokenResponse>>> SelectGameAsync(
+        SelectGameRequest request,
+        IAuthenticationService authenticationService,
+        ICookieAuthWriter cookieAuthWriter,
+        ICurrentUser currentUser,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString();
+        var userAgent = httpContext.Request.Headers.UserAgent.ToString();
+        var surface = ClientMode.Resolve(httpContext);
+
+        var result = await authenticationService.SelectGameAsync(
+            currentUser.UserId, request.GameId, ip, userAgent, ClientMode.ResolveAudience(httpContext), cancellationToken);
+
+        if (surface != ClientSurface.None)
+        {
+            cookieAuthWriter.WriteRefresh(httpContext.Response, result.RefreshToken, surface);
+            return TypedResults.Ok(new AccessTokenResponse(result.AccessToken));
+        }
+
+        return TypedResults.Ok(new TokenPairResponse(result.AccessToken, result.RefreshToken));
     }
 
     private static async Task<NoContent> LogoutAsync(
@@ -111,9 +160,10 @@ public static class AuthEndpoints
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
-        var isWeb = ClientMode.IsWeb(httpContext);
+        var surface = ClientMode.Resolve(httpContext);
+        var isWeb = surface != ClientSurface.None;
 
-        var rawToken = (isWeb ? cookieAuthWriter.ReadRefresh(httpContext.Request) : request?.RefreshToken) ?? string.Empty;
+        var rawToken = (isWeb ? cookieAuthWriter.ReadRefresh(httpContext.Request, surface) : request?.RefreshToken) ?? string.Empty;
 
         await sessionService.LogoutAsync(
             currentUser.UserId,
@@ -125,7 +175,7 @@ public static class AuthEndpoints
 
         if (isWeb)
         {
-            cookieAuthWriter.ClearRefresh(httpContext.Response);
+            cookieAuthWriter.ClearRefresh(httpContext.Response, surface);
         }
 
         return TypedResults.NoContent();

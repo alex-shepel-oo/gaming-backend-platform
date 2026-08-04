@@ -17,7 +17,7 @@ on:
       - 'global.json'
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
@@ -54,4 +54,26 @@ jobs:
           context: backend
           file: backend/IdentityService/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/identity-service:${{ github.sha }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/identity-service:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/identity-service:${{ github.ref_name }}
+
+      - name: Build and push migrator image
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/IdentityService/Dockerfile
+          target: migrator
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/identity-migrator:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/identity-migrator:${{ github.ref_name }}
+
+      - name: Deploy to production
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: ./.github/actions/bump-image-tag
+        with:
+          yaml-paths: >-
+            .deployments.identity-service.imageTag
+            .migrationJobs.identity-migrator.imageTag

@@ -1,6 +1,6 @@
-using System.Text;
+using BuildingBlocks.Messaging;
+using BuildingBlocks.Messaging.Inbox;
 using EconomyService.Auth;
-using EconomyService.Inbox;
 using EconomyService.Infrastructure;
 using EconomyService.Messaging;
 using EconomyService.Options;
@@ -63,11 +63,15 @@ public static class ServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddSingleton<JwksKeySnapshot>();
+        services.AddHttpClient<IJwksKeyCache, JwksKeyCache>();
+        services.AddHostedService<JwksRefreshHostedService>();
+
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer();
 
         services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
-            .Configure<IOptions<JwtOptions>>((bearerOptions, jwtOptions) =>
+            .Configure<IOptions<JwtOptions>, IJwksKeyCache>((bearerOptions, jwtOptions, jwksKeyCache) =>
             {
                 var options = jwtOptions.Value;
 
@@ -78,8 +82,9 @@ public static class ServiceCollectionExtensions
                 bearerOptions.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidIssuer = options.Issuer,
-                    ValidAudience = options.Audience,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.Key)),
+                    ValidAudiences = options.Audiences,
+                    IssuerSigningKeyResolver = (_, _, kid, _) => jwksKeyCache.CurrentKeys.Where(key => key.KeyId == kid),
+                    ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
                     ClockSkew = TimeSpan.FromSeconds(options.ClockSkewSeconds),
                 };
             });
@@ -92,11 +97,10 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddEconomyServices(this IServiceCollection services)
+    public static IServiceCollection AddEconomyServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddScoped<IIdempotencyStore, IdempotencyStore>();
         services.AddScoped<IBalanceService, BalanceService>();
-        services.AddScoped<IOutboxWriter, OutboxWriter>();
         services.AddScoped<ILedgerService, LedgerService>();
         services.AddScoped<IConversionCreditFaultInjector, NoOpConversionCreditFaultInjector>();
         services.AddScoped<IConversionSaga, ConversionSaga>();
@@ -104,31 +108,21 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IConversionRequestService, ConversionRequestService>();
         services.AddHostedService<ConversionSagaRunner>();
 
-        return services;
-    }
+        services.AddOptions<WelcomeGrantOptions>()
+            .Bind(configuration.GetSection(WelcomeGrantOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<IWelcomeGrantService, WelcomeGrantService>();
 
-    public static IServiceCollection AddEconomyMessaging(this IServiceCollection services, IConfiguration configuration)
-    {
-        services.AddOptions<RabbitMqOptions>()
-            .Bind(configuration.GetSection(RabbitMqOptions.SectionName))
+        services.AddOptions<SeedingOptions>()
+            .Bind(configuration.GetSection(SeedingOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.AddSingleton<IRabbitMqConnection, RabbitMqConnection>();
-        services.AddHostedService<RabbitMqTopologyInitializer>();
-
-        return services;
-    }
-
-    public static IServiceCollection AddOutboxDispatcher(this IServiceCollection services, IConfiguration configuration)
-    {
-        services.AddOptions<OutboxDispatcherOptions>()
-            .Bind(configuration.GetSection(OutboxDispatcherOptions.SectionName))
+        services.AddOptions<ApiOptions>()
+            .Bind(configuration.GetSection(ApiOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
-
-        services.AddSingleton<IEventBus, RabbitMqEventBus>();
-        services.AddHostedService<OutboxDispatcherService>();
 
         return services;
     }
@@ -137,6 +131,13 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<IInboxFaultInjector, NoOpInboxFaultInjector>();
         services.AddHostedService<DeduplicatingEventConsumer>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddWelcomeGrantConsumer(this IServiceCollection services)
+    {
+        services.AddHostedService<UserEmailConfirmedConsumer>();
 
         return services;
     }

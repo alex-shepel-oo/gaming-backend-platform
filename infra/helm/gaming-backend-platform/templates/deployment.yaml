@@ -1,0 +1,138 @@
+{{- range $name, $svc := .Values.deployments }}
+{{- if not (and (eq $name "mailpit") (not $.Values.mailpit.enabled)) }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ $svc.namespace | default $.Release.Namespace }}
+  labels:
+    {{- include "gbp.labels" $ | nindent 4 }}
+    app: {{ $name }}
+spec:
+  {{- /* When an HPA manages this Deployment, replicas is left unset so the
+  HPA controller's own field manager stays the sole owner of it -- setting it
+  here too creates a server-side-apply ownership conflict on every future
+  helm upgrade once the HPA has ever scaled the Deployment even once. */}}
+  {{- if not (and $svc.hpa $svc.hpa.enabled) }}
+  replicas: {{ $svc.replicas }}
+  {{- end }}
+  {{- /* A PVC-backed single replica on local-path-provisioner is a hostPath
+  under the hood, single-node here, so the default RollingUpdate strategy
+  starts the new pod before killing the old one -- both processes then see
+  the same on-disk directory at once. Found live: prometheus's own TSDB lock
+  file refused a second writer and crash-looped instead of ever becoming
+  ready, while the old pod carried on, unnoticed, until it was pointed out.
+  Recreate trades a few seconds of downtime for that not happening. */}}
+  {{- $hasPvc := false }}
+  {{- range $svc.volumes }}
+  {{- if .persistentVolumeClaim }}
+  {{- $hasPvc = true }}
+  {{- end }}
+  {{- end }}
+  {{- if $hasPvc }}
+  strategy:
+    type: Recreate
+  {{- end }}
+  selector:
+    matchLabels:
+      app: {{ $name }}
+  template:
+    metadata:
+      labels:
+        app: {{ $name }}
+      annotations:
+        checksum/shared-config: {{ $.Values.sharedConfig | toYaml | sha256sum }}
+        {{- if $svc.configMap }}
+        checksum/config: {{ $svc.configMap | toYaml | sha256sum }}
+        {{- end }}
+        {{- if eq $name "gateway" }}
+        checksum/ocelot-config: {{ $.Values.gateway.ocelotConfigJson | sha256sum }}
+        {{- end }}
+        {{- if eq $name "otel-collector" }}
+        checksum/otel-collector-config: {{ $.Values.observability.otelCollectorConfigYaml | sha256sum }}
+        {{- end }}
+        {{- if eq $name "tempo" }}
+        checksum/tempo-config: {{ $.Values.observability.tempoConfigYaml | sha256sum }}
+        {{- end }}
+        {{- if eq $name "prometheus" }}
+        checksum/prometheus-config: {{ $.Values.observability.prometheusConfigYaml | sha256sum }}
+        {{- end }}
+        {{- if eq $name "loki" }}
+        checksum/loki-config: {{ $.Values.observability.lokiConfigYaml | sha256sum }}
+        {{- end }}
+        {{- if eq $name "grafana" }}
+        checksum/grafana-config: {{ printf "%s%s%s" $.Values.observability.grafanaDatasourcesYaml $.Values.observability.grafanaDashboardsProviderYaml $.Values.observability.grafanaDashboardJson | sha256sum }}
+        {{- end }}
+    spec:
+      terminationGracePeriodSeconds: {{ $svc.terminationGracePeriodSeconds | default $.Values.terminationGracePeriodSeconds }}
+      {{- if $svc.serviceAccountName }}
+      serviceAccountName: {{ $svc.serviceAccountName }}
+      {{- end }}
+      {{- if $svc.securityContext }}
+      securityContext:
+        {{- $svc.securityContext | toYaml | nindent 8 }}
+      {{- end }}
+      {{- if $svc.initContainers }}
+      initContainers:
+        {{- $svc.initContainers | toYaml | nindent 8 }}
+      {{- end }}
+      containers:
+        {{- /* Sprig's `default` treats a literal `false` as empty, which would
+        silently flip mailpit's `internal: false` back to true -- so this
+        checks for the key's presence explicitly instead of piping through
+        `default`. */}}
+        {{- $internal := true }}
+        {{- if hasKey $svc "internal" }}
+        {{- $internal = $svc.internal }}
+        {{- end }}
+        - name: {{ $name }}
+          {{- if $internal }}
+          image: {{ printf "%s/%s:%s" $.Values.image.registry $svc.image ($svc.imageTag | default $.Values.image.tag) }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          {{- else }}
+          image: {{ $svc.image }}
+          imagePullPolicy: IfNotPresent
+          {{- end }}
+          {{- if $svc.args }}
+          args:
+            {{- $svc.args | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if $svc.port }}
+          ports:
+            - containerPort: {{ $svc.port }}
+          {{- end }}
+          {{- if $svc.ports }}
+          ports:
+            {{- $svc.ports | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if or $svc.envFrom $svc.env }}
+          {{- if $svc.envFrom }}
+          envFrom:
+            {{- $svc.envFrom | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if $svc.env }}
+          env:
+            {{- $svc.env | toYaml | nindent 12 }}
+          {{- end }}
+          {{- end }}
+          {{- if $svc.volumeMounts }}
+          volumeMounts:
+            {{- $svc.volumeMounts | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if $svc.livenessProbe }}
+          livenessProbe:
+            {{- $svc.livenessProbe | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if $svc.readinessProbe }}
+          readinessProbe:
+            {{- $svc.readinessProbe | toYaml | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- $svc.resources | toYaml | nindent 12 }}
+      {{- if $svc.volumes }}
+      volumes:
+        {{- $svc.volumes | toYaml | nindent 8 }}
+      {{- end }}
+{{- end }}
+{{- end }}

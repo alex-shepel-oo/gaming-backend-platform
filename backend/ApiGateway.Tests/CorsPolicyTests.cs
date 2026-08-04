@@ -1,7 +1,10 @@
+using ApiGateway.Auth;
+using ApiGateway.Tests.Fixtures;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace ApiGateway.Tests;
@@ -9,6 +12,7 @@ namespace ApiGateway.Tests;
 public sealed class CorsPolicyTests : IDisposable
 {
     private const string AllowedOrigin = "http://localhost:8080";
+    private const string AllowedAdminOrigin = "http://localhost:8081";
     private const string DisallowedOrigin = "http://evil.example.com";
 
     private readonly WebApplicationFactory<Program> _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
@@ -21,9 +25,17 @@ public sealed class CorsPolicyTests : IDisposable
         builder.ConfigureAppConfiguration((_, configBuilder) => configBuilder.AddInMemoryCollection(
             new Dictionary<string, string?>
             {
-                ["Jwt:Key"] = "integration-test-signing-key-at-least-32-bytes-long",
+                ["Jwt:JwksUri"] = "https://identity.test/.well-known/jwks.json",
                 ["Cors:AllowedOrigins:0"] = AllowedOrigin,
+                ["AdminCors:AllowedOrigins:0"] = AllowedAdminOrigin,
             }));
+
+        // The app's startup path does one blocking JWKS refresh before it accepts any
+        // requests, unrelated to what this test itself exercises -- it still needs
+        // somewhere to succeed against.
+        builder.ConfigureServices(services => services
+            .AddHttpClient<IJwksKeyCache, JwksKeyCache>()
+            .ConfigurePrimaryHttpMessageHandler(() => new FakeJwksHandler(TestJwks.JwksJson)));
     });
 
     public void Dispose() => _factory.Dispose();
@@ -78,6 +90,50 @@ public sealed class CorsPolicyTests : IDisposable
 
         var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
+        response.Headers.Contains("Access-Control-Allow-Origin").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Preflight_ToAdminPath_FromAdminOrigin_ReturnsMatchingCorsHeaders()
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Options, "/api/admin/identity/games");
+        request.Headers.Add("Origin", AllowedAdminOrigin);
+        request.Headers.Add("Access-Control-Request-Method", "GET");
+        request.Headers.Add("Access-Control-Request-Headers", "X-Client-Type");
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.Headers.GetValues("Access-Control-Allow-Origin").Single().Should().Be(AllowedAdminOrigin);
+        response.Headers.GetValues("Access-Control-Allow-Credentials").Single().Should().Be("true");
+    }
+
+    [Fact]
+    public async Task Preflight_ToAdminPath_FromPlayerOrigin_OmitsCorsHeaders()
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Options, "/api/admin/identity/games");
+        request.Headers.Add("Origin", AllowedOrigin);
+        request.Headers.Add("Access-Control-Request-Method", "GET");
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        // The admin path is governed by AdminClientCors, not PlayerClientCors -
+        // the player-client origin is not on the admin allow-list.
+        response.Headers.Contains("Access-Control-Allow-Origin").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Request_ToNonAdminPath_FromAdminOrigin_OmitsCorsHeaders()
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/health");
+        request.Headers.Add("Origin", AllowedAdminOrigin);
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        // /health is not under /api/admin, so it stays governed by
+        // PlayerClientCors - the admin origin is not on that allow-list.
         response.Headers.Contains("Access-Control-Allow-Origin").Should().BeFalse();
     }
 }

@@ -16,6 +16,8 @@ public sealed class GameConfiguration : IEntityTypeConfiguration<Game>
         builder.Property(g => g.Name).HasColumnName("name").IsRequired();
         builder.Property(g => g.IsActive).HasColumnName("is_active").HasDefaultValue(true);
         builder.Property(g => g.CreatedAt).HasColumnName("created_at");
+        builder.Property(g => g.Description).HasColumnName("description");
+        builder.Property(g => g.IconUrl).HasColumnName("icon_url");
 
         builder.HasIndex(g => g.Slug).IsUnique().HasDatabaseName("ix_games_slug");
     }

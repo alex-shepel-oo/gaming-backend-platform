@@ -72,3 +72,31 @@ guard against in review and in tests, not something the schema prevents by itsel
 
 When a platform-level service (or the `Extended`-scope second implemented tenant work) makes it
 worth extracting the game registry out of IdentityService into its own owner.
+
+
+## Addendum: an explicit `scope` claim formalizes the platform-vs-game axis (slice 3)
+
+### Context
+
+The decision above leans entirely on `game_id`'s presence or absence to distinguish a platform-wide
+session from a game-scoped one — accurate, but implicit: a token consumer has to know that "no
+`game_id`" means "platform-wide," not "forgot to set it" or some other unstated third case. Slice 3's
+permission-based RBAC ([ADR-0013](0013-permission-based-rbac-and-audience-scoped-tokens.md)) needed to
+name that distinction directly rather than keep inferring it from a null check, and also needed room for
+a third case this ADR never anticipated — an ecosystem-wide session with no game chosen yet at all,
+which is not the same thing as a platform-wide administrative session.
+
+### Decision
+
+Access tokens now carry an explicit `scope` claim (`game` / `platform`, with `account` reserved for the
+ecosystem-first session slice 3 introduces) alongside `game_id`, rather than leaving the distinction to
+be re-derived from `game_id`'s nullability every time it matters. `game_id` itself is unchanged — still
+present for a game session, absent for a platform one — `scope` just names the fact instead of leaving a
+reader to infer it. See ADR-0013 for the full claim set and the permission model built on top of it.
+
+### Consequences
+
+**Gained:** the platform-vs-game axis this ADR established is now a named claim, not a convention every
+new claim-reader has to already know. **Given up / accepted:** nothing changes about where `game_id`
+lives or what it means — this addendum only adds a second, explicit signal for the same distinction,
+it doesn't relocate or redefine it.

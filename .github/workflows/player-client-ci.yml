@@ -11,7 +11,7 @@ on:
       - 'frontend/**'
 
 permissions:
-  contents: read
+  contents: write
   packages: write
   security-events: write
   actions: read
@@ -62,7 +62,9 @@ jobs:
           context: frontend
           file: frontend/projects/player-client/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/player-client:${{ github.sha }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/player-client:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/player-client:${{ github.ref_name }}
 
       - name: Trivy image scan
         if: github.event_name == 'push'
@@ -71,3 +73,9 @@ jobs:
           scan-type: image
           target: ghcr.io/${{ github.repository_owner }}/player-client:${{ github.sha }}
           category: trivy-image
+
+      - name: Deploy to production
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: ./.github/actions/bump-image-tag
+        with:
+          yaml-paths: .deployments.player-client.imageTag

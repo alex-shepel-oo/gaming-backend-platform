@@ -9,12 +9,11 @@ public sealed class JwtOptions
     [Required]
     public string Issuer { get; set; } = "gaming-backend-platform/identity";
 
-    [Required]
-    public string Audience { get; set; } = "gaming-backend-platform";
+    [Required, MinLength(1)]
+    public string[] Audiences { get; set; } = ["gbp-player", "gbp-admin"];
 
     [Required]
-    [MinLength(32)]
-    public string Key { get; set; } = string.Empty;
+    public string PrivateKeyPem { get; set; } = string.Empty;
 
     [Range(1, int.MaxValue)]
     public int AccessTokenLifetimeMinutes { get; set; } = 15;

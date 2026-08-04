@@ -1,0 +1,69 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  max-width: var(--app-shell-max-width);
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--app-space-lg);
+  box-sizing: border-box;
+}
+
+.create-card {
+  margin-bottom: var(--app-space-lg);
+}
+
+.create-form {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--app-space-sm);
+  flex-wrap: wrap;
+}
+
+.page-container {
+  flex: 1;
+  min-height: 0;
+  background: transparent;
+}
+
+.edit-sidenav {
+  width: 100%;
+  max-width: 400px;
+  padding: var(--app-space-lg);
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--app-space-md);
+}
+
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--app-space-sm);
+}
+
+.edit-actions {
+  display: flex;
+  gap: var(--app-space-sm);
+}
+
+.games-table {
+  width: 100%;
+}
+
+.state-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--app-space-sm);
+  padding: var(--app-space-lg) 0;
+}
+
+.state-error {
+  color: var(--mat-sys-error);
+}

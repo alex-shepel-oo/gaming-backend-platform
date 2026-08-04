@@ -1,9 +1,12 @@
 using System.Globalization;
 using System.Net;
 using AwesomeAssertions;
+using EconomyService.Auth;
+using EconomyService.Tests.Integration.Fixtures;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
 
 namespace EconomyService.Tests.Integration;
@@ -21,7 +24,7 @@ public sealed class HealthEndpointTests : IDisposable
             builder.ConfigureAppConfiguration((_, configBuilder) => configBuilder.AddInMemoryCollection(
                 new Dictionary<string, string?>
                 {
-                    ["Jwt:Key"] = "integration-test-signing-key-at-least-32-bytes-long",
+                    ["Jwt:JwksUri"] = "https://identity.test/.well-known/jwks.json",
                     // Deliberately unreachable: closed port, short timeout, so the
                     // readiness check fails fast instead of hanging on Npgsql's
                     // default connect timeout.
@@ -31,7 +34,19 @@ public sealed class HealthEndpointTests : IDisposable
                     ["RabbitMq:Port"] = RabbitMqTestBroker.Container.GetMappedPublicPort(5672).ToString(CultureInfo.InvariantCulture),
                     ["RabbitMq:Username"] = "guest",
                     ["RabbitMq:Password"] = "guest",
+
+                    // Seeding would hit the deliberately-unreachable database above and take
+                    // the whole host down before either test below ever runs.
+                    ["Seeding:Enabled"] = "false",
+                    ["Api:ExposeOpenApi"] = "false",
                 }));
+
+            // The app's startup path does one blocking JWKS refresh before it accepts any
+            // requests, unrelated to what this test itself exercises -- it still needs
+            // somewhere to succeed against.
+            builder.ConfigureServices(services => services
+                .AddHttpClient<IJwksKeyCache, JwksKeyCache>()
+                .ConfigurePrimaryHttpMessageHandler(() => new FakeJwksHandler(TestJwks.JwksJson)));
         });
 
     [OneTimeTearDown]

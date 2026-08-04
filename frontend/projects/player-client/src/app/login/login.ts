@@ -3,10 +3,11 @@ import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { Router } from '@angular/router';
-import { AuthService, DEFAULT_GAME_SLUG, EMAIL_NOT_CONFIRMED_PROBLEM_TYPE } from 'shared';
+import { Router, RouterLink } from '@angular/router';
+import { AuthService, EMAIL_NOT_CONFIRMED_PROBLEM_TYPE } from 'shared';
 
 type LoginError = 'invalid-credentials' | 'email-not-confirmed';
 
@@ -24,7 +25,15 @@ function classifyLoginError(error: unknown): LoginError {
 
 @Component({
   selector: 'app-login',
-  imports: [ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatButtonModule, MatProgressSpinnerModule],
+  imports: [
+    ReactiveFormsModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatButtonModule,
+    MatProgressSpinnerModule,
+    RouterLink,
+  ],
   templateUrl: './login.html',
   styleUrl: './login.scss',
 })
@@ -40,6 +49,11 @@ export class Login {
 
   protected readonly submitting = signal(false);
   protected readonly error = signal<LoginError | null>(null);
+  protected readonly hidePassword = signal(true);
+
+  protected togglePasswordVisibility(): void {
+    this.hidePassword.set(!this.hidePassword());
+  }
 
   protected submit(): void {
     if (this.form.invalid) {
@@ -49,7 +63,7 @@ export class Login {
     this.submitting.set(true);
     this.error.set(null);
 
-    this.authService.login({ ...this.form.getRawValue(), gameSlug: DEFAULT_GAME_SLUG }).subscribe({
+    this.authService.login(this.form.getRawValue()).subscribe({
       next: () => this.router.navigateByUrl('/games'),
       error: (error: unknown) => {
         this.submitting.set(false);

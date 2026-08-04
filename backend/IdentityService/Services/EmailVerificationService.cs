@@ -1,25 +1,21 @@
+using BuildingBlocks.Messaging.Outbox;
 using IdentityService.Domain;
 using IdentityService.Exceptions;
+using IdentityService.Messaging.Events;
 using IdentityService.Options;
 using IdentityService.Persistence;
-using IdentityService.Services.Email;
-using IdentityService.Services.Email.Templates;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace IdentityService.Services;
 
-public sealed partial class EmailVerificationService(
+public sealed class EmailVerificationService(
     IdentityDbContext dbContext,
     IVerificationCodeGenerator generator,
-    IEmailSender emailSender,
-    IEmailTemplateRenderer templateRenderer,
     IOptions<EmailVerificationOptions> options,
     TimeProvider timeProvider,
-    ILogger<EmailVerificationService> logger) : IEmailVerificationService
+    IOutboxWriter outboxWriter) : IEmailVerificationService
 {
-    private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(10);
     private const string DefaultGameName = "Gaming Backend Platform";
 
     private readonly EmailVerificationOptions _options = options.Value;
@@ -30,9 +26,51 @@ public sealed partial class EmailVerificationService(
         string email,
         CancellationToken cancellationToken = default)
     {
-        var now = timeProvider.GetUtcNow();
-
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var issued = await IssueCodeCoreAsync(userId, gameId, email, cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
+
+        return issued;
+    }
+
+    public async Task<EmailVerificationCode> IssueAndSendCodeAsync(
+        Guid userId,
+        Guid? gameId,
+        string email,
+        string gameName,
+        CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var issued = await IssueCodeCoreAsync(userId, gameId, email, cancellationToken);
+
+        // Written in the same transaction as the code row above -- an outbox row and the code it
+        // describes either both land or neither does, rather than the old synchronous SMTP send
+        // (wrapped in a 10s timeout, failures only logged) that could silently drop the email while
+        // the code row itself still committed.
+        await outboxWriter.WriteAsync(
+            new EmailVerificationRequestedEvent
+            {
+                Id = Guid.CreateVersion7(),
+                OccurredAt = timeProvider.GetUtcNow(),
+                Email = email,
+                Code = issued.RawCode,
+                GameName = gameName,
+                ExpiresInMinutes = _options.CodeTtlMinutes,
+            },
+            cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
+
+        return issued.Code;
+    }
+
+    private async Task<EmailVerificationIssueResult> IssueCodeCoreAsync(
+        Guid userId, Guid? gameId, string email, CancellationToken cancellationToken)
+    {
+        var now = timeProvider.GetUtcNow();
 
         await dbContext.EmailVerificationCodes
             .Where(c => c.UserId == userId && c.ConsumedAt == null)
@@ -55,40 +93,7 @@ public sealed partial class EmailVerificationService(
         dbContext.EmailVerificationCodes.Add(code);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        await transaction.CommitAsync(cancellationToken);
-
         return new EmailVerificationIssueResult(code, rawCode);
-    }
-
-    public async Task<EmailVerificationCode> IssueAndSendCodeAsync(
-        Guid userId,
-        Guid? gameId,
-        string email,
-        string gameName,
-        CancellationToken cancellationToken = default)
-    {
-        var issued = await IssueCodeAsync(userId, gameId, email, cancellationToken);
-
-        try
-        {
-            using var timeoutCts = new CancellationTokenSource(SendTimeout);
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
-
-            var htmlBody = templateRenderer.RenderEmailVerification(issued.RawCode, gameName, _options.CodeTtlMinutes);
-            var textBody =
-                $"Confirm your email for {gameName}. Your verification code is {issued.RawCode}. " +
-                $"It expires in {_options.CodeTtlMinutes} minutes.";
-
-            await emailSender.SendAsync(
-                new EmailMessage(email, "Confirm your email", htmlBody, textBody),
-                linkedCts.Token);
-        }
-        catch (Exception exception)
-        {
-            LogVerificationEmailSendFailed(exception, userId);
-        }
-
-        return issued.Code;
     }
 
     public async Task ConfirmAsync(string email, string code, CancellationToken cancellationToken = default)
@@ -131,7 +136,9 @@ public sealed partial class EmailVerificationService(
         user.EmailConfirmedAt = now;
         user.UpdatedAt = now;
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await outboxWriter.WriteAsync(
+            new UserEmailConfirmedEvent { Id = Guid.CreateVersion7(), OccurredAt = now, UserId = user.Id },
+            cancellationToken);
     }
 
     public async Task ResendAsync(string email, string? gameSlug, CancellationToken cancellationToken = default)
@@ -176,7 +183,4 @@ public sealed partial class EmailVerificationService(
 
         await IssueAndSendCodeAsync(user.Id, game?.Id, user.Email, game?.Name ?? DefaultGameName, cancellationToken);
     }
-
-    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to send verification email for user {UserId}")]
-    private partial void LogVerificationEmailSendFailed(Exception exception, Guid userId);
 }

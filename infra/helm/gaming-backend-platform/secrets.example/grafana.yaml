@@ -1,0 +1,14 @@
+# Template only. The real Secret is never committed -- copy this file,
+# fill in real values, and apply it directly (kubectl apply -f) rather than
+# keeping the filled-in copy anywhere under version control. Lives in the
+# observability namespace, not gaming-platform, since that's where the
+# Grafana Deployment this feeds runs.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-secrets
+  namespace: observability
+type: Opaque
+stringData:
+  GF_SECURITY_ADMIN_USER: "admin"
+  GF_SECURITY_ADMIN_PASSWORD: "change-me"

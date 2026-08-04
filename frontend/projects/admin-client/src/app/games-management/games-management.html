@@ -1,0 +1,120 @@
+<h1>Games</h1>
+
+<mat-card class="create-card">
+  <mat-card-header>
+    <mat-card-title>Create game</mat-card-title>
+  </mat-card-header>
+  <mat-card-content>
+    <form class="create-form" [formGroup]="createForm" (ngSubmit)="create()">
+      <mat-form-field appearance="outline">
+        <mat-label>Slug</mat-label>
+        <input matInput formControlName="slug" required />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Name</mat-label>
+        <input matInput formControlName="name" required />
+      </mat-form-field>
+
+      <button type="submit" mat-flat-button color="primary" [disabled]="createForm.invalid || creating()">
+        @if (creating()) {
+          <mat-spinner diameter="20" />
+        } @else {
+          Create
+        }
+      </button>
+    </form>
+
+    @if (createError()) {
+      <p class="state-error" role="alert">We couldn't create that game.</p>
+    }
+  </mat-card-content>
+</mat-card>
+
+<mat-sidenav-container class="page-container" autosize>
+  <mat-sidenav
+    class="edit-sidenav"
+    mode="over"
+    position="end"
+    [autoFocus]="false"
+    [opened]="editingId() !== null"
+    (closedStart)="cancelEdit()"
+  >
+    @if (editingGame(); as game) {
+      <div class="detail-header">
+        <h2>Edit {{ game.slug }}</h2>
+        <button type="button" mat-icon-button aria-label="Close" (click)="cancelEdit()">
+          <mat-icon aria-hidden="true">close</mat-icon>
+        </button>
+      </div>
+
+      <form class="edit-form" [formGroup]="editForm" (ngSubmit)="saveEdit(game.id)">
+        <mat-form-field appearance="outline">
+          <mat-label>Name</mat-label>
+          <input matInput formControlName="name" required />
+        </mat-form-field>
+
+        <mat-checkbox formControlName="isActive">Active</mat-checkbox>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Description</mat-label>
+          <textarea matInput formControlName="description" rows="4"></textarea>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Icon URL</mat-label>
+          <input matInput formControlName="iconUrl" placeholder="https://…" />
+        </mat-form-field>
+
+        @if (saveError()) {
+          <p class="state-error" role="alert">We couldn't save that change.</p>
+        }
+
+        <div class="edit-actions">
+          <button type="submit" mat-flat-button color="primary" [disabled]="editForm.invalid">Save</button>
+          <button type="button" mat-button (click)="cancelEdit()">Cancel</button>
+        </div>
+      </form>
+    }
+  </mat-sidenav>
+
+  <mat-sidenav-content>
+    @if (loading()) {
+      <div class="state-panel">
+        <mat-spinner diameter="32" />
+        <p>Loading games…</p>
+      </div>
+    } @else if (loadError()) {
+      <div class="state-panel">
+        <p class="state-error" role="alert">We couldn't load the games list. Please try again later.</p>
+      </div>
+    } @else {
+      <table mat-table [dataSource]="games()" class="games-table">
+        <ng-container matColumnDef="slug">
+          <th mat-header-cell *matHeaderCellDef>Slug</th>
+          <td mat-cell *matCellDef="let game">{{ game.slug }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="name">
+          <th mat-header-cell *matHeaderCellDef>Name</th>
+          <td mat-cell *matCellDef="let game">{{ game.name }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="isActive">
+          <th mat-header-cell *matHeaderCellDef>Active</th>
+          <td mat-cell *matCellDef="let game">{{ game.isActive ? 'Yes' : 'No' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef>Actions</th>
+          <td mat-cell *matCellDef="let game">
+            <button type="button" mat-button (click)="startEdit(game)">Edit</button>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+      </table>
+    }
+  </mat-sidenav-content>
+</mat-sidenav-container>

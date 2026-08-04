@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
+using EconomyService.Auth;
 using EconomyService.Contracts.Requests;
 using EconomyService.Contracts.Responses;
 using EconomyService.Domain;
@@ -165,6 +166,167 @@ public sealed class ConversionEndpointsTests : IAsyncDisposable
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    [Test]
+    public async Task GetRate_KnownPair_Returns200WithRate()
+    {
+        var (fromCurrencyId, toCurrencyId, rate) = await SeedCurrencyPairAsync();
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid());
+
+        var response = await GetAsync($"/conversions/rate?fromCurrencyId={fromCurrencyId}&toCurrencyId={toCurrencyId}", token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<ConversionRateDto>(JsonOptions, TestContext.CurrentContext.CancellationToken);
+        body!.Rate.Should().Be(rate);
+    }
+
+    [Test]
+    public async Task GetRate_UnknownPair_Returns400()
+    {
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid());
+
+        var response = await GetAsync($"/conversions/rate?fromCurrencyId={Guid.NewGuid()}&toCurrencyId={Guid.NewGuid()}", token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Test]
+    public async Task GetRate_NoAuthorizationHeader_Returns401()
+    {
+        var (fromCurrencyId, toCurrencyId, _) = await SeedCurrencyPairAsync();
+
+        using var client = _factory.CreateClient();
+        var response = await client.GetAsync(
+            $"/conversions/rate?fromCurrencyId={fromCurrencyId}&toCurrencyId={toCurrencyId}",
+            TestContext.CurrentContext.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Test]
+    public async Task Create_ShooterGoldToPlatformUsingSeededReverseRate_Returns202AndSagaRunsToCompleted()
+    {
+        var (fromCurrencyId, toCurrencyId, rate) = await SeedAndReadReverseRateAsync("SHOOTER_GOLD", 0.01m);
+        var userId = Guid.NewGuid();
+        var token = TestTokenFactory.IssueAccessToken(userId);
+        await SeedPlatformBalanceAsync(userId, fromCurrencyId, 1000m, "conversion-reverse-seed-shooter-1");
+
+        var response = await PostAsync(
+            new ConvertRequest(fromCurrencyId, toCurrencyId, 500m), token, Guid.NewGuid().ToString());
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var body = await response.Content.ReadFromJsonAsync<ConversionDto>(JsonOptions, TestContext.CurrentContext.CancellationToken);
+        body!.Status.Should().Be(ConversionStatus.Started);
+        body.ToAmount.Should().Be(Math.Round(500m * rate, 2, MidpointRounding.ToEven));
+
+        var finalStatus = await PollUntilTerminalAsync(body.ConversionId, token);
+        finalStatus.Should().Be(ConversionStatus.Completed);
+    }
+
+    [Test]
+    public async Task Create_RacerTokensToPlatformUsingSeededReverseRate_Returns202AndSagaRunsToCompleted()
+    {
+        var (fromCurrencyId, toCurrencyId, rate) = await SeedAndReadReverseRateAsync("RACER_TOKENS", 0.025m);
+        var userId = Guid.NewGuid();
+        var token = TestTokenFactory.IssueAccessToken(userId);
+        await SeedPlatformBalanceAsync(userId, fromCurrencyId, 1000m, "conversion-reverse-seed-racer-1");
+
+        var response = await PostAsync(
+            new ConvertRequest(fromCurrencyId, toCurrencyId, 400m), token, Guid.NewGuid().ToString());
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var body = await response.Content.ReadFromJsonAsync<ConversionDto>(JsonOptions, TestContext.CurrentContext.CancellationToken);
+        body!.Status.Should().Be(ConversionStatus.Started);
+        body.ToAmount.Should().Be(Math.Round(400m * rate, 2, MidpointRounding.ToEven));
+
+        var finalStatus = await PollUntilTerminalAsync(body.ConversionId, token);
+        finalStatus.Should().Be(ConversionStatus.Completed);
+    }
+
+    // Seeds via the real DevelopmentSeeder (not the ad-hoc pair below) so this
+    // exercises the actual reverse ConversionRate rows it adds for game ->
+    // platform conversions, not a lookalike pair built just for the test.
+    private async Task<(Guid FromCurrencyId, Guid ToCurrencyId, decimal Rate)> SeedAndReadReverseRateAsync(
+        string fromCurrencyCode, decimal expectedRate)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var seeder = scope.ServiceProvider.GetRequiredService<DevelopmentSeeder>();
+        await seeder.SeedAsync(TestContext.CurrentContext.CancellationToken);
+
+        var dbContext = scope.ServiceProvider.GetRequiredService<EconomyDbContext>();
+        var fromCurrency = await dbContext.Currencies.SingleAsync(
+            c => c.Code == fromCurrencyCode, TestContext.CurrentContext.CancellationToken);
+        var platformCredits = await dbContext.Currencies.SingleAsync(
+            c => c.Code == "PLATFORM_CREDITS", TestContext.CurrentContext.CancellationToken);
+
+        var reverseRate = await dbContext.ConversionRates.SingleAsync(
+            r => r.FromCurrencyId == fromCurrency.Id && r.ToCurrencyId == platformCredits.Id,
+            TestContext.CurrentContext.CancellationToken);
+        reverseRate.Rate.Should().Be(expectedRate);
+
+        return (fromCurrency.Id, platformCredits.Id, reverseRate.Rate);
+    }
+
+    [Test]
+    public async Task Cancel_Started_Returns200WithFailedStatus()
+    {
+        var (fromCurrencyId, toCurrencyId, _) = await SeedCurrencyPairAsync();
+        var userId = Guid.NewGuid();
+        var token = TestTokenFactory.IssueAccessToken(userId);
+        await SeedPlatformBalanceAsync(userId, fromCurrencyId, 100m, "conversion-cancel-endpoint-seed-1");
+
+        // The runner drains the channel as soon as the create call returns,
+        // so there is an unavoidable race between it and this cancel call -
+        // either a 200 with Failed (cancel won) or a 200 with Completed
+        // (the runner won first) is a correctly wired route; only a routing
+        // or auth failure would surface as something other than 200 here.
+        var created = await PostAsync(
+            new ConvertRequest(fromCurrencyId, toCurrencyId, 10m), token, Guid.NewGuid().ToString());
+        var body = await created.Content.ReadFromJsonAsync<ConversionDto>(JsonOptions, TestContext.CurrentContext.CancellationToken);
+
+        var response = await PostCancelAsync(body!.ConversionId, token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var cancelled = await response.Content.ReadFromJsonAsync<ConversionDto>(JsonOptions, TestContext.CurrentContext.CancellationToken);
+        cancelled!.Status.Should().BeOneOf(ConversionStatus.Failed, ConversionStatus.Completed);
+    }
+
+    [Test]
+    public async Task Cancel_OtherUsersConversion_Returns404()
+    {
+        var (fromCurrencyId, toCurrencyId, _) = await SeedCurrencyPairAsync();
+        var ownerId = Guid.NewGuid();
+        var ownerToken = TestTokenFactory.IssueAccessToken(ownerId);
+        await SeedPlatformBalanceAsync(ownerId, fromCurrencyId, 100m, "conversion-cancel-endpoint-seed-2");
+
+        var createResponse = await PostAsync(
+            new ConvertRequest(fromCurrencyId, toCurrencyId, 10m), ownerToken, Guid.NewGuid().ToString());
+        var created = await createResponse.Content.ReadFromJsonAsync<ConversionDto>(JsonOptions, TestContext.CurrentContext.CancellationToken);
+
+        var otherToken = TestTokenFactory.IssueAccessToken(Guid.NewGuid());
+        var response = await PostCancelAsync(created!.ConversionId, otherToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Test]
+    public async Task Cancel_NonexistentId_Returns404()
+    {
+        var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid());
+
+        var response = await PostCancelAsync(Guid.NewGuid(), token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    private async Task<HttpResponseMessage> PostCancelAsync(Guid conversionId, string token)
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/conversions/{conversionId}/cancel");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        return await client.SendAsync(request, TestContext.CurrentContext.CancellationToken);
+    }
+
     private async Task<ConversionStatus> PollUntilTerminalAsync(Guid conversionId, string token)
     {
         var deadline = DateTime.UtcNow.AddSeconds(10);
@@ -214,7 +376,7 @@ public sealed class ConversionEndpointsTests : IAsyncDisposable
 
     private async Task SeedPlatformBalanceAsync(Guid userId, Guid currencyId, decimal amount, string idempotencyKey)
     {
-        var adminToken = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), role: "Admin");
+        var adminToken = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), perms: [Permissions.PlatformBalanceAdjust]);
         using var client = _factory.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Post, "/transactions/grant")
         {
@@ -239,6 +401,7 @@ public sealed class ConversionEndpointsTests : IAsyncDisposable
             DisplayName = "Test Platform Credits",
             Scope = CurrencyScope.Platform,
             GameId = null,
+            Decimals = 2,
             CreatedAt = DateTimeOffset.UtcNow,
         };
 
@@ -249,6 +412,7 @@ public sealed class ConversionEndpointsTests : IAsyncDisposable
             DisplayName = "Test Game Gold",
             Scope = CurrencyScope.Game,
             GameId = Guid.NewGuid(),
+            Decimals = 2,
             CreatedAt = DateTimeOffset.UtcNow,
         };
 

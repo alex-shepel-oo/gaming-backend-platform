@@ -1,28 +1,35 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
 import { IdentityAuthEndpoints } from 'shared';
 import { ConfirmEmail } from './confirm-email';
 
 describe('ConfirmEmail', () => {
   let httpMock: HttpTestingController;
+  let router: Router;
 
   beforeEach(() => {
+    vi.useFakeTimers();
+
     TestBed.configureTestingModule({
       imports: [ConfirmEmail],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     });
 
     httpMock = TestBed.inject(HttpTestingController);
+    router = TestBed.inject(Router);
   });
 
   afterEach(() => {
     httpMock.verify();
+    vi.useRealTimers();
   });
 
   function createAndSubmit(code: string): ComponentFixture<ConfirmEmail> {
     const fixture = TestBed.createComponent(ConfirmEmail);
     fixture.componentRef.setInput('email', 'newplayer@example.com');
+    fixture.componentRef.setInput('password', 'a-strong-password');
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
@@ -38,14 +45,30 @@ describe('ConfirmEmail', () => {
     return fixture;
   }
 
-  it('emits confirmed on a successful confirmation', () => {
+  it('logs in and redirects to /games after a successful confirmation', () => {
+    const navigateSpy = vi.spyOn(router, 'navigateByUrl');
+    createAndSubmit('123456');
+
+    const confirmRequest = httpMock.expectOne(IdentityAuthEndpoints.confirmEmail);
+    expect(confirmRequest.request.body).toEqual({ email: 'newplayer@example.com', code: '123456' });
+    confirmRequest.flush(null);
+
+    const loginRequest = httpMock.expectOne(IdentityAuthEndpoints.login);
+    expect(loginRequest.request.body).toEqual({ email: 'newplayer@example.com', password: 'a-strong-password' });
+    loginRequest.flush({ accessToken: 'the-access-token' });
+
+    expect(navigateSpy).toHaveBeenCalledWith('/games');
+  });
+
+  it('falls back to emitting confirmed if the auto-login itself fails', () => {
     const fixture = createAndSubmit('123456');
     const confirmedSpy = vi.fn();
     fixture.componentInstance.confirmed.subscribe(confirmedSpy);
 
-    const request = httpMock.expectOne(IdentityAuthEndpoints.confirmEmail);
-    expect(request.request.body).toEqual({ email: 'newplayer@example.com', code: '123456' });
-    request.flush(null);
+    httpMock.expectOne(IdentityAuthEndpoints.confirmEmail).flush(null);
+    httpMock
+      .expectOne(IdentityAuthEndpoints.login)
+      .flush({ status: 401, title: 'Invalid credentials' }, { status: 401, statusText: 'Unauthorized' });
 
     expect(confirmedSpy).toHaveBeenCalled();
   });
@@ -65,6 +88,7 @@ describe('ConfirmEmail', () => {
   it('resends the code to the same email', () => {
     const fixture = TestBed.createComponent(ConfirmEmail);
     fixture.componentRef.setInput('email', 'newplayer@example.com');
+    fixture.componentRef.setInput('password', 'a-strong-password');
     fixture.detectChanges();
 
     const resendButton = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button')).find(
@@ -79,5 +103,35 @@ describe('ConfirmEmail', () => {
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('A new code was sent');
+  });
+
+  it('counts down the resend cooldown and re-enables the button at zero', () => {
+    const fixture = TestBed.createComponent(ConfirmEmail);
+    fixture.componentRef.setInput('email', 'newplayer@example.com');
+    fixture.componentRef.setInput('password', 'a-strong-password');
+    fixture.detectChanges();
+
+    const findResendButton = () =>
+      Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button')).find((button) =>
+        button.textContent?.includes('Resend'),
+      )!;
+
+    findResendButton().dispatchEvent(new Event('click'));
+    httpMock
+      .expectOne(IdentityAuthEndpoints.resendVerification)
+      .flush(null, { status: 202, statusText: 'Accepted' });
+    fixture.detectChanges();
+
+    expect(findResendButton().disabled).toBe(true);
+    expect(findResendButton().textContent).toContain('Resend in 30s');
+
+    vi.advanceTimersByTime(5_000);
+    fixture.detectChanges();
+    expect(findResendButton().textContent).toContain('Resend in 25s');
+
+    vi.advanceTimersByTime(25_000);
+    fixture.detectChanges();
+    expect(findResendButton().disabled).toBe(false);
+    expect(findResendButton().textContent).toContain('Resend code');
   });
 });

@@ -20,16 +20,17 @@ internal static class LedgerResultMapping
     // that it was (A.4).
     public static Results<Created<TransactionDto>, Ok<TransactionDto>> ToTransactionResult(LedgerPostResult result)
     {
-        var dto = new TransactionDto(
-            result.Entry.Id,
-            result.Entry.UserId,
-            result.Entry.CurrencyId,
-            result.Entry.Amount,
-            result.Entry.TransactionType,
-            result.Entry.Reason,
-            result.Balance,
-            result.Entry.CreatedAt);
-
+        var dto = ToDto(result);
         return result.IsReplay ? TypedResults.Ok(dto) : TypedResults.Created((string?)null, dto);
     }
+
+    public static TransactionDto ToDto(LedgerPostResult result) => new(
+        result.Entry.Id,
+        result.Entry.UserId,
+        result.Entry.CurrencyId,
+        result.Entry.Amount,
+        result.Entry.TransactionType,
+        result.Entry.Reason,
+        result.Balance,
+        result.Entry.CreatedAt);
 }

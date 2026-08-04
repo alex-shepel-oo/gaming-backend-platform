@@ -2,7 +2,18 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { CurrencyScope, EconomyEndpoints, GameSelectionService, IdentityAuthEndpoints, TokenStore, WalletService } from 'shared';
+import {
+  CurrencyScope,
+  EconomyEndpoints,
+  GameSelectionService,
+  IdentityAuthEndpoints,
+  IdentityProfileEndpoints,
+  NotificationHubService,
+  ProfileService,
+  TokenStore,
+  UserProfile,
+  WalletService,
+} from 'shared';
 import { Shell } from './shell';
 
 function base64UrlEncode(value: string): string {
@@ -28,8 +39,12 @@ describe('Shell', () => {
   let gameSelection: GameSelectionService;
   let tokenStore: TokenStore;
   let walletService: WalletService;
+  let profileService: ProfileService;
+  let notificationHub: { connect: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
+    notificationHub = { connect: vi.fn(), disconnect: vi.fn() };
+
     // ThemeService (injected by Shell) reads window.matchMedia on construction
     // to pick an initial mode -- jsdom doesn't implement it.
     vi.stubGlobal(
@@ -44,7 +59,12 @@ describe('Shell', () => {
 
     TestBed.configureTestingModule({
       imports: [Shell],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: NotificationHubService, useValue: notificationHub },
+      ],
     });
 
     httpMock = TestBed.inject(HttpTestingController);
@@ -52,6 +72,7 @@ describe('Shell', () => {
     gameSelection = TestBed.inject(GameSelectionService);
     tokenStore = TestBed.inject(TokenStore);
     walletService = TestBed.inject(WalletService);
+    profileService = TestBed.inject(ProfileService);
   });
 
   afterEach(() => {
@@ -60,9 +81,10 @@ describe('Shell', () => {
     localStorage.clear();
   });
 
-  function createAndFlushBalances(balances: unknown[] = []) {
+  function createAndFlushBalances(balances: unknown[] = [], profile: UserProfile | null = null) {
     const fixture = TestBed.createComponent(Shell);
     httpMock.expectOne((req) => req.url === EconomyEndpoints.balances).flush(balances);
+    httpMock.expectOne((req) => req.url === IdentityProfileEndpoints.me).flush(profile);
     fixture.detectChanges();
 
     return fixture;
@@ -83,22 +105,30 @@ describe('Shell', () => {
     let text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).not.toContain('Demo Shooter');
 
-    gameSelection.select({ id: 'game-1', slug: 'demo-shooter', name: 'Demo Shooter' });
+    gameSelection.select({ id: 'game-1', slug: 'demo-shooter', name: 'Demo Shooter', description: null, iconUrl: null });
     fixture.detectChanges();
 
     text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Demo Shooter');
   });
 
-  it('shows the platform balance once it loads', () => {
+  it('shows the platform balance amount once it loads, without the redundant currency code text', () => {
     const fixture = createAndFlushBalances([
       { currencyId: 'platform-1', currencyCode: 'PLATFORM_CREDITS', scope: CurrencyScope.Platform, gameId: null, amount: 500 },
       { currencyId: 'game-1', currencyCode: 'SHOOTER_GOLD', scope: CurrencyScope.Game, gameId: 'game-1', amount: 10 },
     ]);
 
-    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('500 PLATFORM_CREDITS');
-    expect(text).not.toContain('10 SHOOTER_GOLD');
+    const element = fixture.nativeElement as HTMLElement;
+    const text = element.textContent ?? '';
+    expect(text).toContain('500');
+    expect(text).not.toContain('10');
+    expect(text).not.toContain('PLATFORM_CREDITS');
+    expect(text).not.toContain('SHOOTER_GOLD');
+
+    // The compact toolbar drops the visible code text, but keeps the
+    // existing title attribute for context.
+    const balanceSpan = element.querySelector('.shell-balance') as HTMLElement;
+    expect(balanceSpan.getAttribute('title')).toBe('Platform balance');
   });
 
   it('toggles the theme icon when the theme button is clicked', () => {
@@ -117,7 +147,7 @@ describe('Shell', () => {
 
   it('shows an avatar linking to the profile once the user is known', () => {
     tokenStore.set(
-      buildFakeToken({ sub: 'user-1', email: 'player@example.com', name: 'Player One', role: 'Player' }),
+      buildFakeToken({ sub: 'user-1', email: 'player@example.com', name: 'Player One', role: 'Player', scope: 'game' }),
     );
 
     const fixture = createAndFlushBalances();
@@ -127,9 +157,31 @@ describe('Shell', () => {
     expect(link!.textContent).toContain('PO');
   });
 
+  it('refreshes the profile on construction and shows the fetched avatar image', () => {
+    tokenStore.set(
+      buildFakeToken({ sub: 'user-1', email: 'player@example.com', name: 'Player One', role: 'Player', scope: 'game' }),
+    );
+
+    const fixture = createAndFlushBalances([], {
+      id: 'user-1',
+      email: 'player@example.com',
+      displayName: 'Player One',
+      gameId: null,
+      role: 'Player',
+      createdAt: '2026-01-01T00:00:00Z',
+      avatarUrl: 'https://example.com/avatar.png',
+      lastLoginAt: null,
+    });
+
+    expect(profileService.profile()?.avatarUrl).toBe('https://example.com/avatar.png');
+
+    const img = (fixture.nativeElement as HTMLElement).querySelector('a[href="/profile"] img');
+    expect(img?.getAttribute('src')).toBe('https://example.com/avatar.png');
+  });
+
   it('logs out, clears the selected game and balances, and redirects to Login', () => {
     const navigateSpy = vi.spyOn(router, 'navigateByUrl');
-    gameSelection.select({ id: 'game-1', slug: 'demo-shooter', name: 'Demo Shooter' });
+    gameSelection.select({ id: 'game-1', slug: 'demo-shooter', name: 'Demo Shooter', description: null, iconUrl: null });
 
     const fixture = createAndFlushBalances([
       { currencyId: 'platform-1', currencyCode: 'PLATFORM_CREDITS', scope: CurrencyScope.Platform, gameId: null, amount: 500 },
@@ -143,6 +195,8 @@ describe('Shell', () => {
 
     expect(gameSelection.selected()).toBeNull();
     expect(walletService.balances()).toBeNull();
+    expect(profileService.profile()).toBeNull();
+    expect(notificationHub.disconnect).toHaveBeenCalled();
     expect(navigateSpy).toHaveBeenCalledWith('/login');
   });
 });

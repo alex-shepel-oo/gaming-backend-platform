@@ -11,4 +11,7 @@ public interface IConversionRequestService
 {
     Task<ConversionCreationResult> CreateOrGetAsync(
         ConversionCreationRequest request, CancellationToken cancellationToken = default);
+
+    Task<ConversionRate> GetRateAsync(
+        Guid fromCurrencyId, Guid toCurrencyId, CancellationToken cancellationToken = default);
 }

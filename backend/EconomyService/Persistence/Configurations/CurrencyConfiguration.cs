@@ -18,7 +18,9 @@ public sealed class CurrencyConfiguration : IEntityTypeConfiguration<Currency>
         builder.Property(c => c.DisplayName).HasColumnName("display_name").IsRequired();
         builder.Property(c => c.Scope).HasColumnName("scope").HasConversion<short>();
         builder.Property(c => c.GameId).HasColumnName("game_id");
+        builder.Property(c => c.Decimals).HasColumnName("decimals").HasDefaultValue((short)2).IsRequired();
         builder.Property(c => c.CreatedAt).HasColumnName("created_at");
+        builder.Property(c => c.IconUrl).HasColumnName("icon_url");
 
         // Postgres treats NULLs in a unique index as distinct from each other,
         // so a plain UNIQUE (code, game_id) would accept duplicate platform-wide

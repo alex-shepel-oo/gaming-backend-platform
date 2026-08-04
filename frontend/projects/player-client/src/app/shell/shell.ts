@@ -3,7 +3,15 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { AuthService, CurrencyScope, GameSelectionService, TokenStore, WalletService } from 'shared';
+import {
+  AuthService,
+  CurrencyScope,
+  GameSelectionService,
+  NotificationHubService,
+  ProfileService,
+  TokenStore,
+  WalletService,
+} from 'shared';
 import { Avatar } from '../ui/avatar/avatar';
 import { ThemeService } from '../theme/theme.service';
 
@@ -24,11 +32,13 @@ import { ThemeService } from '../theme/theme.service';
 export class Shell {
   private readonly authService = inject(AuthService);
   private readonly walletService = inject(WalletService);
+  private readonly notificationHub = inject(NotificationHubService);
   private readonly router = inject(Router);
 
   protected readonly gameSelection = inject(GameSelectionService);
   protected readonly tokenStore = inject(TokenStore);
   protected readonly theme = inject(ThemeService);
+  protected readonly profileService = inject(ProfileService);
 
   protected readonly platformBalances = computed(
     () => this.walletService.balances()?.filter((balance) => balance.scope === CurrencyScope.Platform) ?? [],
@@ -36,12 +46,16 @@ export class Shell {
 
   constructor() {
     this.walletService.refreshBalances().subscribe();
+    this.profileService.refreshProfile().subscribe();
+    this.notificationHub.connect();
   }
 
   protected logout(): void {
     this.authService.logout().subscribe(() => {
       this.gameSelection.clear();
       this.walletService.clearBalances();
+      this.profileService.clearProfile();
+      this.notificationHub.disconnect();
       this.router.navigateByUrl('/login');
     });
   }
