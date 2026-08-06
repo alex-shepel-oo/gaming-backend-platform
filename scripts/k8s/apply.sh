@@ -17,9 +17,18 @@ NAMESPACE="gaming-platform"
 CHART="infra/helm/gaming-backend-platform"
 RELEASE="gbp"
 
+# Per-service base spec (see ADR 0021) -- globbed rather than named one by
+# one, so a new file under values/ is picked up automatically instead of
+# needing this script edited every time a service is added.
+VALUES_ARGS=()
+for f in "$CHART"/values/*.yaml; do
+  VALUES_ARGS+=(-f "$f")
+done
+VALUES_ARGS+=(-f "$CHART/values-local.yaml")
+
 helm upgrade --install "$RELEASE" "$CHART" \
   --namespace "$NAMESPACE" --create-namespace \
-  -f "$CHART/values-local.yaml" \
+  "${VALUES_ARGS[@]}" \
   --set-file gateway.ocelotConfigJson=backend/ApiGateway/ocelot.Kubernetes.json \
   --set-file observability.otelCollectorConfigYaml=infra/otel-collector/otel-collector-config.yaml \
   --set-file observability.tempoConfigYaml=infra/tempo/tempo-config.yaml \
