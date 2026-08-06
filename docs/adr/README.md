@@ -29,3 +29,4 @@ See the template: [0000-template.md](0000-template.md).
 | [0020](0020-frontend-tracing-with-faro.md) | Frontend Distributed Tracing with Grafana Faro | Accepted | — |
 | [0021](0021-kubernetes-helm-migration.md) | Kubernetes Deployment: One Helm Chart, Map-Driven | Accepted | — |
 | [0022](0022-observability-stack.md) | Observability Stack: OpenTelemetry, Grafana, and Real Infra Visibility | Accepted | — |
+| [0023](0023-gitops-argocd.md) | GitOps with Argo CD: Sync Scope, RBAC, and Per-Service Image Tags | Accepted | — |
