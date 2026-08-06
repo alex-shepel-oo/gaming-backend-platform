@@ -502,307 +502,34 @@ compare-and-swap design: **[docs/api/economy.md](docs/api/economy.md)**.
 
 ## NotificationService
 
-Port 5003, no database — the service holds nothing that needs to outlive a restart, so a missed push
-just leaves a client's balance at its last known value until something else refreshes it. The one thing
-it does is turn `BalanceChanged` — already published by EconomyService onto `gbp.economy` for every
-ledger-affecting change (see [Messaging](#messaging) and
-[ADR 0010](docs/adr/0010-transactional-outbox-event-bus.md)) — into a live push toward whichever browser
-tab happens to be connected. EconomyService's publishing side needed no changes to make this work. Full
-reasoning in [ADR 0014](docs/adr/0014-notification-service-and-signalr.md).
-
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| POST | `/hubs/notifications/negotiate` | bearer | SignalR negotiate; token read from the `Authorization` header, same as every other endpoint |
-| GET | `/hubs/notifications` | bearer, token via `access_token` query parameter on this path only | WebSocket/long-polling transport for the hub — a WebSocket handshake can't carry custom headers, so this is the one place in the service that reads a token out of the URL |
-| GET | `/health` | anonymous | Liveness probe |
-| GET | `/health/ready` | anonymous | Readiness probe (RabbitMQ only — no database to check) |
-
-Auth validates against Identity's published JWKS the same way every other service does
-([ADR 0017](docs/adr/0017-rs256-and-jwks.md)), but addressed delivery needs one
-extra piece: a custom `IUserIdProvider`. SignalR's default implementation reads
-`ClaimTypes.NameIdentifier`, while every token issued in this platform carries the caller's id under the
-short claim name `sub` (`MapInboundClaims = false`, already the convention IdentityService and
-EconomyService both use). Leave the default provider in place and `Clients.User(id)` matches no one — the
-connection still authenticates, the push simply never shows up, and nothing logs an error to point at
-why. Worth stating plainly here, since it's the kind of gap that looks fine until someone notices
-deliveries aren't landing.
-
-`BalanceChangedConsumer` consumes the queue directly through `IRabbitMqConnection` as a plain
-`BackgroundService`, bypassing `BuildingBlocks.Messaging`'s `InboxConsumerBase<TDbContext>`
-entirely — that base class ties its dedup step to a database transaction, and this service was built
-without one on purpose. There's no dedup layer here at all: if a message gets redelivered, the consumer
-just pushes the same, still-current balance a second time, which a connected client re-renders without
-any visible effect.
-
-The hub isn't reachable through Ocelot. An actual test against a running gateway showed the WebSocket
-upgrade stalling for roughly fifteen seconds before Ocelot tore the connection down, with no SignalR frame
-ever getting through — measured, not assumed, against the same request completing in under 200ms with no
-proxy in the way. player-client's nginx now proxies `/hubs` straight to `notification-service:5003`
-instead, the same direct-proxy approach already in place for `/api`
-([ADR 0012](docs/adr/0012-frontend-security-and-guards.md)); see
-[ADR 0014](docs/adr/0014-notification-service-and-signalr.md) for the full experiment.
-
-### Known limitations
-
-- **Single replica, no backplane.** SignalR keeps connection state in memory, which doesn't survive
-  across replicas without `Microsoft.AspNetCore.SignalR.StackExchangeRedis` or similar. `replicas: 1` is
-  this slice's accepted scale, not an unaddressed gap.
-- **No notification history.** A client that's disconnected when a balance changes only finds out on its
-  next request — kept for Extended scope.
-- **A redelivered event can push the same balance twice.** Harmless: the second push repeats a balance
-  the client already has, so nothing visibly changes.
+Turns `BalanceChanged` events into a live SignalR push to whichever browser tab is connected —
+port 5003, no database, no backplane (single replica is this slice's accepted scale). The hub
+isn't reachable through Ocelot (a measured WebSocket-upgrade failure, not an assumption), so each
+frontend's own Nginx proxies `/hubs` directly. Full endpoint reference and the `IUserIdProvider`
+gap that would otherwise make deliveries silently vanish: **[docs/services/notification-service.md](docs/services/notification-service.md)**.
 
 ## Player-client (Angular)
 
-An Angular 22 workspace under `frontend/` (`shared` library + `player-client`
-app) — the first browser client for the platform, covering Login, Games,
-Wallet, Convert, Profile, and password reset (a "Forgot password?" link off
-the login screen, through to the emailed-link screen). Profile shows real
-account data — member-since date, last login, avatar — rather than just
-mirroring the JWT's claims, and lets the player edit their display name
-and avatar.
-
-### Running it
-
-Built image (matches the demo path, proxies `/api` through Nginx):
-
-```
-cd frontend
-docker build -f projects/player-client/Dockerfile -t player-client .
-docker run -p 8080:8080 --network infra_platform-network player-client
-```
-
-Reach it at `http://localhost:8080`. It's also wired into
-`infra/docker-compose.yml` as the `player-client` service (port
-`PLAYER_CLIENT_PORT`, default `8080`), alongside `admin-client`
-(`ADMIN_CLIENT_PORT`, default `8081`).
-
-Local iteration:
-
-```
-cd frontend
-npm install
-npm run build   # shared first, then player-client -- player-client's
-                 # tsconfig resolves "shared" against shared's built dist,
-                 # not its source
-npm start        # ng serve, http://localhost:4200
-npm test         # Vitest, both projects
-```
-
-`ng serve` doesn't go through the Nginx proxy, so it relies on the gateway's
-CORS whitelist (below) rather than a same-origin `/api` path. It currently
-has no `proxy.conf.json`, so API calls resolve against `:4200` itself unless
-one is added — see known limitations.
-
-Once logged in, the toolbar balance stays live: `Shell` opens a SignalR
-connection to NotificationService right after the initial `refreshBalances()`
-load and closes it on logout, and each `balanceChanged` push updates the
-shared balance signal directly. `Convert`'s own polling `refreshBalances()`
-after a completed conversion is untouched and still runs as a fallback.
-
-### Cookie flow, client side
-
-The access token lives only in an in-memory signal — never localStorage,
-sessionStorage, or a cookie the client can read. The refresh token is the
-`gbp_refresh` `httpOnly` cookie IdentityService sets (see
-[ADR 0011](docs/adr/0011-web-auth-cookie-flow.md)); the client never touches
-its value, just relies on `withCredentials: true` sending it automatically.
-An HTTP interceptor attaches the access token and retries once on 401 after
-a refresh; a silent refresh call at bootstrap restores the session on
-reload, before routing decides anything. Route guards are UX only, not the
-security boundary — see [ADR 0012](docs/adr/0012-frontend-security-and-guards.md)
-for the full reasoning.
-
-### CORS
-
-The gateway runs two named CORS policies, not one shared whitelist:
-`PlayerClientCors` (`Cors:AllowedOrigins` — `http://localhost:8080` and
-`http://localhost:4200`) and `AdminClientCors` (`AdminCors:AllowedOrigins` —
-`http://localhost:8081` and `http://localhost:4201`), both with
-`AllowCredentials=true` and `X-Client-Type` in `AllowedHeaders`. Two
-`UseWhen` branches pick a policy by path prefix (`/api/admin/**` gets
-`AdminClientCors`, everything else gets `PlayerClientCors`) ahead of
-`UseOcelot()`, since Ocelot has no per-route CORS config of its own. The
-built demo path doesn't need either policy, since each frontend's own Nginx
-proxies `/api` onto its own origin — CORS only matters for `ng serve` and
-any future direct client. See [ADR 0016](docs/adr/0016-admin-surface-isolation.md).
-
-### Known limitations
-
-- **`ng serve` has no `proxy.conf.json` yet.** Local dev currently needs
-  either that file (pointing `/api` at the gateway) or manually hitting the
-  gateway's absolute URL; CORS alone doesn't help until requests are
-  actually cross-origin.
+The platform's first browser client — Login, Games, Wallet, Convert, Profile, password reset —
+built on Angular 22 under `frontend/`. Keeps the access token in memory only, relies on the
+`gbp_refresh` httpOnly cookie for silent refresh, and treats route guards as UX rather than a
+security boundary ([ADR 0012](docs/adr/0012-frontend-security-and-guards.md)). Build/run commands,
+the cookie flow in detail, and the CORS setup: **[docs/services/player-client.md](docs/services/player-client.md)**.
 
 ## Admin-client (Angular)
 
-A second Angular workspace app under `frontend/` (`projects/admin-client`,
-sharing the same `shared` library `player-client` does), covering platform
-and game admin/moderator tooling that used to be part of `player-client`'s
-own reach and now lives entirely off-player-surface instead. One
-application, not two — platform-wide sections and game-scoped sections both
-live here, gated by permission rather than split into separate SPAs. See
-[ADR 0016](docs/adr/0016-admin-surface-isolation.md) for the full reasoning.
-
-### Running it
-
-Built image (matches the demo path, proxies `/api` through its own Nginx,
-same shape as `player-client`):
-
-```
-cd frontend
-docker build -f projects/admin-client/Dockerfile -t admin-client .
-docker run -p 8081:8081 --network infra_platform-network admin-client
-```
-
-Reach it at `http://localhost:8081`. Local iteration goes through the same
-`shared`-then-app build order as `player-client`:
-
-```
-cd frontend
-npm install
-npm run build            # shared first, then each app
-npm start -- admin-client # ng serve, http://localhost:4201
-npm test                  # Vitest, all projects
-```
-
-### Login and the game picker
-
-Login is account-first — there's no game-slug field the way `player-client`
-still has one for direct game logins. A caller with a platform-wide role
-(`scope=Platform` back from `login`) lands straight in. A caller with only
-game-scoped roles gets a game picker instead, backed by
-`GET /api/admin/identity/users/me/games` (the games they actually hold a
-role on, not the public catalog); picking one calls the same
-`POST /api/identity/auth/select-game` player-client's ecosystem-first login
-already uses, not a second, admin-only mechanism.
-
-### Cookie flow, client side
-
-Same shape as `player-client`: the access token lives only in an in-memory
-signal, and the refresh token is an `httpOnly` cookie the client never reads
-— here named `gbp_admin_refresh` rather than `gbp_refresh`, on its own
-options section server-side. `admin-client` has its own Nginx doing the same
-reverse-proxy trick player-client's does, so the browser sees one origin for
-statics and `/api` alike, and the cookie keeps `SameSite=Strict` despite
-being a genuinely separate frontend on a different host and port. See
-[ADR 0016](docs/adr/0016-admin-surface-isolation.md).
-
-### Screens
-
-- **Games** (`platform.games.manage`) — list/register/update games.
-- **Roles** (`platform.roles.manage`) — the permission catalog and each
-  role's effective permission set, per game or platform-wide.
-- **Users** (Moderator/Admin role tier) — search and look up users in the
-  caller's own scope, assign roles, and revoke a user's sessions
-  (session revocation itself is Admin-only, stricter than the tier that
-  gets into the screen at all); the roster also shows each user's last
-  login.
-- **My Game** (`game.metadata.edit`) — lets a game-scoped Game-Admin edit
-  their own game's `description`/`iconUrl`, nothing else. There's no
-  single-game lookup endpoint to back it, so it reuses the same
-  `GET /api/admin/identity/users/me/games` call the game picker makes and
-  takes the first result, which for this role is a one-element array.
-
-None of this re-implements the backend's anti-escalation rules client-side —
-the UI disables a role option it can't confirm the caller is actually
-allowed to grant, by asking the same `roles/{role}/permissions` endpoint the
-backend's own guard checks against, not a copy of that logic living in the
-frontend.
+A second Angular app, same `shared` library, covering platform and game admin/moderator tooling on
+its own audience-gated surface ([ADR 0016](docs/adr/0016-admin-surface-isolation.md)) — one app,
+not two, with platform-wide and game-scoped sections both gated by permission. Build/run commands,
+the game-picker login flow, and the screen-by-screen breakdown:
+**[docs/services/admin-client.md](docs/services/admin-client.md)**.
 
 ## Messaging
 
-EconomyService publishes an integration event for every state change a future
-consumer might care about (`BalanceChangedEvent` and friends), using the
-transactional outbox pattern rather than publishing to RabbitMQ directly from
-the request path. See [ADR 0003](docs/adr/0003-async-inter-service-communication.md)
-for why events instead of a synchronous call,
-[ADR 0010](docs/adr/0010-transactional-outbox-event-bus.md) for the
-outbox itself, and
-[ADR 0018](docs/adr/0018-shared-messaging-building-block.md) for why the
-mechanism described below lives in a shared library rather than inside
-EconomyService.
-
-The publish/consume machinery itself — `IEventBus`, the outbox writer and
-dispatcher, and the inbox dedup base — lives in `BuildingBlocks.Messaging`,
-a library shared across services rather than code specific to EconomyService.
-The library's boundary is infrastructure only: transport, topology, and the
-generic outbox/inbox entities and dispatch/consume mechanics. Domain events
-(`BalanceChangedEvent` and friends) and domain side effects (the
-`ProjectedEventCount` projection below) stay in EconomyService — the library
-never sees them. Each consuming service also keeps its own `outbox_messages`
-and `processed_messages` tables in its own database; the library gives every
-service the same code to work with, not a shared table, so ADR-0001 still
-holds.
-
-**Flow:** `LedgerService` writes an `outbox_messages` row in the same database
-transaction as the ledger entry it describes — both commit together, or
-neither does. A separate background service (`OutboxDispatcherService`) polls
-that table for unsent rows, claiming them with `SELECT ... FOR UPDATE SKIP
-LOCKED` so that if EconomyService is ever scaled to multiple replicas, no two
-of them publish the same row. Each claimed row is relayed through `IEventBus`
-to RabbitMQ and marked `processed_at` once the broker acknowledges it.
-
-**Delivery guarantee:** at-least-once, not exactly-once. A crash between
-publishing and marking a row processed causes that message to be redelivered
-on the next poll. Deduplicating a redelivered message is the consumer's job -
-see below.
-
-**Topology:** a topic exchange named `gbp.economy`, with the routing key set
-to the event's type (e.g. `balance.changed`). Topic rather than fanout or
-direct, so a consumer added later can bind to just the event types it needs
-without the exchange being redeclared. The exchange is declared idempotently
-each time the service starts.
-
-### Consumer and inbox-lite deduplication
-
-EconomyService also binds a queue to its own exchange (`balance.changed` and
-the three `conversion.*` routing keys) and consumes what it publishes. This
-is a demonstration of the delivery loop surviving redelivery, not a
-production subscriber - no other service reads these events yet.
-
-Before doing anything with a delivery, the consumer inserts the message's id
-into `processed_messages` and applies the delivery's side effect (a
-projection counter) in the *same* database transaction. A primary-key
-conflict on that insert means an earlier delivery already got here, so the
-message is acked and skipped without reprocessing; a crash between the
-insert and the commit rolls both back together, so a redelivered message is
-reprocessed cleanly rather than silently lost. This is deliberately
-**inbox-lite**, not a full inbox pattern - there's no per-message retry
-bookkeeping or metadata beyond `message_id` and `processed_at`.
-
-**Known limitations** (of the shared mechanism, so they apply to every
-consumer of `BuildingBlocks.Messaging`, not just EconomyService):
-- No dead-letter queue. A row that keeps failing to publish is parked once
-  its attempt count hits the configured ceiling — left unsent, logged, and
-  no longer retried — rather than routed anywhere for inspection.
-- Not exactly-once. See the delivery guarantee above.
-- The dispatcher polls on an interval rather than reacting to commits via
-  logical replication/CDC, so there is always some delay between a ledger
-  entry landing and its event reaching the broker.
-- Both IdentityService and EconomyService now fail to start without a
-  reachable broker — RabbitMQ went from an EconomyService-only dependency
-  to a platform-wide one the moment Identity got its own outbox.
-
-### Welcome grant
-
-IdentityService has its own `outbox_messages` table and its own exchange (`gbp.identity`), populated the
-same way EconomyService's is — confirming an email writes a `UserEmailConfirmed` row in the same call
-that flips `EmailConfirmed`, no separate transaction needed since that call already goes through one
-`SaveChangesAsync`. EconomyService's `UserEmailConfirmedConsumer` binds to that exchange directly — the
-first consumer in the system that isn't reading its own service's events — and grants a starting
-`PLATFORM_CREDITS` balance through the existing `ILedgerService.GrantAsync`, keyed on
-`welcome:{userId}` so a redelivery replays instead of double-granting. Seeded demo users
-(`admin`, `player.one`, `player.two`, `gameadmin@demo-racer.dev`, `player.three`) never go through
-register/confirm-email, so they get the same balance directly from `EconomyService.DevelopmentSeeder`
-instead, addressed by a fixed `UserId` IdentityService's own seeder now assigns them (the same
-no-real-foreign-key convention already used for the seeded game ids).
-
-Binding a queue to another service's exchange needed one small change to the shared library:
-`InboxConsumerBase<TDbContext>` used to read the exchange to bind from the same `RabbitMqOptions` a
-service publishes with, which only ever worked because the one consumer that existed listened to its
-own exchange. It now takes the exchange as an explicit argument instead. Full reasoning in
-[ADR 0010's welcome-grant addendum](docs/adr/0010-transactional-outbox-event-bus.md#addendum-the-welcome-grant-and-identitys-first-outbox).
+The transactional outbox/inbox mechanism every publisher and consumer in the system shares
+(`BuildingBlocks.Messaging`) — at-least-once delivery, topic-exchange topology, inbox-lite
+deduplication, and the welcome-grant flow that made it the first cross-service event binding in
+the platform. Full flow, delivery guarantees, and known limitations: **[docs/messaging.md](docs/messaging.md)**.
 
 ## Platform.Worker
 
