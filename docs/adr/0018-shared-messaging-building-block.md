@@ -34,7 +34,8 @@ messaging/outbox/inbox test keeps passing unmodified.
   `OutboxWriter<TDbContext>`, `OutboxDispatcherOptions`, `OutboxDispatcherService<TDbContext>`.
 - Inbox: the `ProcessedMessage` dedup-ledger entity and its configuration, `IInboxFaultInjector`/
   `NoOpInboxFaultInjector` (the crash-before-commit test seam), and a generic template-base consumer,
-  `DeduplicatingConsumerBase<TDbContext>`, that owns the connect/bind/receive loop and the
+  `DeduplicatingConsumerBase<TDbContext>` (renamed to `InboxConsumerBase<TDbContext>` shortly after,
+  see ADR-0010's addendum — same class, name only), that owns the connect/bind/receive loop and the
   insert-processed-message-then-apply-side-effect-then-commit transaction shape. A consuming service
   derives from it and implements only the side effect.
 - DI wiring: `AddRabbitMqEventBus(configuration)`, `AddOutbox<TDbContext>()`,

@@ -29,10 +29,10 @@ Data crosses service boundaries through public APIs (synchronous) or through eve
 service's schema.
 
 In local development and CI, each database is a separate Postgres container on its own port; in
-Kubernetes, a separate StatefulSet with its own PVC in the namespace. In Azure this is a question
-for a later slice (see ADR-0006), but the "one database per service" principle carries over
-there too: either separate managed instances or isolated schemas on one instance — never one
-shared schema serving several services.
+Kubernetes, a separate StatefulSet with its own PVC in the namespace. Production ultimately landed
+on a self-hosted VPS running k3s rather than Azure, the target this ADR originally scoped for
+([ADR-0021](0021-kubernetes-helm-migration.md)) — but the "one database per service" principle
+carried over unchanged: still a StatefulSet per service, never one shared schema serving several.
 
 ## Alternatives considered
 

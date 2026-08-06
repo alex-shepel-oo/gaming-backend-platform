@@ -85,4 +85,6 @@ already was; a guard failure can never be mistaken for a security control, becau
   removing either one breaks a different access path (the built demo, or local development), not both at
   once, which makes a regression here easy to miss in one path while testing only the other.
 - An admin panel on a genuinely different origin (slice 3) will need its own CORS entry and a fresh look
-  at whether `SameSite=Strict` still holds once a second origin is really in play.
+  at whether `SameSite=Strict` still holds once a second origin is really in play. Answered:
+  [ADR-0016](0016-admin-surface-isolation.md) gave admin-client its own Nginx reverse-proxy, the same
+  same-origin trick used here, so `Strict` holds unchanged for a second frontend too.

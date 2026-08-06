@@ -68,7 +68,9 @@ codebase.
 **Email sending is synchronous and best-effort.** No outbox exists yet in this slice (the plan
 scopes the Outbox pattern to EconomyService); an SMTP failure is logged and swallowed, and
 registration still returns 202 because the code is already in the database and resend is the
-compensating path.
+compensating path. Superseded: this call site now writes to IdentityService's own outbox instead
+of sending inline, and the send itself moved to a separate EmailService — see
+[ADR-0024](0024-email-service-extraction.md).
 
 ## Alternatives considered
 
@@ -99,7 +101,9 @@ attempt. Email delivery has no retry mechanism beyond the user manually requesti
 
 ### When this gets revisited
 
-A transactional outbox for email, once EconomyService's outbox pattern is proven and worth
-extending. A native `Azure.Communication.Email` sender, once delivery telemetry becomes worth the
-second implementation. A distributed rate limiter (Redis-backed), if the in-process IP limit on
-login/register/confirm proves insufficient once real traffic exists.
+~~A transactional outbox for email, once EconomyService's outbox pattern is proven and worth
+extending.~~ Done — see [ADR-0024](0024-email-service-extraction.md). A native
+`Azure.Communication.Email` sender never got built; the platform's production target changed away
+from Azure entirely (ADR-0021), so this line is moot rather than pending. A distributed rate
+limiter (Redis-backed), if the in-process IP limit on login/register/confirm proves insufficient
+once real traffic exists — still open.

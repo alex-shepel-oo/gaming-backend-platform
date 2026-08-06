@@ -95,3 +95,7 @@ collection and any future non-browser client keep working exactly as before.
   implemented.
 - Refresh token rotation, reuse detection and family revocation are inherited unchanged from ADR-0008;
   this ADR does not revisit that mechanism, only its transport for browser clients.
+- This ADR covers exactly one cookie, `gbp_refresh`, for the one frontend that existed at the time.
+  [ADR-0016](0016-admin-surface-isolation.md) later added a second, independent cookie
+  (`gbp_admin_refresh`) for admin-client — a parallel instance of this same design, not a change to
+  it.
