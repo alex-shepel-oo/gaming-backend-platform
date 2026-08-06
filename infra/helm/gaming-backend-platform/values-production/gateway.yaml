@@ -1,0 +1,10 @@
+deployments:
+  gateway:
+    hpa:
+      maxReplicas: 3
+ingress:
+  hosts:
+    gateway:
+      host: gbgateway.shepel.dev
+      service: api-gateway
+      port: 5100

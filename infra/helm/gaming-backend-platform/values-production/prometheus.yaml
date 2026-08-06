@@ -1,0 +1,6 @@
+# No auth of its own and nothing needs to browse to it directly in
+# production; Grafana already queries it as a datasource over in-cluster
+# Service DNS. Overrides values/prometheus.yaml's local-only ingress host.
+ingress:
+  hosts:
+    prometheus: null

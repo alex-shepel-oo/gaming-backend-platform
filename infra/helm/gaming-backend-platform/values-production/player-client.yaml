@@ -1,0 +1,6 @@
+ingress:
+  hosts:
+    player-client:
+      host: gbplatform.shepel.dev
+      service: player-client
+      port: 8080

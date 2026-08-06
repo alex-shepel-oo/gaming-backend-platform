@@ -1,0 +1,6 @@
+ingress:
+  hosts:
+    admin-client:
+      host: gbadmin.shepel.dev
+      service: admin-client
+      port: 8081
