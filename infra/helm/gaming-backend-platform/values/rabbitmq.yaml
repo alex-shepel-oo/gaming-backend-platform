@@ -1,0 +1,24 @@
+statefulsets:
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    containerPorts:
+      - {name: amqp, containerPort: 5672}
+      - {name: management, containerPort: 15672}
+    svcPorts:
+      - {name: amqp, port: 5672, targetPort: 5672}
+      - {name: management, port: 15672, targetPort: 15672}
+    env:
+      - name: RABBITMQ_DEFAULT_USER
+        valueFrom: {secretKeyRef: {name: rabbitmq-secrets, key: RABBITMQ_DEFAULT_USER}}
+      - name: RABBITMQ_DEFAULT_PASS
+        valueFrom: {secretKeyRef: {name: rabbitmq-secrets, key: RABBITMQ_DEFAULT_PASS}}
+    volumeMount: {name: rabbitmq-data, mountPath: /var/lib/rabbitmq}
+    storage: 1Gi
+    readinessProbe:
+      exec: {command: ["rabbitmq-diagnostics", "check_port_connectivity"]}
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      timeoutSeconds: 10
+    resources:
+      requests: {cpu: 250m, memory: 256Mi}
+      limits: {cpu: 500m, memory: 512Mi}

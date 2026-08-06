@@ -1,0 +1,23 @@
+statefulsets:
+  economy-db:
+    image: postgres:17-alpine
+    containerName: postgres
+    port: 5432
+    env:
+      - name: POSTGRES_DB
+        valueFrom: {configMapKeyRef: {name: economy-config, key: POSTGRES_DB}}
+      - name: POSTGRES_USER
+        valueFrom: {configMapKeyRef: {name: economy-config, key: POSTGRES_USER}}
+      - name: POSTGRES_PASSWORD
+        valueFrom: {secretKeyRef: {name: economy-secrets, key: POSTGRES_PASSWORD}}
+    volumeMount: {name: economy-db-data, mountPath: /var/lib/postgresql/data, subPath: postgres}
+    storage: 1Gi
+    readinessProbe:
+      exec: {command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]}
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    resources:
+      requests: {cpu: 250m, memory: 256Mi}
+      limits: {cpu: 500m, memory: 512Mi}
+    hook:
+      weight: "-20"

@@ -1,0 +1,55 @@
+# Plain Generic Host + BackgroundService (Platform.Worker's shape, not a Web app) -- no inbound
+# caller ever talks to this service directly, so no `service:` block and no `port`. Consumes the
+# three email-related outbox events identity-service writes (gbp.identity exchange) and sends the
+# actual mail, replacing the synchronous SMTP call identity-service used to make in-request.
+deployments:
+  email-service:
+    image: email-service
+    replicas: 1
+    configMapName: email-service-config
+    configMap:
+      Email__Smtp__Host: "mailpit"
+      Email__Smtp__Port: "1025"
+      Email__Smtp__UseStartTls: "false"
+      Email__TemplatesPath: "/app/Templates"
+      RabbitMq__Host: "rabbitmq"
+      RabbitMq__Port: "5672"
+      RabbitMq__ExchangeName: "gbp.identity"
+      Telemetry__OtlpEndpoint: "http://otel-collector.observability.svc.cluster.local:4317"
+      Telemetry__LokiEndpoint: "http://loki.observability.svc.cluster.local:3100"
+    envFrom:
+      - configMapRef: {name: shared-config}
+      - configMapRef: {name: email-service-config}
+      - secretRef: {name: email-service-secrets}
+    env:
+      - name: RabbitMq__Username
+        valueFrom: {secretKeyRef: {name: rabbitmq-secrets, key: RABBITMQ_DEFAULT_USER}}
+      - name: RabbitMq__Password
+        valueFrom: {secretKeyRef: {name: rabbitmq-secrets, key: RABBITMQ_DEFAULT_PASS}}
+    # Mounted at the exact path Email__TemplatesPath above resolves to -- the ConfigMap's three keys
+    # (templates/email-templates-configmap.yaml) become the three files under it, replacing whatever
+    # the image itself baked in at build time (backend/EmailService/Templates/*.html,
+    # CopyToOutputDirectory). Deliberately no matching checksum/* annotation on the Deployment: see
+    # the comment on emailService.templates in values.yaml.
+    volumeMounts:
+      - name: email-templates
+        mountPath: /app/Templates
+    volumes:
+      - name: email-templates
+        configMap:
+          name: email-service-templates
+    # EmailVerificationRequestedConsumer/PasswordResetRequestedConsumer/
+    # DuplicateRegistrationNoticeRequestedConsumer all bind their queues to gbp.identity at startup
+    # and the whole host goes down if that exchange doesn't exist yet; only identity-service's own
+    # topology initializer declares it. Same wait-for-identity gate economy-service already uses.
+    initContainers:
+      - name: wait-for-identity
+        image: busybox:1.36
+        command: ["sh", "-c", "until wget -qO- http://identity-service:5000/health/ready; do sleep 2; done"]
+    livenessProbe:
+      exec: {command: ["sh", "-c", "grep -q dotnet /proc/1/cmdline"]}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}

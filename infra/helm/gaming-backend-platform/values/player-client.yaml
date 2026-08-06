@@ -1,0 +1,25 @@
+deployments:
+  player-client:
+    image: player-client
+    replicas: 2
+    port: 8080
+    service:
+      enabled: true
+      port: 8080
+    livenessProbe:
+      httpGet: {path: /, port: 8080}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    readinessProbe:
+      httpGet: {path: /, port: 8080}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+ingress:
+  hosts:
+    player-client:
+      host: player-client.localhost
+      service: player-client
+      port: 8080

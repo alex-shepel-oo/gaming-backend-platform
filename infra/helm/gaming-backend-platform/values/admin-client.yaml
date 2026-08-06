@@ -1,0 +1,25 @@
+deployments:
+  admin-client:
+    image: admin-client
+    replicas: 2
+    port: 8081
+    service:
+      enabled: true
+      port: 8081
+    livenessProbe:
+      httpGet: {path: /, port: 8081}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    readinessProbe:
+      httpGet: {path: /, port: 8081}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+ingress:
+  hosts:
+    admin-client:
+      host: admin-client.localhost
+      service: admin-client
+      port: 8081

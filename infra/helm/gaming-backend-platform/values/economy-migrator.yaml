@@ -1,0 +1,7 @@
+migrationJobs:
+  economy-migrator:
+    image: economy-migrator
+    dbHost: economy-db
+    secretName: economy-secrets
+    connectionStringKey: ConnectionStrings__EconomyDb
+    hookWeight: "-10"

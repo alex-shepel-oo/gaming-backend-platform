@@ -1,0 +1,62 @@
+deployments:
+  grafana:
+    image: grafana/grafana:12.0.0
+    internal: false
+    namespace: observability
+    replicas: 1
+    # Runs as the image's own non-root user (uid 472); same PVC-writability
+    # reasoning as prometheus.
+    securityContext:
+      fsGroup: 472
+    ports:
+      - {name: http, containerPort: 3000}
+    service:
+      enabled: true
+      port: 3000
+    envFrom:
+      - secretRef: {name: grafana-secrets}
+    configMapName: grafana-config
+    volumeMounts:
+      - name: config
+        mountPath: /etc/grafana/provisioning/datasources/datasources.yml
+        subPath: datasources.yml
+      - name: config
+        mountPath: /etc/grafana/provisioning/dashboards/dashboards.yml
+        subPath: dashboards.yml
+      - name: config
+        mountPath: /etc/grafana/dashboards/service-overview.json
+        subPath: service-overview.json
+      - name: config
+        mountPath: /etc/grafana/dashboards/node-resources.json
+        subPath: node-resources.json
+      - name: data
+        mountPath: /var/lib/grafana
+    volumes:
+      - name: config
+        configMap:
+          name: grafana-config
+          items:
+            - {key: datasources.yml, path: datasources.yml}
+            - {key: dashboards.yml, path: dashboards.yml}
+            - {key: service-overview.json, path: service-overview.json}
+            - {key: node-resources.json, path: node-resources.json}
+      - name: data
+        persistentVolumeClaim: {claimName: grafana-data}
+    readinessProbe:
+      httpGet: {path: /api/health, port: 3000}
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+persistentVolumeClaims:
+  grafana-data:
+    namespace: observability
+    storage: 1Gi
+ingress:
+  hosts:
+    grafana:
+      host: grafana.localhost
+      service: grafana
+      port: 3000
+      namespace: observability

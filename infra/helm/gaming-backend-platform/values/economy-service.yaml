@@ -1,0 +1,57 @@
+deployments:
+  economy-service:
+    image: economy-service
+    replicas: 2
+    port: 5001
+    service:
+      enabled: true
+      port: 5001
+    configMapName: economy-config
+    # economy-db (a pre-install hook) reads POSTGRES_DB/POSTGRES_USER from
+    # this ConfigMap, so it has to be a hook too -- see templates/configmap.yaml.
+    configMapHookWeight: "-30"
+    configMap:
+      POSTGRES_DB: "economy_db"
+      POSTGRES_USER: "economy"
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "http://+:5001"
+      Jwt__JwksUri: "http://identity-service:5000/.well-known/jwks.json"
+      RabbitMq__Host: "rabbitmq"
+      RabbitMq__Port: "5672"
+      Telemetry__OtlpEndpoint: "http://otel-collector.observability.svc.cluster.local:4317"
+      Telemetry__LokiEndpoint: "http://loki.observability.svc.cluster.local:3100"
+    envFrom:
+      - configMapRef: {name: shared-config}
+      - configMapRef: {name: economy-config}
+      - secretRef: {name: economy-secrets}
+    env:
+      - name: RabbitMq__Username
+        valueFrom: {secretKeyRef: {name: rabbitmq-secrets, key: RABBITMQ_DEFAULT_USER}}
+      - name: RabbitMq__Password
+        valueFrom: {secretKeyRef: {name: rabbitmq-secrets, key: RABBITMQ_DEFAULT_PASS}}
+    # UserEmailConfirmedConsumer binds its queue to gbp.identity at startup
+    # and the whole host goes down if that exchange doesn't exist yet; only
+    # identity-service's own topology initializer declares it. There's no
+    # depends_on in Kubernetes, so this waits for identity-service to report
+    # ready instead of letting economy-service crash-loop until it wins the
+    # race on its own.
+    initContainers:
+      - name: wait-for-identity
+        image: busybox:1.36
+        command: ["sh", "-c", "until wget -qO- http://identity-service:5000/health/ready; do sleep 2; done"]
+    livenessProbe:
+      httpGet: {path: /health, port: 5001}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    readinessProbe:
+      httpGet: {path: /health/ready, port: 5001}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
