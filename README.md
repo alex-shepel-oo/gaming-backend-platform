@@ -177,7 +177,8 @@ Interactive OpenAPI reference for IdentityService, served through the gateway.
 
 </details>
 
-> **Status:** Slice 3 in progress — styling the UI and improving page UX, adding InventoryService
+> **Status:** Slice 3's backend is complete and running live in production on Kubernetes via Argo
+> CD. Next up: inventory (slice 3b) and continued polish on the pieces above.
 
 ## Architecture
 
@@ -210,25 +211,20 @@ including local-vs-Kubernetes differences and every implemented-vs-planned disti
 
 ## CD
 
-Argo CD watches `main` and deploys the Helm chart from
+Argo CD watches `main` and auto-syncs the Helm chart from
 [`infra/helm/gaming-backend-platform/`](infra/helm/gaming-backend-platform/) — see
 [`scripts/k8s/argocd-application-production.yaml`](scripts/k8s/argocd-application-production.yaml)
-for the `Application` itself. It only reacts to `main`, never to `develop` or an open PR, and only
-to an actual git commit — not to a fresh image landing in GHCR under the same tag, which by
-itself changes nothing about the rendered manifest.
+for the `Application` itself. It only reacts to `main`, never `develop` or an open PR, and only to
+an actual git commit — a fresh image landing in GHCR under the same tag changes nothing about the
+rendered manifest on its own.
 
-That second part is why each service in
-[`values-production.yaml`](infra/helm/gaming-backend-platform/values-production.yaml) pins its
-own `imageTag` rather than the chart sharing one global tag: CI is path-filtered (touching
-`backend/EconomyService/` doesn't rebuild `identity-service`, see [CI](#ci) below), so a single
-shared tag bumped on every merge would have every service pull an image that was never actually
-rebuilt under that tag for the ones the commit didn't touch. Instead,
-[`.github/actions/bump-image-tag`](.github/actions/bump-image-tag/action.yml) runs as the last
-step of each service's own CI workflow, only on a push to `main`, and only after that workflow's
-own image build succeeded — it points that one service's `imageTag` at the commit SHA that was
-just built and pushes the change back to `main`, which is the commit Argo CD's auto-sync actually
-reacts to. A push to `main` that only touches, say, `EconomyService` therefore redeploys exactly
-`economy-service` (and `economy-migrator`), not the other seven images sitting untouched.
+Each service's own CI workflow ends by pointing that service's `imageTag` — in its own file under
+[`image-tags/`](infra/helm/gaming-backend-platform/image-tags/), since CI is path-filtered and a
+shared tag would have every service pull an image that was never rebuilt for it — at the commit
+SHA it just built, then pushes that change back to `main`, the commit Argo CD's sync actually
+reacts to. A push touching only `EconomyService` therefore redeploys exactly `economy-service`
+(and `economy-migrator`), not the other seven images sitting untouched. Full reasoning, including
+two real RBAC incidents this setup uncovered, in [ADR 0023](docs/adr/0023-gitops-argocd.md).
 
 ## CI
 
@@ -303,10 +299,16 @@ has the one-liner.
 
 The chart lives under `infra/helm/gaming-backend-platform/` — one Helm
 release, one namespace (`gaming-platform`), the same services as the compose
-stack above. `values.yaml` carries the shape every environment shares;
-`values-local.yaml` (the local `kind` cluster / sandbox namespace this is
-actually validated against) and `values-production.yaml` (still a
-placeholder — no real VPS/domain yet) layer the knobs that differ. See
+stack above. `values.yaml` and `values-production.yaml` each carry only the
+shape genuinely shared across every service (image defaults, ingress
+structure, and so on); the per-service settings live one file per service
+under `values/` and `values-production/`, plus one file per CI workflow
+under `image-tags/` for the tag each deploy actually pins. See
+[ADR 0021](docs/adr/0021-kubernetes-helm-migration.md) for why it's split
+this way. `values-local.yaml` layers the knobs specific to the local `kind`
+cluster / sandbox namespace this is actually validated against; production
+is the real, currently-live deployment behind [the demo links above](#live-demo),
+not a placeholder. See
 [docs/architecture.md](docs/architecture.md#local-vs-kubernetes) for the full
 local-vs-cluster breakdown, including why the environment is pinned to
 `Development` here.
@@ -362,9 +364,9 @@ though the value itself doesn't. The matching private key never lives in the
 repo; it sits wherever `sops` looks for it by default
 (`$XDG_CONFIG_HOME/sops/age/keys.txt` on Linux/macOS,
 `%AppData%\sops\age\keys.txt` on Windows), generated once per operator with
-`age-keygen`. The real VPS deployment will need its own such keypair, kept
-outside git the same way — what's here proves the mechanism, not a
-production key.
+`age-keygen`. Production's own keypair is generated and held the same way,
+outside git — the mechanism above is exactly what the live deployment uses,
+not a separate one built only to demonstrate it.
 
 `infra/helm/gaming-backend-platform/secrets.enc/` holds the encrypted,
 real-value counterparts of the five `secrets.example/` templates, committed
@@ -1175,11 +1177,6 @@ that service's own rules. It does so through narrow, cleanup-only
   legitimate `/refresh` call and retries with the same (now-consumed)
   token is treated as reuse and loses the whole session, not just that
   request. See ADR 0008.
-- Verification email is sent synchronously and best-effort. An SMTP
-  failure is logged and does not fail registration; `resend-verification`
-  is the recovery path. Routing it through a transactional outbox, the
-  way EconomyService now does for its own events, is a later extension
-  of the same pattern.
 - `external_logins` is schema only — no OAuth provider (Google, Discord, etc.)
   is actually wired up yet, and there's no account-linking policy implemented
   either. See ADR 0015.
