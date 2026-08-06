@@ -28,3 +28,4 @@ See the template: [0000-template.md](0000-template.md).
 | [0019](0019-opentelemetry-observability.md) | OpenTelemetry Observability: Collector Hub and Grafana-Native Backends | Accepted | — |
 | [0020](0020-frontend-tracing-with-faro.md) | Frontend Distributed Tracing with Grafana Faro | Accepted | — |
 | [0021](0021-kubernetes-helm-migration.md) | Kubernetes Deployment: One Helm Chart, Map-Driven | Accepted | — |
+| [0022](0022-observability-stack.md) | Observability Stack: OpenTelemetry, Grafana, and Real Infra Visibility | Accepted | — |
