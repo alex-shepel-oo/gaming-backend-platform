@@ -29,7 +29,6 @@ on `localhost`.
 - [Running on Kubernetes](#running-on-kubernetes)
 - [Local automation](#local-automation)
 - [Identity API](#identity-api)
-- [Permission-based RBAC](#permission-based-rbac)
 - [Economy API](#economy-api)
 - [NotificationService](#notificationservice)
 - [Player-client (Angular)](#player-client-angular)
