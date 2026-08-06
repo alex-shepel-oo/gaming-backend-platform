@@ -1,13 +1,17 @@
 name: Bump image tag
 description: >
-  Points values-production.yaml's imageTag(s) at the commit that was just
-  built, and pushes that change back to main. Argo CD's Application (see
-  scripts/k8s/argocd-application-production.yaml) watches this file with
+  Points a values file's imageTag(s) at the commit that was just built, and
+  pushes that change back to main. Argo CD's Application (see
+  scripts/k8s/argocd-application-production.yaml) watches these files with
   auto-sync on, so this commit is the actual trigger for a production
   deploy -- a rebuilt image under the same floating tag would not be, since
   nothing about the rendered manifest would have changed.
 
 inputs:
+  values-file:
+    description: The values file to edit, repo-relative.
+    required: false
+    default: infra/helm/gaming-backend-platform/values-production.yaml
   yaml-paths:
     description: >
       Space-separated yq paths to bump, e.g.
@@ -26,19 +30,13 @@ runs:
     - name: Bump, commit, and push
       shell: bash
       # Re-derives the edit from a freshly fetched main on every attempt instead of
-      # committing once and rebasing a stale local commit on conflict. Several of these
-      # workflows can fire on the same push to main and land here within seconds of each
-      # other, each bumping a different line of the same file -- a rebase can hit a real
-      # conflict on nearby lines rather than a clean auto-merge (found live: two
-      # concurrent runs raced, one lost, and the rebase it fell back to conflicted and
-      # aborted the whole step instead of retrying). Resetting to the latest main and
-      # reapplying the yq edit fresh each attempt means two concurrent bumps can never
-      # conflict with each other structurally, whatever line either one touches.
+      # committing once and rebasing a stale local commit on conflict -- see ADR 0023
+      # for the incident that shaped this and why each workflow now owns its own file.
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
 
-        values_file=infra/helm/gaming-backend-platform/values-production.yaml
+        values_file="${{ inputs.values-file }}"
 
         for attempt in 1 2 3 4 5; do
           git fetch origin main
