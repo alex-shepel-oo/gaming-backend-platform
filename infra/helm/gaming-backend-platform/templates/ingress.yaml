@@ -12,9 +12,11 @@ spec:
   tls:
     - hosts:
         {{- range $key, $route := .Values.ingress.hosts }}
+        {{- if $route }}
         {{- if not (and (eq $key "mailpit") (not $.Values.mailpit.enabled)) }}
         {{- if not $route.namespace }}
         - {{ $route.host }}
+        {{- end }}
         {{- end }}
         {{- end }}
         {{- end }}
@@ -22,6 +24,7 @@ spec:
   {{- end }}
   rules:
     {{- range $key, $route := .Values.ingress.hosts }}
+    {{- if $route }}
     {{- if not (and (eq $key "mailpit") (not $.Values.mailpit.enabled)) }}
     {{- if not $route.namespace }}
     - host: {{ $route.host }}
@@ -34,6 +37,7 @@ spec:
                 name: {{ $route.service }}
                 port:
                   number: {{ $route.port }}
+    {{- end }}
     {{- end }}
     {{- end }}
     {{- end }}
@@ -56,7 +60,7 @@ spec:
   tls:
     - hosts:
         {{- range $key, $route := .Values.ingress.hosts }}
-        {{- if eq $route.namespace "observability" }}
+        {{- if and $route (eq $route.namespace "observability") }}
         - {{ $route.host }}
         {{- end }}
         {{- end }}
@@ -64,7 +68,7 @@ spec:
   {{- end }}
   rules:
     {{- range $key, $route := .Values.ingress.hosts }}
-    {{- if eq $route.namespace "observability" }}
+    {{- if and $route (eq $route.namespace "observability") }}
     - host: {{ $route.host }}
       http:
         paths:
