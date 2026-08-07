@@ -9,14 +9,14 @@ public sealed class RabbitMqConnection : IRabbitMqConnection, IAsyncDisposable
 
     public RabbitMqConnection(IOptions<RabbitMqOptions> options)
     {
-        var value = options.Value;
+        var rabbitMqOptions = options.Value;
         var factory = new ConnectionFactory
         {
-            HostName = value.Host,
-            Port = value.Port,
-            UserName = value.Username,
-            Password = value.Password,
-            VirtualHost = value.VirtualHost,
+            HostName = rabbitMqOptions.Host,
+            Port = rabbitMqOptions.Port,
+            UserName = rabbitMqOptions.Username,
+            Password = rabbitMqOptions.Password,
+            VirtualHost = rabbitMqOptions.VirtualHost,
         };
 
         _connection = new Lazy<Task<IConnection>>(() => factory.CreateConnectionAsync());

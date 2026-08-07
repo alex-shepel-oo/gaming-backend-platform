@@ -11,14 +11,14 @@ public static class ClientMode
 
     public static ClientSurface Resolve(HttpContext httpContext)
     {
-        var value = httpContext.Request.Headers[HeaderName].ToString();
+        var headerValue = httpContext.Request.Headers[HeaderName].ToString();
 
-        if (string.Equals(value, WebValue, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(headerValue, WebValue, StringComparison.OrdinalIgnoreCase))
         {
             return ClientSurface.Player;
         }
 
-        if (string.Equals(value, AdminValue, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(headerValue, AdminValue, StringComparison.OrdinalIgnoreCase))
         {
             return ClientSurface.Admin;
         }
