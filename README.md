@@ -463,7 +463,7 @@ scripts/
 │   ├── setup-env.sh # idempotent: creates infra/.env from the example and fills in
 │   │                 # a real local signing key if it's still the placeholder --
 │   │                 # every deploy.sh below calls this first
-│   ├── verify.sh   # backend build+test, then frontend build+test -- no deploy
+│   ├── verify.sh   # backend build+test, then frontend build+test, no deploy
 │   ├── deploy.sh   # docker compose up -d, the whole stack
 │   ├── ci.sh       # verify.sh, then deploy.sh
 │   └── stop.sh     # docker compose down (--clean also drops volumes and prunes images)
@@ -537,8 +537,9 @@ than a timer bolted onto each service. It runs one job today,
 `CleanupExpiredTokensJob`, on a 15-minute schedule:
 
 - **identity_db:** deletes expired or already-revoked `refresh_token_families`
-  (which cascades to their `refresh_tokens` at the database FK level) and
-  expired `email_verification_codes`.
+  (which cascades to their `refresh_tokens` at the database FK level),
+  expired `email_verification_codes`, and expired or already-consumed
+  `password_reset_tokens`.
 - **economy_db:** deletes `outbox_messages` rows that have been dispatched
   (`processed_at` set) and are older than a 7-day retention window. Rows
   still waiting to be dispatched (`processed_at IS NULL`) are never touched.
