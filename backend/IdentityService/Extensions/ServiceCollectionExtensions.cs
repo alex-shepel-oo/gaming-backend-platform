@@ -31,7 +31,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddIdentityHealthChecks(this IServiceCollection services)
     {
         // Connection string is read lazily from IConfiguration at check-execution time, the
-        // same way AddDbContext defers it -- reading it eagerly here would capture whatever
+        // same way AddDbContext defers it: reading it eagerly here would capture whatever
         // IConfiguration held at service-registration time, missing overrides (e.g. in tests)
         // that land afterwards.
         services.AddHealthChecks()
@@ -181,7 +181,7 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    // Only FrontendBaseUrl lives here now -- actually sending email moved to EmailService, reached
+    // Only FrontendBaseUrl lives here now: actually sending email moved to EmailService, reached
     // through the three outbox events written by EmailVerificationService/PasswordResetService/
     // AuthenticationService, not a direct call from this service.
     public static IServiceCollection AddIdentityEmail(this IServiceCollection services, IConfiguration configuration)

@@ -1,12 +1,12 @@
 # player-client's and admin-client's own nginx.conf hardcode
 # `proxy_pass http://otel-collector:4318/` for their /otlp/ Faro proxy
-# (frontend/projects/{player-client,admin-client}/nginx.conf) -- a bare,
+# (frontend/projects/{player-client,admin-client}/nginx.conf): a bare,
 # unqualified hostname baked into the image at build time, not something
 # this chart can re-template. The real otel-collector Deployment/Service
 # (templates/deployment.yaml, templates/service.yaml, driven by the
 # "otel-collector" entry in values.yaml's deployments map) lives in the
 # observability namespace, not gaming-platform, so that bare name would
-# otherwise fail to resolve for these pods -- Kubernetes only resolves an
+# otherwise fail to resolve for these pods: Kubernetes only resolves an
 # unqualified Service name within the querying pod's own namespace.
 # This ExternalName Service is a DNS alias, not a real backend: it answers
 # "otel-collector" lookups from gaming-platform with a CNAME to the real

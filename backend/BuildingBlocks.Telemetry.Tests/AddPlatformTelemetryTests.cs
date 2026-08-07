@@ -50,7 +50,7 @@ public class AddPlatformTelemetryTests
     [Fact]
     public async Task AddPlatformTelemetry_HostStartsAndStopsWhenTheCollectorIsUnreachable()
     {
-        // Port 1 has no listener and never will -- the OTLP exporter batches and retries on its own
+        // Port 1 has no listener and never will: the OTLP exporter batches and retries on its own
         // background timer, so a host with nowhere to actually deliver spans/metrics still has to
         // start and stop cleanly rather than throwing during either transition.
         using var host = Host.CreateDefaultBuilder()

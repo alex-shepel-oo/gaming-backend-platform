@@ -1,7 +1,7 @@
 namespace EmailService.Messaging.Events;
 
-// EmailService's own tolerant view of identity-service's EmailVerificationRequestedEvent -- not a
-// shared type imported from Identity, the same convention EconomyService's UserEmailConfirmedPayload
+// EmailService's own tolerant view of identity-service's EmailVerificationRequestedEvent, not a
+// shared type imported from Identity - the same convention EconomyService's UserEmailConfirmedPayload
 // already established for reading another service's outbox event off the wire.
 public sealed record EmailVerificationRequestedPayload
 {

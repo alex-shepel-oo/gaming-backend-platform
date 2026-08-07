@@ -1,6 +1,6 @@
-# Argo CD on the real VPS -- same trimming as argocd-values-local.yaml (dex,
+# Argo CD on the real VPS: same trimming as argocd-values-local.yaml (dex,
 # notifications, applicationSet all off, same reasoning). Traefik still terminates TLS,
-# but now with the real Cloudflare Origin Certificate instead of plain HTTP -- the
+# but now with the real Cloudflare Origin Certificate instead of plain HTTP; the
 # cloudflare-origin-tls Secret must already exist in this namespace (copied from
 # gaming-platform's copy, same cert covers *.shepel.dev).
 dex:
@@ -16,30 +16,30 @@ configs:
   params:
     server.insecure: true
   cm:
-    # Permanently disabled -- not a "not yet verified" placeholder, a settled decision.
+    # Permanently disabled: not a "not yet verified" placeholder, a settled decision.
     # Tried the obvious fix first: an explicit deny rule per RBAC resource type
     # (applicationsets/certificates/clusters/projects/repositories/accounts/gpgkeys)
     # instead of leaving them uncovered. Verified live via direct unauthenticated curl
     # against every /api/v1/* endpoint with anonymous re-enabled for the test: every
     # deny rule was silently ignored, clusters/repositories/certificates/accounts all
-    # still returned full data. Root cause isn't a policy.csv authoring mistake -- Argo
+    # still returned full data. Root cause isn't a policy.csv authoring mistake: Argo
     # CD only runs RBAC enforcement on write actions (sync/delete/create/update) for
     # these resource types; list/get is unfiltered for any authenticated session
     # regardless of role, and policy.default's role applies to anonymous sessions the
     # same way it would to a real named viewer account. There is no policy.csv shape
-    # that fixes this -- it would leak the same data to any low-priv login, not just
+    # that fixes this: it would leak the same data to any low-priv login, not just
     # anonymous ones. Argo CD has no safe public-read mode here; unlike Grafana's Public
     # Dashboards, recruiter access to this instance isn't possible without exposing
     # cluster endpoints, repo URLs and SSH known-hosts fingerprints. Stays admin-login
     # only.
     users.anonymous.enabled: "false"
-    # No configs.rbac (policy.csv/policy.default) here anymore -- both existed
+    # No configs.rbac (policy.csv/policy.default) here anymore: both existed
     # only to scope down anonymous read access, and anonymous is permanently
     # disabled above, so there's no unauthenticated subject left for either
     # to apply to. Found the hard way that they didn't stay inert once
     # anonymous went away: policy.default's role applies to every
     # authenticated subject as a baseline, not just ones with no other role,
-    # and Argo CD's effect model is deny-overrides-allow -- so the readonly
+    # and Argo CD's effect model is deny-overrides-allow, so the readonly
     # policy's explicit `applications sync deny` was blocking the real admin
     # account from syncing anything at all, regardless of also being granted
     # role:admin. Falling back to Argo CD's own default RBAC (unrestricted

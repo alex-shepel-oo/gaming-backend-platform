@@ -7,10 +7,10 @@ using Xunit;
 
 namespace IdentityService.Tests.Integration;
 
-// Covers Group A7 Session 5 (A.9): the five seeded, already-confirmed users
-// now get fixed UserIds instead of a random Guid.CreateVersion7(), so
-// EconomyService.DevelopmentSeeder has something stable to grant a welcome
-// balance against (no cross-database foreign key - ADR-0001). This proves
+// The five seeded, already-confirmed users get fixed UserIds instead of a
+// random Guid.CreateVersion7(), so EconomyService.DevelopmentSeeder has
+// something stable to grant a welcome balance against (no cross-database
+// foreign key - ADR-0001). This proves
 // the ids are fixed constants, not that re-seeding itself does anything
 // interesting - the seeder still no-ops once Games is non-empty.
 [Collection(nameof(IdentityApiCollectionDefinition))]

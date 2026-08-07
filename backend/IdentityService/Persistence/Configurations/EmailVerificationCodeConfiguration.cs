@@ -37,7 +37,7 @@ public sealed class EmailVerificationCodeConfiguration : IEntityTypeConfiguratio
             .HasDatabaseName("ix_email_verification_codes_game_id");
 
         // Invariant "one live code per account" lives in the database, not the
-        // service layer -- a check-then-act in code would race across replicas.
+        // service layer: a check-then-act in code would race across replicas.
         builder.HasIndex(c => c.UserId)
             .IsUnique()
             .HasFilter("consumed_at IS NULL")

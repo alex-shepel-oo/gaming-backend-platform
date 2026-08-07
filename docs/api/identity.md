@@ -105,7 +105,7 @@ curl -s -X POST http://localhost:5100/api/identity/auth/refresh \
   -H "Content-Type: application/json" \
   -d '{"refreshToken":"<refreshToken from step 4>"}'
 
-# 6. Reuse the same (now rotated-out) refresh token -- rejected with 401
+# 6. Reuse the same (now rotated-out) refresh token: rejected with 401
 curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:5100/api/identity/auth/refresh \
   -H "Content-Type: application/json" \
   -d '{"refreshToken":"<refreshToken from step 4>"}'

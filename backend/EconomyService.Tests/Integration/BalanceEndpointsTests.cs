@@ -56,7 +56,7 @@ public sealed class BalanceEndpointsTests : IAsyncDisposable
         await SeedBalanceAsync(userId, gameACurrency.Id, 50m);
 
         // A balance held in a game the caller isn't currently scoped into must
-        // still come back -- the player's whole cross-game footprint, not just
+        // still come back: the player's whole cross-game footprint, not just
         // whichever single game their token happens to be scoped to right now.
         await SeedBalanceAsync(userId, gameBCurrency.Id, 999m);
 
@@ -92,7 +92,7 @@ public sealed class BalanceEndpointsTests : IAsyncDisposable
         await SeedBalanceAsync(userId, platformCurrency.Id, 25m);
         await SeedBalanceAsync(userId, gameACurrency.Id, 10m);
 
-        // No gameId at all on the token (account-scoped session) -- balances
+        // No gameId at all on the token (account-scoped session): balances
         // are keyed off the caller's own userId, not the token's game scope.
         var token = TestTokenFactory.IssueAccessToken(userId);
         using var client = _factory.CreateClient();

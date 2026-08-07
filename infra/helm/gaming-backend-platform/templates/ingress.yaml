@@ -43,7 +43,7 @@ spec:
     {{- end }}
 ---
 # A Service's backend reference in an Ingress rule only ever resolves within
-# that Ingress object's own namespace -- Grafana/Prometheus/Loki/Tempo live in
+# that Ingress object's own namespace: Grafana/Prometheus/Loki/Tempo live in
 # the observability namespace (see values.yaml's observability.namespace
 # comment), so their host rules need a second Ingress object there rather
 # than a cross-namespace backend reference this resource kind can't express.

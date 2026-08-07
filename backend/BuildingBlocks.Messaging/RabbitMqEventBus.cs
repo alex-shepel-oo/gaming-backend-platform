@@ -31,8 +31,7 @@ public sealed class RabbitMqEventBus(IRabbitMqConnection connection, IOptions<Ra
         }
 
         // Routing key = event type: the topic exchange dispatches on exactly
-        // this, and a future consumer binds its queue to the subset it cares
-        // about (A.5).
+        // this, and a future consumer binds its queue to the subset it cares about.
         await channel.BasicPublishAsync(
             exchange: options.Value.ExchangeName,
             routingKey: envelope.Type,

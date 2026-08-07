@@ -8,7 +8,7 @@ namespace IdentityService.Tests.Unit;
 
 public class JwtSigningKeysTests
 {
-    // RSA-2048 test-only key pair, generated fresh each test run -- see the same
+    // RSA-2048 test-only key pair, generated fresh each test run - see the same
     // comment in IdentityApiFactory.cs for why this isn't a hardcoded PEM literal.
     // Written out two ways below: once with real newlines (how a Kubernetes Secret's
     // stringData block scalar delivers it) and once with literal \n escape sequences

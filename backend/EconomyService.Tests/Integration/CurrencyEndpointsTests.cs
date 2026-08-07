@@ -48,8 +48,8 @@ public sealed class CurrencyEndpointsTests : IAsyncDisposable
         var gameACurrency = await SeedCurrencyAsync("GAME_A_GOLD", CurrencyScope.Game, gameA);
         var gameBCurrency = await SeedCurrencyAsync("GAME_B_GOLD", CurrencyScope.Game, gameB);
 
-        // Caller's token is scoped to gameA only, yet gameB's currency -- one the
-        // caller has never entered -- must still appear: this is the read-only
+        // Caller's token is scoped to gameA only, yet gameB's currency (one the
+        // caller has never entered) must still appear: this is the read-only
         // catalog, not a per-user balance, so there is nothing to scope it by.
         var token = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), gameA);
         using var client = _factory.CreateClient();

@@ -17,7 +17,7 @@ internal static class LedgerResultMapping
 
     // A replayed idempotency key returns the outcome of the original mutation,
     // not a new one - 200 tells the caller nothing was created this time, 201
-    // that it was (A.4).
+    // that it was.
     public static Results<Created<TransactionDto>, Ok<TransactionDto>> ToTransactionResult(LedgerPostResult result)
     {
         var dto = ToDto(result);

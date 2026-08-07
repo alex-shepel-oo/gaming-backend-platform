@@ -4,13 +4,13 @@ deployments:
     internal: false
     namespace: observability
     replicas: 1
-    # Runs as the image's own non-root user (uid 65534) -- fsGroup makes the
+    # Runs as the image's own non-root user (uid 65534); fsGroup makes the
     # local-path-provisioner PVC actually writable by it, unlike the
     # postgres image elsewhere in this chart, whose entrypoint chowns its
     # own data directory itself before dropping privileges.
     securityContext:
       fsGroup: 65534
-    # Only Deployment in the chart that needs one -- the cadvisor scrape job
+    # Only Deployment in the chart that needs one: the cadvisor scrape job
     # in prometheus.yml proxies through the API server's node subresource,
     # which needs the RBAC grant templates/prometheus-rbac.yaml ties to this
     # ServiceAccount specifically, not the namespace's default one.

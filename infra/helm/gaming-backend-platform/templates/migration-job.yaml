@@ -1,6 +1,6 @@
 # Same ordering docker-compose gets for free from identity-migrator's/
-# economy-migrator's depends_on: condition: service_completed_successfully --
-# a Job has no equivalent of that, so this runs as a pre-install/pre-upgrade
+# economy-migrator's depends_on: condition: service_completed_successfully.
+# A Job has no equivalent of that, so this runs as a pre-install/pre-upgrade
 # hook instead of a plain resource, guaranteeing it finishes (Helm always
 # waits for Job hooks to reach Complete) before any app Deployment is
 # created. hook-delete-policy: before-hook-creation clears out the previous
@@ -32,7 +32,7 @@ spec:
       initContainers:
         # The StatefulSet this Job's database lives on is itself a
         # pre-install/pre-upgrade hook (see templates/statefulset.yaml) at an
-        # earlier weight, so it's submitted before this Job runs -- but Helm
+        # earlier weight, so it's submitted before this Job runs. Helm
         # doesn't wait for a StatefulSet hook to become Ready the way it
         # waits for a Job hook to Complete, only the apply itself is
         # ordered. This closes that gap the same way wait-for-identity/

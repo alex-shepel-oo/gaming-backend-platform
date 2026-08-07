@@ -6,8 +6,8 @@ namespace EconomyService.Services;
 
 // Drains the channel fed by POST /conversions and runs the saga for each id
 // on a hosted background service, not Task.Run - a fire-and-forget task is
-// lost on process restart and isn't observable the way a hosted service is
-// (A.2). ConversionSaga.ExecuteAsync stays directly callable and directly
+// lost on process restart and isn't observable the way a hosted service is.
+// ConversionSaga.ExecuteAsync stays directly callable and directly
 // testable without HTTP; this is just what feeds it after the request that
 // queued the work has already returned 202.
 public sealed partial class ConversionSagaRunner(

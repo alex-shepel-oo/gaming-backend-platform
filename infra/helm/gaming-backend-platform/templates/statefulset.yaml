@@ -11,13 +11,13 @@ metadata:
   {{- if $svc.hook }}
   annotations:
     # Migration Jobs (templates/migration-job.yaml) run as pre-install/
-    # pre-upgrade hooks so they finish before any app Deployment starts --
+    # pre-upgrade hooks so they finish before any app Deployment starts,
     # which means this StatefulSet has to be a hook too, at an earlier
     # weight, or it wouldn't exist yet when the hook phase runs (pre-install
     # hooks execute strictly before every non-hook resource in the release).
     # Helm doesn't wait for a StatefulSet hook to become Ready the way it
     # waits for a Job hook to complete, so the migration Job's own
-    # initContainer still polls pg_isready itself -- this only guarantees
+    # initContainer still polls pg_isready itself; this only guarantees
     # the object was submitted first. The real cost: the default
     # before-hook-creation delete policy recreates this StatefulSet (and its
     # pod) on every `helm upgrade`, not just the first install. Acceptable

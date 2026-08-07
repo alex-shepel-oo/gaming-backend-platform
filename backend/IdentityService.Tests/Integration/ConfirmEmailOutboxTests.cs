@@ -69,7 +69,7 @@ public sealed class ConfirmEmailOutboxTests(IdentityApiFactory factory) : IClass
         await using var scope = factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
 
-        // Registration itself already wrote an email_verification.requested row above -- the
+        // Registration itself already wrote an email_verification.requested row above: the
         // assertion here is specifically that a wrong code never produces a user.email_confirmed
         // one, not that the outbox table stays empty.
         (await dbContext.Set<OutboxMessage>().AnyAsync(m => m.Type == "user.email_confirmed", TestContext.Current.CancellationToken))

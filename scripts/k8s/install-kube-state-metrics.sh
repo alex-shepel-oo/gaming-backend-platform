@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # kube-state-metrics is a cluster addon, same relationship as node-exporter
-# (see install-node-exporter.sh) -- gives Prometheus (infra/prometheus/
+# (see install-node-exporter.sh): gives Prometheus (infra/prometheus/
 # prometheus.yml's kube-state-metrics job) Kubernetes object state (pod
 # phase, restart counts, deployment replica availability), which is not the
 # same thing cAdvisor's per-container CPU/memory reports. Same for both
