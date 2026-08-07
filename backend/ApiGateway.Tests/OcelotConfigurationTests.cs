@@ -80,7 +80,7 @@ public class OcelotConfigurationTests
 
     // ocelot.json and ocelot.{Environment}.json merge as chained AddJsonFile
     // configuration sources, which IConfiguration flattens to keys like
-    // "Routes:9:ServiceName" -- arrays merge by index, not by matching
+    // "Routes:9:ServiceName": arrays merge by index, not by matching
     // UpstreamPathTemplate. A route appended to ocelot.json without a
     // matching entry appended to the environment files doesn't fail the
     // build or throw at startup; it just silently loses its host
