@@ -1,3 +1,4 @@
+using BuildingBlocks.Testing;
 using IdentityService.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -9,7 +10,7 @@ namespace IdentityService.Tests.Integration.Fixtures;
 
 public sealed class PostgresFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17-alpine")
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder(TestContainerImages.Postgres)
         .WithDatabase("identity_db")
         .WithUsername("identity")
         .WithPassword("identity_test_password")

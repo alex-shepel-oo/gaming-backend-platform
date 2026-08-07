@@ -23,7 +23,7 @@ public static class ServiceCollectionExtensions
             .ValidateOnStart();
 
         // The OpenTelemetry builder callbacks below run eagerly, at registration time, before the
-        // container is built -- they can't resolve IOptions<TelemetryOptions> the way the rest of
+        // container is built: they can't resolve IOptions<TelemetryOptions> the way the rest of
         // the app does. Bound directly from configuration instead; AddOptions above still runs
         // ValidateOnStart so a missing/invalid section fails host startup the same way every other
         // options class in this solution does.

@@ -29,6 +29,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\IdentityService\IdentityService.csproj" />
+    <ProjectReference Include="..\BuildingBlocks.Testing\BuildingBlocks.Testing.csproj" />
   </ItemGroup>
 
 </Project>

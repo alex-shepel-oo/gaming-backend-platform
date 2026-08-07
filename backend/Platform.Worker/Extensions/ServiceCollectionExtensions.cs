@@ -20,8 +20,9 @@ public static class ServiceCollectionExtensions
         services.AddDbContextFactory<EconomyCleanupDbContext>(options =>
             options.UseNpgsql(configuration.GetConnectionString("EconomyDb")));
 
-        var intervalMinutes = configuration.GetSection(CleanupJobOptions.SectionName).GetValue<int?>("IntervalMinutes")
-            ?? new CleanupJobOptions().IntervalMinutes;
+        // AddQuartz's callback runs before the container is built, so IOptions isn't available yet.
+        var cleanupJobOptions = configuration.GetSection(CleanupJobOptions.SectionName).Get<CleanupJobOptions>()
+            ?? new CleanupJobOptions();
 
         services.AddQuartz(quartz =>
         {
@@ -32,7 +33,7 @@ public static class ServiceCollectionExtensions
                 .ForJob(jobKey)
                 .WithIdentity($"{nameof(CleanupExpiredTokensJob)}-trigger")
                 .WithSimpleSchedule(schedule => schedule
-                    .WithIntervalInMinutes(intervalMinutes)
+                    .WithIntervalInMinutes(cleanupJobOptions.IntervalMinutes)
                     .RepeatForever()));
         });
 

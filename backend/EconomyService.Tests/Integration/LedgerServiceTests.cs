@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AwesomeAssertions;
 using BuildingBlocks.Messaging.Outbox;
+using BuildingBlocks.Testing;
 using EconomyService.Domain;
 using EconomyService.Domain.Enums;
 using EconomyService.Exceptions;
@@ -18,7 +19,7 @@ namespace EconomyService.Tests.Integration;
 [TestFixture]
 public sealed class LedgerServiceTests : IAsyncDisposable
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17-alpine")
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder(TestContainerImages.Postgres)
         .WithDatabase("economy_db")
         .WithUsername("economy")
         .WithPassword("economy_test_password")
