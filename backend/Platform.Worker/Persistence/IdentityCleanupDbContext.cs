@@ -2,14 +2,15 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Platform.Worker.Persistence;
 
-// Cleanup-only view of identity_db: just enough of refresh_token_families
-// and email_verification_codes to delete expired rows. Deliberately not the
-// full IdentityDbContext model - the worker has no business reading the
-// rest of that schema, only expiring it.
+// Cleanup-only view of identity_db: just enough of refresh_token_families,
+// email_verification_codes and password_reset_tokens to delete expired rows.
+// Deliberately not the full IdentityDbContext model - the worker has no
+// business reading the rest of that schema, only expiring it.
 public sealed class IdentityCleanupDbContext(DbContextOptions<IdentityCleanupDbContext> options) : DbContext(options)
 {
     public DbSet<RefreshTokenFamilyRecord> RefreshTokenFamilies => Set<RefreshTokenFamilyRecord>();
     public DbSet<EmailVerificationCodeRecord> EmailVerificationCodes => Set<EmailVerificationCodeRecord>();
+    public DbSet<PasswordResetTokenRecord> PasswordResetTokens => Set<PasswordResetTokenRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -29,6 +30,15 @@ public sealed class IdentityCleanupDbContext(DbContextOptions<IdentityCleanupDbC
             builder.Property(c => c.Id).HasColumnName("id");
             builder.Property(c => c.ExpiresAt).HasColumnName("expires_at");
         });
+
+        modelBuilder.Entity<PasswordResetTokenRecord>(builder =>
+        {
+            builder.ToTable("password_reset_tokens");
+            builder.HasKey(t => t.Id);
+            builder.Property(t => t.Id).HasColumnName("id");
+            builder.Property(t => t.ExpiresAt).HasColumnName("expires_at");
+            builder.Property(t => t.ConsumedAt).HasColumnName("consumed_at");
+        });
     }
 }
 
@@ -43,4 +53,11 @@ public sealed class EmailVerificationCodeRecord
 {
     public Guid Id { get; init; }
     public DateTimeOffset ExpiresAt { get; init; }
+}
+
+public sealed class PasswordResetTokenRecord
+{
+    public Guid Id { get; init; }
+    public DateTimeOffset ExpiresAt { get; init; }
+    public DateTimeOffset? ConsumedAt { get; init; }
 }

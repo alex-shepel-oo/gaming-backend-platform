@@ -4,6 +4,7 @@ using AwesomeAssertions;
 using BuildingBlocks.Messaging;
 using BuildingBlocks.Messaging.Inbox;
 using BuildingBlocks.Messaging.Outbox;
+using BuildingBlocks.Testing;
 using EconomyService.Domain;
 using EconomyService.Domain.Enums;
 using EconomyService.Messaging;
@@ -24,12 +25,11 @@ using MsOptions = Microsoft.Extensions.Options.Options;
 
 namespace EconomyService.Tests.Integration;
 
-// Covers Group A7 Session 4: UserEmailConfirmedConsumer binds to
-// gbp.identity (a real external exchange, not self-consumption like
-// DeduplicatingEventConsumer/ConsumerDeduplicationTests) and grants a
-// welcome balance through WelcomeGrantService -> ILedgerService. The
-// interesting risk here is the nested-transaction avoidance described in
-// UserEmailConfirmedConsumer (A.4): the grant runs in its own scope/
+// UserEmailConfirmedConsumer binds to gbp.identity (a real external exchange,
+// not self-consumption like DeduplicatingEventConsumer/ConsumerDeduplicationTests)
+// and grants a welcome balance through WelcomeGrantService -> ILedgerService. The
+// interesting risk here is the nested-transaction avoidance described on
+// UserEmailConfirmedConsumer itself: the grant runs in its own scope/
 // transaction, separate from the inbox's own processed_messages bookkeeping,
 // so both layers of idempotency are exercised and asserted independently.
 [TestFixture]
@@ -40,7 +40,7 @@ public sealed class WelcomeGrantConsumerTests : IAsyncDisposable
     private const string CurrencyCode = "PLATFORM_CREDITS";
     private const decimal GrantAmount = 100m;
 
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17-alpine")
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder(TestContainerImages.Postgres)
         .WithDatabase("economy_db")
         .WithUsername("economy")
         .WithPassword("economy_test_password")

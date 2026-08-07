@@ -1,9 +1,9 @@
 using System.Globalization;
+using BuildingBlocks.Auth;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using NotificationService.Auth;
 
 namespace NotificationService.Tests.Integration.Fixtures;
 
@@ -26,7 +26,7 @@ public sealed class NotificationApiFactory(RabbitMqFixture rabbitMq) : WebApplic
             }));
 
         // Real JwksKeyCache, real background refresher, just the HTTP call at the bottom
-        // replaced -- so these tests exercise the same key-resolution path production does.
+        // replaced, so these tests exercise the same key-resolution path production does.
         builder.ConfigureServices(services => services
             .AddHttpClient<IJwksKeyCache, JwksKeyCache>()
             .ConfigurePrimaryHttpMessageHandler(() => JwksHandler));

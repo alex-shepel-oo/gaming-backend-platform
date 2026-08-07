@@ -4,7 +4,7 @@ description: >
   pushes that change back to main. Argo CD's Application (see
   scripts/k8s/argocd-application-production.yaml) watches these files with
   auto-sync on, so this commit is the actual trigger for a production
-  deploy -- a rebuilt image under the same floating tag would not be, since
+  deploy: a rebuilt image under the same floating tag would not be, since
   nothing about the rendered manifest would have changed.
 
 inputs:
@@ -30,7 +30,7 @@ runs:
     - name: Bump, commit, and push
       shell: bash
       # Re-derives the edit from a freshly fetched main on every attempt instead of
-      # committing once and rebasing a stale local commit on conflict -- see ADR 0023
+      # committing once and rebasing a stale local commit on conflict; see ADR 0023
       # for the incident that shaped this and why each workflow now owns its own file.
       run: |
         git config user.name "github-actions[bot]"

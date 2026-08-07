@@ -9,11 +9,10 @@ using NUnit.Framework;
 
 namespace EconomyService.Tests.Integration;
 
-// Covers Group A7 Session 5 (A.9): EconomyService.DevelopmentSeeder grants a
-// welcome balance to all five of identity's fixed seeded users directly,
-// through the same idempotent WelcomeGrantService -> ILedgerService path the
-// live UserEmailConfirmedConsumer uses - no confirm-email call, no consumer,
-// involved anywhere here.
+// EconomyService.DevelopmentSeeder grants a welcome balance to all five of
+// identity's fixed seeded users directly, through the same idempotent
+// WelcomeGrantService -> ILedgerService path the live UserEmailConfirmedConsumer
+// uses - no confirm-email call, no consumer, involved anywhere here.
 [TestFixture]
 public sealed class DevSeedWelcomeGrantTests : IAsyncDisposable
 {

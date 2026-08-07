@@ -29,6 +29,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EconomyService\EconomyService.csproj" />
+    <ProjectReference Include="..\BuildingBlocks.Testing\BuildingBlocks.Testing.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -24,14 +23,14 @@ public static class ServiceCollectionExtensions
             .ValidateOnStart();
 
         // The OpenTelemetry builder callbacks below run eagerly, at registration time, before the
-        // container is built -- they can't resolve IOptions<TelemetryOptions> the way the rest of
+        // container is built: they can't resolve IOptions<TelemetryOptions> the way the rest of
         // the app does. Bound directly from configuration instead; AddOptions above still runs
         // ValidateOnStart so a missing/invalid section fails host startup the same way every other
         // options class in this solution does.
         var options = configuration.GetSection(TelemetryOptions.SectionName).Get<TelemetryOptions>()
             ?? new TelemetryOptions();
         var otlpEndpoint = new Uri(options.OtlpEndpoint);
-        var environmentName = ResolveEnvironmentName(configuration);
+        var environmentName = TelemetryEnvironment.ResolveName(configuration);
 
         services.AddOpenTelemetry()
             .ConfigureResource(resource => resource
@@ -55,12 +54,4 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
-
-    /// <summary>
-    /// ASP.NET Core services set <c>ASPNETCORE_ENVIRONMENT</c>; Platform.Worker (a generic Host,
-    /// not a web app) sets <c>DOTNET_ENVIRONMENT</c> instead -- both are checked so the same
-    /// library call works unmodified in either host type.
-    /// </summary>
-    private static string ResolveEnvironmentName(IConfiguration configuration) =>
-        configuration["ASPNETCORE_ENVIRONMENT"] ?? configuration["DOTNET_ENVIRONMENT"] ?? Environments.Production;
 }

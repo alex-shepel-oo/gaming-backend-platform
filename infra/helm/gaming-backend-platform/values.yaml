@@ -1,12 +1,12 @@
 # Default/structural values shared by every environment (registry, grace
 # period, ingress class). Per-service specs (image, ports, env, probes,
 # resources, HPA, PVC, ingress host) live one file per service under
-# values/*.yaml instead of here -- see ADR 0021 for why. Values that
+# values/*.yaml instead of here; see ADR 0021 for why. Values that
 # genuinely differ per target (image tag, whether mailpit exists, TLS) live
 # in values-local.yaml / values-production.yaml and are passed with -f on
 # top of this file, not duplicated here.
 #
-# The namespace is not templated by this chart -- install with
+# The namespace is not templated by this chart: install with
 # `--namespace gaming-platform --create-namespace` and every object below
 # lands there via .Release.Namespace.
 
@@ -32,7 +32,7 @@ terminationGracePeriodSeconds: 30
 ingress:
   enabled: true
   # Traefik, installed as a cluster addon (scripts/k8s/install-traefik.sh),
-  # not something this chart itself deploys -- same relationship the old
+  # not something this chart itself deploys, the same relationship the old
   # Kustomize tree had with ingress-nginx, just pointed at a different
   # controller.
   className: traefik
@@ -41,18 +41,21 @@ mailpit:
   enabled: true
 
 # The three email templates EmailService reads fresh off disk on every render (see
-# EmailTemplateRenderer) -- same --set-file/one-copy pattern as gateway.ocelotConfigJson and the
+# EmailTemplateRenderer), the same `--set-file`/one-copy pattern as gateway.ocelotConfigJson and the
 # observability configs below, supplied at deploy time from backend/EmailService/Templates/*.html.
 # Left empty here so helm lint/helm template still render without them. Rendered into their own
 # email-service-templates ConfigMap (templates/email-templates-configmap.yaml), not
-# email-service-config, and deliberately never given a checksum annotation on the Deployment -- the
+# email-service-config, and deliberately never given a checksum annotation on the Deployment: the
 # whole point of this ConfigMap is that editing it and re-applying reaches the running pod's mounted
 # files through kubelet's own ConfigMap-volume sync, with no pod restart at all.
 emailService:
   templates:
     emailVerificationHtml: ""
+    emailVerificationText: ""
     passwordResetHtml: ""
+    passwordResetText: ""
     duplicateRegistrationNoticeHtml: ""
+    duplicateRegistrationNoticeText: ""
 
 sharedConfig:
   Jwt__Issuer: "gaming-backend-platform/identity"
@@ -69,19 +72,19 @@ gateway:
   ocelotConfigJson: ""
 
 # otel-collector/Tempo/Prometheus/Loki/Grafana live in their own namespace,
-# separate from gaming-platform -- per the owner's own principle of not
+# separate from gaming-platform, per the owner's own principle of not
 # duplicating this stack per environment later, keeping it structurally
 # separate now (one shared observability namespace, multiple app namespaces)
 # is the natural shape rather than something to retrofit once a staging/
 # production split exists. Namespace creation itself is external to this
 # chart, the same way gaming-platform's is (scripts/k8s/up.sh), not a
-# resource this chart declares -- avoids Helm's "invalid ownership metadata"
+# resource this chart declares; that avoids Helm's "invalid ownership metadata"
 # conflict a chart-declared Namespace would hit once something else has
 # already created it.
 #
 # Each *Yaml/*Json value below is this component's config file, straight
 # from its docker-compose counterpart (infra/otel-collector/, infra/tempo/,
-# infra/loki/, infra/prometheus/, infra/grafana/) -- same reasoning as
+# infra/loki/, infra/prometheus/, infra/grafana/), the same reasoning as
 # gateway.ocelotConfigJson above, supplied at deploy time with --set-file so
 # there is exactly one copy of each, not a second one drifting inside the
 # chart. Left empty here so `helm lint`/`helm template` still render without

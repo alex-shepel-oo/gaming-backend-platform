@@ -34,7 +34,7 @@ public static class ServiceCollectionExtensions
 
     // Registers only the connection primitive, not BuildingBlocks.Messaging's AddRabbitMqEventBus:
     // that method also wires IEventBus and RabbitMqTopologyInitializer, both producer-side concerns
-    // (declaring the exchange, publishing). EmailService never publishes -- it only consumes off
+    // (declaring the exchange, publishing). EmailService never publishes; it only consumes off
     // identity-service's own gbp.identity exchange, which identity-service's topology initializer
     // already declares.
     public static IServiceCollection AddEmailMessaging(this IServiceCollection services, IConfiguration configuration)

@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
+    <ProjectReference Include="..\BuildingBlocks.Auth\BuildingBlocks.Auth.csproj" />
     <ProjectReference Include="..\BuildingBlocks.Telemetry\BuildingBlocks.Telemetry.csproj" />
   </ItemGroup>
 

@@ -1,7 +1,7 @@
 using System.Net;
-using ApiGateway.Auth;
 using ApiGateway.Tests.Fixtures;
 using AwesomeAssertions;
+using BuildingBlocks.Auth;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -12,10 +12,10 @@ using Xunit;
 
 namespace ApiGateway.Tests;
 
-// Session 2 of Group A9: the gateway no longer trusts a shared HS256 secret, it resolves
-// Identity's published RSA key through JwksKeyCache instead. These tests exercise that
-// resolver end to end (real JwksKeyCache, real background refresher, only the HTTP call at
-// the bottom replaced with FakeJwksHandler) rather than unit-testing the cache in isolation.
+// The gateway trusts Identity's published RSA key through JwksKeyCache, not a shared HS256
+// secret. These tests exercise that resolver end to end (real JwksKeyCache, real background
+// refresher, only the HTTP call at the bottom replaced with FakeJwksHandler) rather than
+// unit-testing the cache in isolation.
 public sealed class JwksValidationTests : IDisposable
 {
     private const string Issuer = "gaming-backend-platform/identity";
@@ -81,7 +81,7 @@ public sealed class JwksValidationTests : IDisposable
         using var client = _factory.CreateClient();
 
         // The first request is what actually boots the host (and so triggers Program.cs's
-        // own one-time blocking refresh) -- send it first so that startup fetch is already
+        // own one-time blocking refresh); send it first so that startup fetch is already
         // accounted for, then take the baseline.
         using (var warmupRequest = new HttpRequestMessage(HttpMethod.Get, "/api/economy/currencies"))
         {
@@ -99,7 +99,7 @@ public sealed class JwksValidationTests : IDisposable
         }
 
         // The whole point of the background-refreshed cache: five more validated requests
-        // must not cause five more JWKS fetches, or any at all -- the resolver only ever
+        // must not cause five more JWKS fetches, or any at all: the resolver only ever
         // reads the already-warm in-memory snapshot.
         _jwksHandler.RequestCount.Should().Be(requestCountAfterWarmup);
     }
@@ -111,7 +111,7 @@ public sealed class JwksValidationTests : IDisposable
         var jwksKeyCache = _factory.Services.GetRequiredService<IJwksKeyCache>();
 
         // The factory's startup refresh already succeeded once (or this call succeeds now if
-        // it hadn't yet) -- either way, there is a good snapshot cached before the endpoint is
+        // it hadn't yet), either way, there is a good snapshot cached before the endpoint is
         // simulated as unreachable.
         await jwksKeyCache.RefreshAsync(TestContext.Current.CancellationToken);
 
@@ -157,7 +157,7 @@ public sealed class JwksValidationTests : IDisposable
     // The classic RS256-to-HS256 downgrade: the attacker has only ever seen the RSA public key
     // (from the legitimate JWKS response) and signs a token by treating those public key bytes
     // as if they were a shared HMAC secret, hoping a validator that resolves a key by kid alone
-    // -- without checking which algorithm actually signed the token -- accepts it.
+    // without checking which algorithm actually signed the token, accepts it.
     private static string IssueTokenSignedAsHmacConfusionAttempt()
     {
         var descriptor = new SecurityTokenDescriptor

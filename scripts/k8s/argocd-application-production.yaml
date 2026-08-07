@@ -15,7 +15,7 @@ spec:
     path: infra/helm/gaming-backend-platform
     helm:
       valueFiles:
-        # Per-service base spec (see ADR 0021) -- must come first, since
+        # Per-service base spec (see ADR 0021): must come first, since
         # values-production/*.yaml below overrides specific fields (hpa,
         # ingress host) inside these same service blocks. Argo CD has no
         # glob support for valueFiles, unlike apply.sh's local equivalent,
@@ -41,7 +41,7 @@ spec:
         - values/economy-migrator.yaml
         - values-local.yaml
         - values-production.yaml
-        # Per-service production overrides -- env/hpa/ingress-host
+        # Per-service production overrides: env/hpa/ingress-host
         # differences from the base spec above. See ADR 0023.
         - values-production/identity-service.yaml
         - values-production/economy-service.yaml
@@ -54,7 +54,7 @@ spec:
         - values-production/prometheus.yaml
         - values-production/loki.yaml
         - values-production/tempo.yaml
-        # CI-managed image tags, one file per workflow -- see ADR 0023 and
+        # CI-managed image tags, one file per workflow; see ADR 0023 and
         # image-tags/*.yaml's own comments for which workflow owns which.
         - image-tags/identity.yaml
         - image-tags/economy.yaml
@@ -66,7 +66,7 @@ spec:
         - image-tags/admin-client.yaml
       # --set-file's equivalent: a leading "/" is repo-root-relative rather
       # than chart-path-relative, since every one of these lives outside
-      # infra/helm/gaming-backend-platform itself -- same files
+      # infra/helm/gaming-backend-platform itself, the same files
       # scripts/k8s/apply.sh passes in for the local cluster.
       fileParameters:
         - name: gateway.ocelotConfigJson
@@ -89,10 +89,16 @@ spec:
           path: /infra/grafana/dashboards/node-resources.json
         - name: emailService.templates.emailVerificationHtml
           path: /backend/EmailService/Templates/EmailVerification.html
+        - name: emailService.templates.emailVerificationText
+          path: /backend/EmailService/Templates/EmailVerification.txt
         - name: emailService.templates.passwordResetHtml
           path: /backend/EmailService/Templates/PasswordReset.html
+        - name: emailService.templates.passwordResetText
+          path: /backend/EmailService/Templates/PasswordReset.txt
         - name: emailService.templates.duplicateRegistrationNoticeHtml
           path: /backend/EmailService/Templates/DuplicateRegistrationNotice.html
+        - name: emailService.templates.duplicateRegistrationNoticeText
+          path: /backend/EmailService/Templates/DuplicateRegistrationNotice.txt
   destination:
     server: https://kubernetes.default.svc
     namespace: gaming-platform

@@ -1,13 +1,13 @@
-# Real production target: shepel.dev, VPS behind Cloudflare (SSL/TLS: Full strict) --
+# Real production target: shepel.dev, VPS behind Cloudflare (SSL/TLS: Full strict);
 # see .plan/vps_rollout_plan.md.
 #
-# TLS: Traefik presents a Cloudflare Origin Certificate, not a Let's Encrypt one --
+# TLS: Traefik presents a Cloudflare Origin Certificate, not a Let's Encrypt one.
 # Cloudflare's own edge issues the public-facing cert, the origin only needs to be
 # trusted by Cloudflare specifically. ingress.tlsSecretName below must exist as a
 # Secret (the Origin Certificate's cert+key) in both gaming-platform and observability
-# namespaces before this actually serves HTTPS -- not created by this chart itself.
+# namespaces before this actually serves HTTPS; it is not created by this chart itself.
 #
-# Fallback only -- every CI-built service gets its own imageTag from
+# Fallback only: every CI-built service gets its own imageTag from
 # infra/helm/gaming-backend-platform/image-tags/*.yaml instead. See ADR 0023.
 image:
   tag: develop

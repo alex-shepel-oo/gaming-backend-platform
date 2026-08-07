@@ -1,4 +1,5 @@
 using BuildingBlocks.Messaging;
+using BuildingBlocks.Testing;
 using RabbitMQ.Client;
 using Testcontainers.RabbitMq;
 using Xunit;
@@ -12,7 +13,7 @@ namespace NotificationService.Tests.Integration.Fixtures;
 // namespace avoids paying that startup cost per test class.
 public sealed class RabbitMqFixture : IAsyncLifetime
 {
-    public RabbitMqContainer Container { get; } = new RabbitMqBuilder("rabbitmq:4-management-alpine")
+    public RabbitMqContainer Container { get; } = new RabbitMqBuilder(TestContainerImages.RabbitMq)
         .WithUsername("guest")
         .WithPassword("guest")
         .Build();

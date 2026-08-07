@@ -1,4 +1,4 @@
-# Plain Generic Host + BackgroundService (Platform.Worker's shape, not a Web app) -- no inbound
+# Plain Generic Host + BackgroundService (Platform.Worker's shape, not a Web app). No inbound
 # caller ever talks to this service directly, so no `service:` block and no `port`. Consumes the
 # three email-related outbox events identity-service writes (gbp.identity exchange) and sends the
 # actual mail, replacing the synchronous SMTP call identity-service used to make in-request.
@@ -26,7 +26,7 @@ deployments:
         valueFrom: {secretKeyRef: {name: rabbitmq-secrets, key: RABBITMQ_DEFAULT_USER}}
       - name: RabbitMq__Password
         valueFrom: {secretKeyRef: {name: rabbitmq-secrets, key: RABBITMQ_DEFAULT_PASS}}
-    # Mounted at the exact path Email__TemplatesPath above resolves to -- the ConfigMap's three keys
+    # Mounted at the exact path Email__TemplatesPath above resolves to. The ConfigMap's three keys
     # (templates/email-templates-configmap.yaml) become the three files under it, replacing whatever
     # the image itself baked in at build time (backend/EmailService/Templates/*.html,
     # CopyToOutputDirectory). Deliberately no matching checksum/* annotation on the Deployment: see

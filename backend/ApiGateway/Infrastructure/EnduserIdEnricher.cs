@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using BuildingBlocks.Telemetry;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Serilog.Context;
 
@@ -26,13 +27,12 @@ public static class EnduserIdEnricher
             return;
         }
 
-        // "enduser.id" - the OTel semantic convention attribute name - doubles as the Serilog
-        // property name too, deliberately: the whole point is filtering the same identifier
-        // across both traces and logs, which is easiest when the field is spelled identically
-        // in both places rather than "EnduserId" here and "enduser.id" on the Activity.
-        Activity.Current?.SetTag("enduser.id", userId);
+        // Doubles as the Serilog property name too, deliberately: the whole point is filtering
+        // the same identifier across both traces and logs, which is easiest when the field is
+        // spelled identically in both places.
+        Activity.Current?.SetTag(OtelConventions.EnduserId, userId);
 
-        using (LogContext.PushProperty("enduser.id", userId))
+        using (LogContext.PushProperty(OtelConventions.EnduserId, userId))
         {
             await next();
         }

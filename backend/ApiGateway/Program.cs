@@ -1,8 +1,8 @@
 using System.Globalization;
-using ApiGateway.Auth;
 using ApiGateway.Infrastructure;
 using ApiGateway.Options;
 using ApiGateway.ServiceDiscovery;
+using BuildingBlocks.Auth;
 using BuildingBlocks.Telemetry.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Cors.Infrastructure;
@@ -69,10 +69,9 @@ builder.Services.AddOptions<PlayerClientCorsOptions>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
-// AdminCors:AllowedOrigins in appsettings.json is a dev-shaped placeholder
-// (admin-client's future Nginx/ng-serve ports, one above player-client's own
-// 8080/4200) -- Session 7's infra commit swaps these for the real deployed
-// admin-client origin.
+// AdminCors:AllowedOrigins stays dev-shaped (ng-serve ports) in every environment, including
+// production - each frontend's own Nginx proxies /api onto its own origin for the built demo
+// path, so these origins only matter for ng serve.
 builder.Services.AddOptions<AdminClientCorsOptions>()
     .Bind(builder.Configuration.GetSection(AdminClientCorsOptions.SectionName))
     .ValidateDataAnnotations()
@@ -94,18 +93,26 @@ builder.Services.AddOptions<CorsOptions>()
             .WithHeaders("Content-Type", "Authorization", "X-Client-Type")
             .AllowCredentials()));
 
+builder.Services.AddProblemDetails(options =>
+{
+    options.CustomizeProblemDetails = context =>
+        context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+});
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
 builder.Services.AddHealthChecks();
 builder.Services.AddOcelot(builder.Configuration).AddConsul<ServiceAddressConsulServiceBuilder>().AddPolly();
 builder.Services.AddPlatformTelemetry(builder.Configuration, "api-gateway");
 
 var app = builder.Build();
 
-// Blocking, one-time, before the app accepts any requests -- the same principle already
+// Blocking, one-time, before the app accepts any requests: the same principle already
 // applied to ValidateOnStart for configuration: this service shouldn't finish starting if
 // it can't reach the one dependency (Identity's published keys) it needs to validate a
 // single incoming token.
 await app.Services.GetRequiredService<IJwksKeyCache>().RefreshAsync(CancellationToken.None);
 
+app.UseExceptionHandler();
 app.UseMiddleware<CorrelationIdMiddleware>();
 
 // Ocelot has no per-route CORS of its own, so the admin/player split is done
@@ -122,14 +129,14 @@ app.UseHealthChecks("/health");
 
 // Ocelot's own middleware is terminal for unmatched paths, so anything served
 // by endpoint routing (Scalar's UI) has to be dispatched here, ahead of
-// UseOcelot -- otherwise Ocelot answers 404 before routing ever sees it. That
+// UseOcelot: otherwise Ocelot answers 404 before routing ever sees it. That
 // requires explicit UseEndpoints instead of top-level route registration.
 #pragma warning disable ASP0014
 app.UseRouting();
 app.UseEndpoints(endpoints => endpoints.MapScalarApiReference(options =>
 {
     // AddDocument's own per-document routePattern argument doesn't actually override
-    // anything in this Scalar.AspNetCore version -- it silently keeps fetching the
+    // anything in this Scalar.AspNetCore version: it silently keeps fetching the
     // default openapi/{documentName}.json regardless of what's passed there (a known
     // upstream issue, scalar/scalar#8540). Setting the route pattern globally, with the
     // {documentName} placeholder Scalar substitutes itself, is what actually works.

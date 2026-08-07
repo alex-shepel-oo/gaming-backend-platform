@@ -1,6 +1,6 @@
 # Recruiter-facing read access is a real Grafana Viewer-role account
 # (created once via the Admin HTTP API, not tracked here), not the Public
-# Dashboards feature this used to say -- that feature's own "Share
+# Dashboards feature this used to say. That feature's own "Share
 # externally" UI turned out to be broken in this Grafana version (the
 # request the drawer needs never resolves), so it was abandoned in favor of
 # a login that actually works. GF_PUBLIC_DASHBOARDS_ENABLED stays set

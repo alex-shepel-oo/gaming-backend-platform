@@ -1,19 +1,18 @@
 using AwesomeAssertions;
+using BuildingBlocks.Auth;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
-using NotificationService.Auth;
 using NotificationService.Tests.Integration.Fixtures;
 using Xunit;
 
 namespace NotificationService.Tests.Integration;
 
-// Session 2 of Group A9: NotificationService no longer trusts a shared HS256 secret, it
-// resolves Identity's published RSA key through JwksKeyCache instead. These tests exercise
-// that resolver end to end (real JwksKeyCache, real background refresher, only the HTTP call
-// at the bottom replaced with FakeJwksHandler) through the same query-string-token hub
-// connection path NotificationHubTests already covers, rather than unit-testing the cache in
-// isolation.
+// NotificationService trusts Identity's published RSA key through JwksKeyCache, not a shared
+// HS256 secret. These tests exercise that resolver end to end (real JwksKeyCache, real
+// background refresher, only the HTTP call at the bottom replaced with FakeJwksHandler)
+// through the same query-string-token hub connection path NotificationHubTests already
+// covers, rather than unit-testing the cache in isolation.
 [Collection(nameof(NotificationApiCollectionDefinition))]
 public sealed class JwksValidationTests(NotificationApiFactory factory) : IClassFixture<NotificationApiFactory>
 {
@@ -41,7 +40,7 @@ public sealed class JwksValidationTests(NotificationApiFactory factory) : IClass
     public async Task Cache_SeveralConnectionsInARow_FetchesJwksOnlyOnceForTheWholeFactoryLifetime()
     {
         // The very first connection is what actually boots the host (and so triggers
-        // Program.cs's own one-time blocking refresh) -- let that happen and settle before
+        // Program.cs's own one-time blocking refresh); let that happen and settle before
         // taking the baseline.
         await using (var warmupConnection = BuildConnection(TestTokenFactory.IssueAccessToken(Guid.NewGuid())))
         {
@@ -57,7 +56,7 @@ public sealed class JwksValidationTests(NotificationApiFactory factory) : IClass
         }
 
         // The whole point of the background-refreshed cache: three more validated
-        // connections must not cause three more JWKS fetches, or any at all -- the resolver
+        // connections must not cause three more JWKS fetches, or any at all: the resolver
         // only ever reads the already-warm in-memory snapshot.
         factory.JwksHandler.RequestCount.Should().Be(requestCountAfterWarmup);
     }
@@ -68,7 +67,7 @@ public sealed class JwksValidationTests(NotificationApiFactory factory) : IClass
         var jwksKeyCache = factory.Services.GetRequiredService<IJwksKeyCache>();
 
         // The factory's startup refresh already succeeded once (or this call succeeds now if
-        // it hadn't yet) -- either way, there is a good snapshot cached before the endpoint is
+        // it hadn't yet), either way, there is a good snapshot cached before the endpoint is
         // simulated as unreachable.
         await jwksKeyCache.RefreshAsync(TestContext.Current.CancellationToken);
 

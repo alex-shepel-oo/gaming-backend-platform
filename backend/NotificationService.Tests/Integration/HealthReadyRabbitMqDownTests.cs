@@ -1,12 +1,13 @@
 using System.Globalization;
 using System.Net;
 using AwesomeAssertions;
+using BuildingBlocks.Auth;
 using BuildingBlocks.Messaging;
+using BuildingBlocks.Testing;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using NotificationService.Auth;
 using NotificationService.Tests.Integration.Fixtures;
 using RabbitMQ.Client;
 using Testcontainers.RabbitMq;
@@ -21,7 +22,7 @@ namespace NotificationService.Tests.Integration;
 // would fail every other test class racing against it.
 public sealed class HealthReadyRabbitMqDownTests : IAsyncLifetime
 {
-    private readonly RabbitMqContainer _rabbitMq = new RabbitMqBuilder("rabbitmq:4-management-alpine")
+    private readonly RabbitMqContainer _rabbitMq = new RabbitMqBuilder(TestContainerImages.RabbitMq)
         .WithUsername("guest")
         .WithPassword("guest")
         .Build();
@@ -67,7 +68,7 @@ public sealed class HealthReadyRabbitMqDownTests : IAsyncLifetime
                 }));
 
             // The app's startup path does one blocking JWKS refresh before it accepts any
-            // requests, unrelated to what this test itself exercises -- it still needs
+            // requests, unrelated to what this test itself exercises; it still needs
             // somewhere to succeed against.
             builder.ConfigureServices(services => services
                 .AddHttpClient<IJwksKeyCache, JwksKeyCache>()

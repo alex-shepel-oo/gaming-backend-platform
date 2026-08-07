@@ -28,7 +28,7 @@ Local iteration:
 ```
 cd frontend
 npm install
-npm run build   # shared first, then player-client -- player-client's
+npm run build   # shared first, then player-client: player-client's
                  # tsconfig resolves "shared" against shared's built dist,
                  # not its source
 npm start        # ng serve, http://localhost:4200

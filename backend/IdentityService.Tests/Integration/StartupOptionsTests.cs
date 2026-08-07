@@ -14,7 +14,7 @@ using Xunit;
 namespace IdentityService.Tests.Integration;
 
 // Seeding__Enabled/Api__ExposeOpenApi replaced the old IsDevelopment() gate around
-// DevelopmentSeeder/MapOpenApi -- these tests boot the app under environments and flag
+// DevelopmentSeeder/MapOpenApi; these tests boot the app under environments and flag
 // combinations IdentityApiFactory's own "Testing" default never exercises, to prove both
 // flags actually drive the gate rather than the environment name.
 [Collection(nameof(IdentityApiCollectionDefinition))]

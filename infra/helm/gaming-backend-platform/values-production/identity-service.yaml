@@ -1,7 +1,7 @@
 # ASPNETCORE_ENVIRONMENT=Production (not the chart's own Development default) and
 # Seeding__Enabled=false: found live on the first real deploy that leaving these
 # unset meant DevelopmentSeeder's known DemoPassword123! accounts (including a
-# Platform Admin) actually existed on a publicly reachable server -- README's own
+# Platform Admin) actually existed on a publicly reachable server. README's own
 # "this password only exists on a local/sandbox cluster" statement was being
 # violated by the default. Production also gets the refresh cookie's Secure flag
 # right, which only appsettings.json (not appsettings.Development.json) sets.

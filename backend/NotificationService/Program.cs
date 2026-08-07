@@ -1,6 +1,6 @@
 using System.Globalization;
+using BuildingBlocks.Auth;
 using BuildingBlocks.Telemetry.Extensions;
-using NotificationService.Auth;
 using NotificationService.Endpoints;
 using NotificationService.Extensions;
 using NotificationService.Hubs;
@@ -34,7 +34,7 @@ builder.Services.AddPlatformTelemetry(builder.Configuration, "notification-servi
 
 var app = builder.Build();
 
-// Blocking, one-time, before the app accepts any requests -- the same principle already
+// Blocking, one-time, before the app accepts any requests: the same principle already
 // applied to ValidateOnStart for configuration: this service shouldn't finish starting if
 // it can't reach the one dependency (Identity's published keys) it needs to validate a
 // single incoming token.

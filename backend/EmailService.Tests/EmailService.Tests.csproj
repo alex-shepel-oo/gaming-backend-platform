@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EmailService\EmailService.csproj" />
+    <ProjectReference Include="..\BuildingBlocks.Testing\BuildingBlocks.Testing.csproj" />
   </ItemGroup>
 
 </Project>

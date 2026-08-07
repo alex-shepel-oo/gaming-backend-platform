@@ -11,20 +11,20 @@ metadata:
     app: {{ $name }}
 spec:
   {{- /* When an HPA manages this Deployment, replicas is left unset so the
-  HPA controller's own field manager stays the sole owner of it -- setting it
+  HPA controller's own field manager stays the sole owner of it: setting it
   here too creates a server-side-apply ownership conflict on every future
   helm upgrade once the HPA has ever scaled the Deployment even once. */}}
   {{- if not (and $svc.hpa $svc.hpa.enabled) }}
   replicas: {{ $svc.replicas }}
   {{- end }}
   {{- /* Kubernetes' own default (10) keeps every old ReplicaSet around,
-  scaled to 0, for that many revisions back -- harmless on its own (no pods,
+  scaled to 0, for that many revisions back, harmless on its own (no pods,
   next to nothing in etcd) but noticeable after enough redeploys pile up.
   3 is still enough for a real rollback, not a permanent history. */}}
   revisionHistoryLimit: 3
   {{- /* A PVC-backed single replica on local-path-provisioner is a hostPath
   under the hood, single-node here, so the default RollingUpdate strategy
-  starts the new pod before killing the old one -- both processes then see
+  starts the new pod before killing the old one, so both processes then see
   the same on-disk directory at once. Found live: prometheus's own TSDB lock
   file refused a second writer and crash-looped instead of ever becoming
   ready, while the old pod carried on, unnoticed, until it was pointed out.
@@ -84,7 +84,7 @@ spec:
       {{- end }}
       containers:
         {{- /* Sprig's `default` treats a literal `false` as empty, which would
-        silently flip mailpit's `internal: false` back to true -- so this
+        silently flip mailpit's `internal: false` back to true, so this
         checks for the key's presence explicitly instead of piping through
         `default`. */}}
         {{- $internal := true }}

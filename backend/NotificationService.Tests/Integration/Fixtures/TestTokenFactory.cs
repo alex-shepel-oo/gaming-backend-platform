@@ -36,7 +36,7 @@ public static class TestTokenFactory
     // The classic RS256-to-HS256 downgrade: the attacker has only ever seen the RSA public key
     // (from the legitimate JWKS response) and signs a token by treating those public key bytes
     // as if they were a shared HMAC secret, hoping a validator that resolves a key by kid alone
-    // -- without checking which algorithm actually signed the token -- accepts it.
+    // without checking which algorithm actually signed the token, accepts it.
     public static string IssueTokenSignedAsHmacConfusionAttempt(Guid userId)
     {
         var descriptor = new SecurityTokenDescriptor

@@ -46,7 +46,7 @@ public sealed class EmailVerificationService(
 
         var issued = await IssueCodeCoreAsync(userId, gameId, email, cancellationToken);
 
-        // Written in the same transaction as the code row above -- an outbox row and the code it
+        // Written in the same transaction as the code row above: an outbox row and the code it
         // describes either both land or neither does, rather than the old synchronous SMTP send
         // (wrapped in a 10s timeout, failures only logged) that could silently drop the email while
         // the code row itself still committed.
@@ -99,7 +99,7 @@ public sealed class EmailVerificationService(
     public async Task ConfirmAsync(string email, string code, CancellationToken cancellationToken = default)
     {
         // ToLower() here is translated to SQL lower(), matching the functional unique
-        // index on lower(email) -- it never runs as a CLR string method.
+        // index on lower(email): it never runs as a CLR string method.
 #pragma warning disable CA1304, CA1311, CA1862
         var user = await dbContext.Users
             .SingleOrDefaultAsync(u => u.Email.ToLower() == email.ToLower(), cancellationToken);
@@ -144,7 +144,7 @@ public sealed class EmailVerificationService(
     public async Task ResendAsync(string email, string? gameSlug, CancellationToken cancellationToken = default)
     {
         // ToLower() here is translated to SQL lower(), matching the functional unique
-        // index on lower(email) -- it never runs as a CLR string method.
+        // index on lower(email): it never runs as a CLR string method.
 #pragma warning disable CA1304, CA1311, CA1862
         var user = await dbContext.Users
             .SingleOrDefaultAsync(u => u.Email.ToLower() == email.ToLower(), cancellationToken);

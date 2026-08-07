@@ -16,7 +16,7 @@ public sealed class JwtSigningKeys : IJwtSigningKeys
         var rsa = RSA.Create();
 
         // A Kubernetes Secret's stringData carries the PEM as a native multi-line
-        // YAML block scalar -- real newlines already. A .env value is single-line
+        // YAML block scalar: real newlines already. A .env value is single-line
         // by format, so the same PEM arrives with literal \n escape sequences
         // instead. Normalizing here is a no-op for the former and required for the
         // latter, so both delivery mechanisms import the same way.
@@ -29,7 +29,7 @@ public sealed class JwtSigningKeys : IJwtSigningKeys
 
         // JsonWebKeyConverter serializes whatever private components the wrapped RSA
         // instance happens to expose, so the JWKS response must be built from a
-        // public-only RSA key -- never straight from SigningKey -- or the private
+        // public-only RSA key, never straight from SigningKey, or the private
         // exponent and CRT parameters leak onto the wire.
         var publicOnlyRsa = RSA.Create();
         publicOnlyRsa.ImportParameters(rsa.ExportParameters(includePrivateParameters: false));

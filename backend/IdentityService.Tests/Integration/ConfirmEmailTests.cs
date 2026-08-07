@@ -224,7 +224,7 @@ public sealed class ConfirmEmailTests(IdentityApiFactory factory) : IClassFixtur
 
         // Confirmed already and already has a role in gameA (this whole test's first registration);
         // gameB adds a role in a brand-new game, which is the "!hasRoleInGame" branch in
-        // AuthenticationService.RegisterAsync, not the duplicate-notice one -- so still exactly the
+        // AuthenticationService.RegisterAsync, not the duplicate-notice one, so still exactly the
         // one verification event from gameA's original registration, and no duplicate notice at all.
         var verificationEvents = await factory.GetOutboxEventsAsync<EmailVerificationRequestedEvent>(
             "email_verification.requested", TestContext.Current.CancellationToken);

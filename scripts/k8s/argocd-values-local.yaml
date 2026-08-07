@@ -1,5 +1,5 @@
 # Values for the official Argo CD chart (argo/argo-cd) on the local kind
-# cluster -- same relationship to install-argocd.sh that
+# cluster: same relationship to install-argocd.sh that
 # traefik-values-local.yaml has to install-traefik.sh, just a different
 # cluster addon. Trimmed per the "Fitting the single-VPS budget" section of
 # .plan/vps_rollout_plan.md (item 5): dex, the notifications controller, and
@@ -22,7 +22,7 @@ configs:
   params:
     # Traefik terminates TLS the same way it does for every other
     # *.localhost host in this project (see traefik-values-local.yaml's own
-    # comment on api.insecure) -- the server talks plain HTTP behind it
+    # comment on api.insecure): the server talks plain HTTP behind it
     # rather than doing its own TLS a second time in front of a proxy that's
     # already unauthenticated on this local-only cluster.
     server.insecure: true

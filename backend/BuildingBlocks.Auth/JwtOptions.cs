@@ -1,7 +1,11 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace EconomyService.Options;
+namespace BuildingBlocks.Auth;
 
+// Shared by every service that validates tokens against Identity's published JWKS
+// (ApiGateway, EconomyService, NotificationService) - not IdentityService itself, which
+// signs with a private key and publishes JWKS rather than fetching it, and so has its own,
+// differently-shaped options class.
 public sealed class JwtOptions
 {
     public const string SectionName = "Jwt";

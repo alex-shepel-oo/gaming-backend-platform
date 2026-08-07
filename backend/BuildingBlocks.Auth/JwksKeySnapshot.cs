@@ -1,6 +1,6 @@
 using Microsoft.IdentityModel.Tokens;
 
-namespace ApiGateway.Auth;
+namespace BuildingBlocks.Auth;
 
 // Holds the actual key snapshot, kept singleton and separate from JwksKeyCache itself:
 // AddHttpClient<TClient, TImplementation> always registers the typed client as transient

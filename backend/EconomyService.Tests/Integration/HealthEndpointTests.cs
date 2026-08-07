@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Net;
 using AwesomeAssertions;
-using EconomyService.Auth;
+using BuildingBlocks.Auth;
 using EconomyService.Tests.Integration.Fixtures;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -42,7 +42,7 @@ public sealed class HealthEndpointTests : IDisposable
                 }));
 
             // The app's startup path does one blocking JWKS refresh before it accepts any
-            // requests, unrelated to what this test itself exercises -- it still needs
+            // requests, unrelated to what this test itself exercises; it still needs
             // somewhere to succeed against.
             builder.ConfigureServices(services => services
                 .AddHttpClient<IJwksKeyCache, JwksKeyCache>()

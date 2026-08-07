@@ -1,6 +1,6 @@
 using Microsoft.IdentityModel.Tokens;
 
-namespace NotificationService.Auth;
+namespace BuildingBlocks.Auth;
 
 public interface IJwksKeyCache
 {

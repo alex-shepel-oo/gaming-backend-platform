@@ -28,6 +28,9 @@ public sealed class PasswordResetRequestedConsumerTests(RabbitMqFixture rabbitMq
         File.WriteAllText(
             Path.Combine(_templatesDirectory, "PasswordReset.html"),
             "<a href=\"{{ResetLink}}\">reset</a><p>{{ExpiresInMinutes}}</p>");
+        File.WriteAllText(
+            Path.Combine(_templatesDirectory, "PasswordReset.txt"),
+            "{{ResetLink}} {{ExpiresInMinutes}}");
 
         var emailSender = new RecordingEmailSender();
         var rabbitMqOptions = BuildRabbitMqOptions();

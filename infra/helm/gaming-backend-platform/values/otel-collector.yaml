@@ -1,5 +1,5 @@
 # Runs its own upstream image straight from Docker Hub, not something built
-# from this repo -- internal: false, same as mailpit. No ingress.hosts entry:
+# from this repo, hence internal: false, same as mailpit. No ingress.hosts entry:
 # it's an ingestion target other in-cluster workloads reach via Service DNS,
 # not something a human browses to.
 deployments:

@@ -24,7 +24,7 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.UpdatedAt).HasColumnName("updated_at");
 
         // Case-insensitive uniqueness is a functional index on lower(email),
-        // added via raw SQL in the migration -- EF's fluent HasIndex only
+        // added via raw SQL in the migration: EF's fluent HasIndex only
         // maps plain columns, not expressions.
     }
 }

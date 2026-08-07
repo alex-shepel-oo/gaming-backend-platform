@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Traefik is a cluster addon, not something the app's own Helm chart deploys
-# -- same relationship the old Kustomize tree had with ingress-nginx, just a
+# Traefik is a cluster addon, not something the app's own Helm chart deploys,
+# the same relationship the old Kustomize tree had with ingress-nginx, just a
 # separate release in its own namespace. Run this once per cluster (kind's
 # own node image ships no ingress controller by default) before
 # scripts/k8s/apply.sh. kind-config.yaml maps host ports 80/443 onto the

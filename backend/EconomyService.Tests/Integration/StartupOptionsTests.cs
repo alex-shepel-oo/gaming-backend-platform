@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Net;
 using AwesomeAssertions;
-using EconomyService.Auth;
+using BuildingBlocks.Auth;
 using EconomyService.Persistence;
 using EconomyService.Tests.Integration.Fixtures;
 using Microsoft.AspNetCore.Hosting;
@@ -14,7 +14,7 @@ using NUnit.Framework;
 namespace EconomyService.Tests.Integration;
 
 // Seeding__Enabled/Api__ExposeOpenApi replaced the old IsDevelopment() gate around
-// DevelopmentSeeder/MapOpenApi -- these tests boot the app under environments and flag
+// DevelopmentSeeder/MapOpenApi; these tests boot the app under environments and flag
 // combinations EconomyApiFactory's own "Testing" default never exercises, to prove both
 // flags actually drive the gate rather than the environment name.
 [TestFixture]

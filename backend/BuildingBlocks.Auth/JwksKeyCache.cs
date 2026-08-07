@@ -1,8 +1,8 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using NotificationService.Options;
 
-namespace NotificationService.Auth;
+namespace BuildingBlocks.Auth;
 
 public sealed partial class JwksKeyCache : IJwksKeyCache
 {
@@ -34,7 +34,7 @@ public sealed partial class JwksKeyCache : IJwksKeyCache
         {
             // A transient network blip during a scheduled refresh shouldn't suddenly make
             // every token invalid when the previous snapshot is still (probably) correct.
-            // The one case this doesn't cover is the very first refresh ever attempted --
+            // The one case this doesn't cover is the very first refresh ever attempted:
             // with nothing cached yet, there is no last-known-good to fall back on, so this
             // rethrows and lets the caller (the blocking startup refresh in Program.cs) fail
             // the same way ValidateOnStart already does for configuration.

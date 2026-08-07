@@ -1,3 +1,4 @@
+using BuildingBlocks.Auth;
 using BuildingBlocks.Messaging;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.SignalR;
@@ -6,7 +7,6 @@ using Microsoft.IdentityModel.Tokens;
 using NotificationService.Auth;
 using NotificationService.Infrastructure;
 using NotificationService.Messaging;
-using NotificationService.Options;
 
 namespace NotificationService.Extensions;
 
@@ -28,7 +28,7 @@ public static class ServiceCollectionExtensions
     // Registers only the connection primitive, not BuildingBlocks.Messaging's
     // AddRabbitMqEventBus: that method also wires IEventBus and
     // RabbitMqTopologyInitializer, both producer-side concerns (declaring the
-    // exchange, publishing). NotificationService never publishes -- it only
+    // exchange, publishing). NotificationService never publishes; it only
     // reads from RabbitMQ, both to probe the connection for /health/ready and,
     // via BalanceChangedConsumer, to bind its own queue directly against this
     // same connection.
@@ -89,7 +89,7 @@ public static class ServiceCollectionExtensions
 
                 // Browsers cannot attach an Authorization header to the WebSocket
                 // handshake, so the SignalR client sends the token as a query
-                // string instead. Scoped to the hub path only -- accepting a
+                // string instead. Scoped to the hub path only: accepting a
                 // query-string token anywhere else would widen where a token can
                 // leak (proxy logs, browser history) beyond the one place that
                 // needs it.

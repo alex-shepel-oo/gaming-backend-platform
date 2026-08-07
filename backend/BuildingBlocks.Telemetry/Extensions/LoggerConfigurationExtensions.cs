@@ -10,7 +10,7 @@ public static class LoggerConfigurationExtensions
     /// <summary>
     /// Adds the Grafana Loki sink alongside whatever sinks (Console, etc.) the caller already
     /// configured. Called from inside each service's <c>UseSerilog</c> callback, which runs before
-    /// the DI container exists -- like <see cref="ServiceCollectionExtensions.AddPlatformTelemetry"/>,
+    /// the DI container exists: like <see cref="ServiceCollectionExtensions.AddPlatformTelemetry"/>,
     /// this binds <see cref="TelemetryOptions"/> straight from configuration rather than resolving
     /// IOptions. Every log line is tagged with <c>service_name</c> and <c>environment</c> so
     /// Loki/Grafana can filter by both without parsing the message body.

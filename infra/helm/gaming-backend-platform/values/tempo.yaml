@@ -40,7 +40,7 @@ deployments:
     resources:
       requests: {cpu: 100m, memory: 256Mi}
       limits: {cpu: 500m, memory: 512Mi}
-# Standalone PVC (see templates/pvc.yaml) -- single-replica, same as its
+# Standalone PVC (see templates/pvc.yaml): single-replica, same as its
 # docker-compose counterpart, so a plain PVC rather than a StatefulSet's
 # volumeClaimTemplate.
 persistentVolumeClaims:
