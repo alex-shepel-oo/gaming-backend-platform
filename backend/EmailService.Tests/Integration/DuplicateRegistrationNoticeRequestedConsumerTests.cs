@@ -29,6 +29,9 @@ public sealed class DuplicateRegistrationNoticeRequestedConsumerTests(RabbitMqFi
         File.WriteAllText(
             Path.Combine(_templatesDirectory, "DuplicateRegistrationNotice.html"),
             "<p>Attempt for {{GameName}}</p>");
+        File.WriteAllText(
+            Path.Combine(_templatesDirectory, "DuplicateRegistrationNotice.txt"),
+            "Attempt for {{GameName}}");
 
         var emailSender = new RecordingEmailSender();
         var rabbitMqOptions = BuildRabbitMqOptions();

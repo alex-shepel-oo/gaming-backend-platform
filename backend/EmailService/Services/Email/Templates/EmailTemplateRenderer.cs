@@ -14,8 +14,11 @@ namespace EmailService.Services.Email.Templates;
 public sealed class EmailTemplateRenderer(IOptions<EmailOptions> options) : IEmailTemplateRenderer
 {
     private const string EmailVerificationFileName = "EmailVerification.html";
+    private const string EmailVerificationTextFileName = "EmailVerification.txt";
     private const string PasswordResetFileName = "PasswordReset.html";
+    private const string PasswordResetTextFileName = "PasswordReset.txt";
     private const string DuplicateRegistrationNoticeFileName = "DuplicateRegistrationNotice.html";
+    private const string DuplicateRegistrationNoticeTextFileName = "DuplicateRegistrationNotice.txt";
 
     private readonly EmailOptions _options = options.Value;
 
@@ -25,13 +28,28 @@ public sealed class EmailTemplateRenderer(IOptions<EmailOptions> options) : IEma
             .Replace("{{GameName}}", gameName)
             .Replace("{{ExpiresInMinutes}}", expiresInMinutes.ToString(CultureInfo.InvariantCulture));
 
+    public string RenderEmailVerificationText(string code, string gameName, int expiresInMinutes) =>
+        ReadTemplate(EmailVerificationTextFileName)
+            .Replace("{{Code}}", code)
+            .Replace("{{GameName}}", gameName)
+            .Replace("{{ExpiresInMinutes}}", expiresInMinutes.ToString(CultureInfo.InvariantCulture));
+
     public string RenderPasswordReset(string resetLink, int expiresInMinutes) =>
         ReadTemplate(PasswordResetFileName)
             .Replace("{{ResetLink}}", resetLink)
             .Replace("{{ExpiresInMinutes}}", expiresInMinutes.ToString(CultureInfo.InvariantCulture));
 
+    public string RenderPasswordResetText(string resetLink, int expiresInMinutes) =>
+        ReadTemplate(PasswordResetTextFileName)
+            .Replace("{{ResetLink}}", resetLink)
+            .Replace("{{ExpiresInMinutes}}", expiresInMinutes.ToString(CultureInfo.InvariantCulture));
+
     public string RenderDuplicateRegistrationNotice(string gameName) =>
         ReadTemplate(DuplicateRegistrationNoticeFileName)
+            .Replace("{{GameName}}", gameName);
+
+    public string RenderDuplicateRegistrationNoticeText(string gameName) =>
+        ReadTemplate(DuplicateRegistrationNoticeTextFileName)
             .Replace("{{GameName}}", gameName);
 
     private string ReadTemplate(string fileName) =>

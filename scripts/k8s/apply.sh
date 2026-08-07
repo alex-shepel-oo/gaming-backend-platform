@@ -4,20 +4,20 @@ set -euo pipefail
 # The database-then-migrate-then-everything-else ordering this script used
 # to spell out by hand now lives in the chart itself, as Helm pre-install/
 # pre-upgrade hooks (infra/helm/gaming-backend-platform/templates/
-# statefulset.yaml and migration-job.yaml) -- a Job has no depends_on
+# statefulset.yaml and migration-job.yaml): a Job has no depends_on
 # equivalent, but Helm's hook mechanism is exactly what exists to express
 # that ordering declaratively instead of a wrapper script re-implementing
 # kubectl wait by hand. This script's only remaining job is the things Helm
 # can't read on its own: ocelot.Kubernetes.json lives under backend/
 # ApiGateway/, and the observability stack's own config files live under
-# their own infra/ directories (shared with docker-compose) -- neither is a
+# their own infra/ directories (shared with docker-compose); neither is a
 # second copy kept inside the chart, both go in via --set-file instead.
 
 NAMESPACE="gaming-platform"
 CHART="infra/helm/gaming-backend-platform"
 RELEASE="gbp"
 
-# Per-service base spec (see ADR 0021) -- globbed rather than named one by
+# Per-service base spec (see ADR 0021), globbed rather than named one by
 # one, so a new file under values/ is picked up automatically instead of
 # needing this script edited every time a service is added.
 VALUES_ARGS=()
@@ -39,5 +39,8 @@ helm upgrade --install "$RELEASE" "$CHART" \
   --set-file observability.grafanaDashboardJson=infra/grafana/dashboards/service-overview.json \
   --set-file observability.grafanaNodeResourcesDashboardJson=infra/grafana/dashboards/node-resources.json \
   --set-file emailService.templates.emailVerificationHtml=backend/EmailService/Templates/EmailVerification.html \
+  --set-file emailService.templates.emailVerificationText=backend/EmailService/Templates/EmailVerification.txt \
   --set-file emailService.templates.passwordResetHtml=backend/EmailService/Templates/PasswordReset.html \
-  --set-file emailService.templates.duplicateRegistrationNoticeHtml=backend/EmailService/Templates/DuplicateRegistrationNotice.html
+  --set-file emailService.templates.passwordResetText=backend/EmailService/Templates/PasswordReset.txt \
+  --set-file emailService.templates.duplicateRegistrationNoticeHtml=backend/EmailService/Templates/DuplicateRegistrationNotice.html \
+  --set-file emailService.templates.duplicateRegistrationNoticeText=backend/EmailService/Templates/DuplicateRegistrationNotice.txt
