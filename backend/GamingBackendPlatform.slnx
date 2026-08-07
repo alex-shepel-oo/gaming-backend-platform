@@ -1,9 +1,11 @@
 <Solution>
   <Project Path="ApiGateway.Tests/ApiGateway.Tests.csproj" />
   <Project Path="ApiGateway/ApiGateway.csproj" />
+  <Project Path="BuildingBlocks.Auth/BuildingBlocks.Auth.csproj" />
   <Project Path="BuildingBlocks.Messaging/BuildingBlocks.Messaging.csproj" />
   <Project Path="BuildingBlocks.Telemetry.Tests/BuildingBlocks.Telemetry.Tests.csproj" />
   <Project Path="BuildingBlocks.Telemetry/BuildingBlocks.Telemetry.csproj" />
+  <Project Path="BuildingBlocks.Testing/BuildingBlocks.Testing.csproj" />
   <Project Path="EconomyService.Tests/EconomyService.Tests.csproj" />
   <Project Path="EconomyService/EconomyService.csproj" />
   <Project Path="EmailService.Tests/EmailService.Tests.csproj" />

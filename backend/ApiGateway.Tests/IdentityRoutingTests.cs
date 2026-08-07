@@ -1,7 +1,7 @@
 using System.Net;
-using ApiGateway.Auth;
 using ApiGateway.Tests.Fixtures;
 using AwesomeAssertions;
+using BuildingBlocks.Auth;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -34,7 +34,7 @@ public sealed class IdentityRoutingTests : IDisposable
             }));
 
         // The app's startup path does one blocking JWKS refresh before it accepts any
-        // requests -- give it a real, matching key pair so the tokens this test issues
+        // requests; give it a real, matching key pair so the tokens this test issues
         // below actually resolve.
         builder.ConfigureServices(services => services
             .AddHttpClient<IJwksKeyCache, JwksKeyCache>()
@@ -183,7 +183,7 @@ public sealed class IdentityRoutingTests : IDisposable
         response.StatusCode.Should().NotBe(HttpStatusCode.Forbidden);
     }
 
-    // Specifically the admin-prefixed upstream path -- a separate,
+    // Specifically the admin-prefixed upstream path: a separate,
     // player-accepting route to the same downstream endpoint exists at
     // /api/identity/users/me/games (see Get_MyGamesUnderPlayerPrefix_
     // WithPlayerAudienceToken_IsNotBlockedAtGateway below). This route stays

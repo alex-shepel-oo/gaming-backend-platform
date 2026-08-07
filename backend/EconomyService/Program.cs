@@ -1,7 +1,7 @@
 using System.Globalization;
+using BuildingBlocks.Auth;
 using BuildingBlocks.Messaging.Extensions;
 using BuildingBlocks.Telemetry.Extensions;
-using EconomyService.Auth;
 using EconomyService.Endpoints;
 using EconomyService.Extensions;
 using EconomyService.Infrastructure;
@@ -43,7 +43,7 @@ builder.Services.AddScoped<DevelopmentSeeder>();
 
 var app = builder.Build();
 
-// Blocking, one-time, before the app accepts any requests -- the same principle already
+// Blocking, one-time, before the app accepts any requests: the same principle already
 // applied to ValidateOnStart for configuration: this service shouldn't finish starting if
 // it can't reach the one dependency (Identity's published keys) it needs to validate a
 // single incoming token.

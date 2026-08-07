@@ -1,7 +1,7 @@
 using System.Net;
-using ApiGateway.Auth;
 using ApiGateway.Tests.Fixtures;
 using AwesomeAssertions;
+using BuildingBlocks.Auth;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -34,7 +34,7 @@ public sealed class EconomyRoutingTests : IDisposable
             }));
 
         // The app's startup path does one blocking JWKS refresh before it accepts any
-        // requests -- give it a real, matching key pair so the token this test issues
+        // requests; give it a real, matching key pair so the token this test issues
         // below actually resolves.
         builder.ConfigureServices(services => services
             .AddHttpClient<IJwksKeyCache, JwksKeyCache>()
@@ -53,7 +53,7 @@ public sealed class EconomyRoutingTests : IDisposable
         var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         // No live Consul/EconomyService in this test process, so the request
-        // still fails downstream -- what this asserts is that Ocelot recognizes
+        // still fails downstream: what this asserts is that Ocelot recognizes
         // the route at all. A 404 here means ocelot.json has no matching
         // UpstreamPathTemplate; anything else means the route matched and the
         // failure happened trying to reach the (absent) downstream.
