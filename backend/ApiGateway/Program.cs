@@ -93,6 +93,13 @@ builder.Services.AddOptions<CorsOptions>()
             .WithHeaders("Content-Type", "Authorization", "X-Client-Type")
             .AllowCredentials()));
 
+builder.Services.AddProblemDetails(options =>
+{
+    options.CustomizeProblemDetails = context =>
+        context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+});
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
 builder.Services.AddHealthChecks();
 builder.Services.AddOcelot(builder.Configuration).AddConsul<ServiceAddressConsulServiceBuilder>().AddPolly();
 builder.Services.AddPlatformTelemetry(builder.Configuration, "api-gateway");
@@ -105,6 +112,7 @@ var app = builder.Build();
 // single incoming token.
 await app.Services.GetRequiredService<IJwksKeyCache>().RefreshAsync(CancellationToken.None);
 
+app.UseExceptionHandler();
 app.UseMiddleware<CorrelationIdMiddleware>();
 
 // Ocelot has no per-route CORS of its own, so the admin/player split is done
