@@ -1,5 +1,6 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { MAT_ICON_DEFAULT_OPTIONS } from '@angular/material/icon';
 import { provideRouter } from '@angular/router';
 import { authInterceptor, provideFrontendTelemetry, provideSilentSessionRestore } from 'shared';
 
@@ -11,6 +12,7 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withInterceptors([authInterceptor])),
     provideSilentSessionRestore(),
     provideRouter(routes),
+    { provide: MAT_ICON_DEFAULT_OPTIONS, useValue: { fontSet: 'material-symbols-outlined' } },
     // Relative path, proxied same-origin to otel-collector by nginx.conf's /otlp/ location --
     // mirrors how /api and /hubs already reach their backends, so the browser never talks to
     // otel-collector's own origin directly.

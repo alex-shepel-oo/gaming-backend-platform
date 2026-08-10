@@ -54,16 +54,6 @@ public static class UserEndpoints
             user.DisplayName = request.DisplayName;
         }
 
-        if (request.AvatarUrl is not null)
-        {
-            if (!UrlValidation.TryNormalize(request.AvatarUrl, out var normalized))
-            {
-                throw new InvalidAvatarUrlException();
-            }
-
-            user.AvatarUrl = normalized;
-        }
-
         user.UpdatedAt = timeProvider.GetUtcNow();
 
         await dbContext.SaveChangesAsync(cancellationToken);

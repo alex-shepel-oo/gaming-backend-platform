@@ -1,63 +1,199 @@
 :host {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
+  display: block;
+  height: 100vh;
 }
 
-.shell-toolbar {
+.shell-container {
   display: flex;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  gap: var(--app-space-md);
-  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  height: 100%;
+}
 
-  // Below ~1100px the brand + nav + identity + logout no longer fit on one
-  // row. Wrap onto multiple full-width rows below that point instead of
-  // forcing horizontal page scroll -- and instead of letting .shell-nav
-  // (the only item with room to give, via its own internal wrap) silently
-  // take the hit and stack its links into an ugly vertical pile.
-  @media (max-width: 1099px) {
-    flex-wrap: wrap;
-    height: auto;
-    padding-block: var(--app-space-sm);
+.shell-scrim {
+  display: none;
+
+  @media (max-width: 767px) {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+
+    &.shell-scrim-visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+}
+
+.shell-sidenav {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 256px;
+  padding: var(--app-space-lg) 0;
+  background: var(--mat-sys-surface-container-lowest);
+  border-right: 1px solid var(--mat-sys-outline-variant);
+
+  // A plain class-toggle instead of mat-sidenav's `mode`/`opened`, see
+  // admin-shell.ts for why. Closed by default, off-canvas to the left,
+  // slides in when `.shell-sidenav-open` is added.
+  @media (max-width: 767px) {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 50;
+    width: min(280px, 85vw);
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+
+    &.shell-sidenav-open {
+      transform: translateX(0);
+    }
   }
 }
 
 .shell-brand {
-  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-md);
+  padding: 0 var(--app-space-md) var(--app-space-xl);
+  text-decoration: none;
+  color: inherit;
+}
+
+.shell-brand-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--mat-sys-surface-container-high);
+  border: 1px solid var(--mat-sys-outline-variant);
+
+  img {
+    width: 48px;
+    height: 48px;
+  }
+}
+
+.shell-brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.shell-brand-title {
+  font-family: 'Sora', sans-serif;
+  font-weight: 700;
+  color: var(--app-color-admin-primary);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shell-brand-subtitle {
+  font: var(--mat-sys-label-small);
+  color: var(--mat-sys-on-surface-variant);
 }
 
 .shell-nav {
   display: flex;
+  flex-direction: column;
+  flex: 1;
   gap: var(--app-space-xs);
-  flex-wrap: wrap;
-
-  // Never let the toolbar's flexbox shrink this below its natural width to
-  // satisfy a tight row -- that's what would let Games/Roles/My Game/Users
-  // collapse into their own internal wrap (stacked on top of each other)
-  // instead of the toolbar just wrapping the whole nav onto its own row.
-  flex-shrink: 0;
+  padding: 0 var(--app-space-sm);
+  overflow-y: auto;
 }
 
-.shell-spacer {
-  flex: 1 1 auto;
+.shell-nav-link {
+  justify-content: flex-start;
+  gap: var(--app-space-md);
+  color: var(--mat-sys-on-surface-variant);
+  border-radius: 0 999px 999px 0;
+
+  mat-icon {
+    margin-right: 0;
+  }
+}
+
+.shell-nav-link-active {
+  background-color: color-mix(in srgb, var(--app-color-admin-primary) 10%, transparent);
+  color: var(--app-color-admin-primary);
+  border-right: 3px solid var(--app-color-admin-primary);
+}
+
+.shell-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-sm);
+  padding: var(--app-space-md) var(--app-space-sm) 0;
+  margin-top: auto;
+  border-top: 1px solid var(--mat-sys-outline-variant);
 }
 
 .shell-identity {
-  font: var(--mat-sys-body-medium);
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--app-space-md);
+  font: var(--mat-sys-body-small);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.shell-identity-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.shell-identity-scope {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 10px;
+}
+
 .shell-content {
-  flex: 1;
+  // A routed screen's own :host commonly does `flex: 1; min-height: 0;` to
+  // fill whatever's left below its header, which only works if this element
+  // is itself a flex container with a definite height to grow into.
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  width: 100%;
-  max-width: var(--app-shell-max-width);
-  margin: 0 auto;
-  padding: var(--app-space-lg);
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow-y: auto;
   box-sizing: border-box;
+  padding: var(--app-space-lg);
+
+  @media (max-width: 767px) {
+    padding: var(--app-space-md);
+  }
+}
+
+// Hidden on desktop, where the permanently-open sidenav already carries the
+// brand mark. Below the breakpoint the sidenav becomes an overlay drawer
+// with nothing to open it, so this bar is the only way in.
+.mobile-topbar {
+  display: none;
+
+  @media (max-width: 767px) {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-sm);
+    position: sticky;
+    top: calc(-1 * var(--app-space-md));
+    margin: calc(-1 * var(--app-space-md)) calc(-1 * var(--app-space-md)) var(--app-space-sm);
+    padding: var(--app-space-xs) var(--app-space-md);
+    background: var(--mat-sys-surface-container-lowest);
+    border-bottom: 1px solid var(--mat-sys-outline-variant);
+    z-index: 5;
+  }
+}
+
+.mobile-topbar-logo {
+  height: 28px;
+  width: auto;
 }

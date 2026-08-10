@@ -1,5 +1,7 @@
 export const IdentityRoleEndpoints = {
   permissionCatalog: '/api/admin/identity/permissions',
   rolePermissions: (role: string, gameId?: string) =>
-    `/api/admin/identity/roles/${role}/permissions${gameId ? `?gameId=${gameId}` : ''}`,
+    gameId
+      ? `/api/admin/identity/roles/${role}/permissions?${new URLSearchParams({ gameId }).toString()}`
+      : `/api/admin/identity/roles/${role}/permissions`,
 } as const;

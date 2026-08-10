@@ -7,13 +7,52 @@
 .game-details-icon {
   width: 64px;
   height: 64px;
-  border-radius: 50%;
+  border-radius: 16px;
   object-fit: cover;
+}
+
+.game-details-icon-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--app-color-player-primary), var(--mat-sys-primary-container));
+
+  mat-icon {
+    color: white;
+    font-size: 32px;
+    width: 32px;
+    height: 32px;
+  }
 }
 
 .game-details-slug {
   margin: 0;
   color: var(--mat-sys-on-surface-variant);
+}
+
+.game-details-balances {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-sm);
+}
+
+.game-details-balance {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-xs);
+  padding: var(--app-space-xs) var(--app-space-md);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-color-code-gold) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--app-color-code-gold) 40%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--app-color-code-gold) 15%, transparent);
+  color: var(--app-color-code-gold);
+  font-weight: 700;
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+  }
 }
 
 .game-details-description {

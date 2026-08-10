@@ -1,0 +1,36 @@
+<div class="select-dropdown">
+  <button
+    #trigger
+    type="button"
+    class="select-dropdown__trigger"
+    [class.select-dropdown__trigger--open]="isOpen()"
+    [disabled]="disabled() || readonlyMode()"
+    [attr.aria-haspopup]="readonlyMode() ? null : 'listbox'"
+    [attr.aria-expanded]="readonlyMode() ? null : isOpen()"
+    (click)="toggle()"
+    (keydown)="onTriggerKeydown($event)"
+  >
+    <span class="select-dropdown__label">{{ selectedLabel() }}</span>
+    @if (!readonlyMode()) {
+      <mat-icon class="select-dropdown__chevron" aria-hidden="true">expand_more</mat-icon>
+    }
+  </button>
+
+  @if (isOpen()) {
+    <ul class="select-dropdown__popup" role="listbox" [style.width.px]="popupWidthPx()">
+      @for (option of options(); track option.id; let index = $index) {
+        <li
+          role="option"
+          class="select-dropdown__option"
+          [attr.data-option-id]="option.id"
+          [class.select-dropdown__option--selected]="isSelected(option)"
+          [class.select-dropdown__option--active]="index === activeIndex()"
+          [attr.aria-selected]="isSelected(option)"
+          (click)="selectOption(option)"
+        >
+          {{ option.label }}
+        </li>
+      }
+    </ul>
+  }
+</div>

@@ -1,15 +1,10 @@
 import { EnvironmentProviders, effect, inject, Injector, provideAppInitializer } from '@angular/core';
-import { initializeFaro, SessionInstrumentation } from '@grafana/faro-web-sdk';
-import { getDefaultOTELInstrumentations, TracingInstrumentation } from '@grafana/faro-web-tracing';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-web';
 import { TokenStore } from '../auth/token-store';
-import { EnduserIdSpanProcessor } from './enduser-id-span-processor';
 
 export interface FrontendTelemetryOptions {
-  /** Shows up as the span's service name in Tempo/Grafana -- mirrors AddPlatformTelemetry's serviceName. */
+  /** Shows up as the span's service name in Tempo/Grafana, mirrors AddPlatformTelemetry's serviceName. */
   appName: string;
-  /** The same otel-collector every backend service exports to, e.g. http://localhost:4318 -- base URL, no path. */
+  /** The same otel-collector every backend service exports to, e.g. http://localhost:4318. Base URL, no path. */
   otlpEndpoint: string;
 }
 
@@ -17,49 +12,27 @@ export interface FrontendTelemetryOptions {
  * Frontend counterpart to BuildingBlocks.Telemetry's AddPlatformTelemetry: wires Grafana Faro's
  * tracing instrumentation so browser-originated fetch/XHR calls carry a `traceparent` header,
  * continuing the same trace the backend starts, and exports spans via OTLP/HTTP straight to
- * otel-collector -- there's no separate Faro-specific receiver anywhere in this stack.
+ * otel-collector; there's no separate Faro-specific receiver anywhere in this stack.
  *
- * Faro's own error/log/Web-Vitals capture (`getWebInstrumentations()`) is deliberately left out.
- * That data ships in Faro's own event format, which needs a Faro receiver (e.g. Grafana Alloy's
- * `faro.receiver` component) to land anywhere useful -- standing that up is a separate
- * infrastructure decision, not something that should fall out of wiring up tracing, so only
- * TracingInstrumentation is registered below, plus SessionInstrumentation: TracingInstrumentation's
- * own sampler is hard-wired to read the session's `isSampled` flag (no config knob overrides it),
- * so session tracking has to run even though nothing else about sessions is used here -- without
- * it every span is silently dropped as NOT_RECORD before export. SessionInstrumentation itself
- * makes no network call of its own; it only ever pushes through Faro's own transports, which are
- * intentionally empty below.
+ * The actual Faro/OpenTelemetry setup lives in frontend-telemetry.init.ts and is reached only via
+ * a dynamic `import()` below, kicked off but deliberately not awaited by the app initializer. The
+ * app becomes interactive without waiting on it, and the heavy CJS packages it pulls in land in
+ * their own lazy chunk instead of every visitor's initial payload. See that file's doc comment for
+ * why the packages need splitting out at all.
  */
 export function provideFrontendTelemetry(options: FrontendTelemetryOptions): EnvironmentProviders {
-  const tracesUrl = `${options.otlpEndpoint}/v1/traces`;
-  const enduserProcessor = new EnduserIdSpanProcessor(
-    new BatchSpanProcessor(new OTLPTraceExporter({ url: tracesUrl })),
-  );
-
-  initializeFaro({
-    app: { name: options.appName },
-    // No Faro-format signal (errors, logs, Web Vitals) is shipped anywhere yet -- see the doc
-    // comment above -- so there's no transport to hand Faro. An empty array (rather than leaving
-    // this unset) keeps Faro from logging a warning about a missing url/transports for a gap
-    // that's deliberate, not an oversight.
-    transports: [],
-    instrumentations: [
-      new SessionInstrumentation(),
-      new TracingInstrumentation({
-        spanProcessor: enduserProcessor,
-        // The default instrumentations would otherwise also trace the exporter's own calls to
-        // otel-collector, feeding spans about sending spans back into itself. ignoreUrls excludes
-        // that one URL, the same way Faro already excludes its own collector URL internally when a
-        // "url" config is given for its default transport.
-        instrumentations: getDefaultOTELInstrumentations({ ignoreUrls: [tracesUrl] }),
-      }),
-    ],
-  });
-
   return provideAppInitializer(() => {
     const tokenStore = inject(TokenStore);
     const injector = inject(Injector);
 
-    effect(() => enduserProcessor.setUserId(tokenStore.claims()?.userId ?? null), { injector });
+    void import('./frontend-telemetry.init')
+      .then(({ initFrontendTelemetry }) => {
+        const enduserProcessor = initFrontendTelemetry(options);
+
+        effect(() => enduserProcessor.setUserId(tokenStore.claims()?.userId ?? null), { injector });
+      })
+      // Never awaited/rethrown by the app initializer above, so a failure here (e.g. the chunk
+      // fails to load) would otherwise surface only as a silent, unobservable rejection.
+      .catch((error: unknown) => console.error('Failed to initialize frontend telemetry', error));
   });
 }

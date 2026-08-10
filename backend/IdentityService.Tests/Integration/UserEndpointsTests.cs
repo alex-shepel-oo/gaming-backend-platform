@@ -137,70 +137,12 @@ public sealed class UserEndpointsTests(IdentityApiFactory factory) : IClassFixtu
         var (client, accessToken) = await LoginAsync(user.Id, game.Id);
 
         var response = await PatchAuthorizedAsync(
-            client, "/api/identity/users/me", new UpdateProfileRequest("Updated Name", null), accessToken);
+            client, "/api/identity/users/me", new UpdateProfileRequest("Updated Name"), accessToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<UserDto>(JsonOptions, TestContext.Current.CancellationToken);
         body!.DisplayName.Should().Be("Updated Name");
         body.AvatarUrl.Should().Be("https://example.com/old-avatar.png");
-    }
-
-    [Fact]
-    public async Task UpdateMe_WithNewAvatarUrl_UpdatesIt()
-    {
-        var game = await SeedGameAsync();
-        var user = await SeedUserAsync(game.Id, PlatformRole.Player);
-        var (client, accessToken) = await LoginAsync(user.Id, game.Id);
-
-        var response = await PatchAuthorizedAsync(
-            client, "/api/identity/users/me", new UpdateProfileRequest(null, "https://example.com/avatar.png"), accessToken);
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadFromJsonAsync<UserDto>(JsonOptions, TestContext.Current.CancellationToken);
-        body!.AvatarUrl.Should().Be("https://example.com/avatar.png");
-    }
-
-    [Fact]
-    public async Task UpdateMe_WithEmptyAvatarUrl_ClearsPreviouslySetAvatar()
-    {
-        var game = await SeedGameAsync();
-        var user = await SeedUserAsync(game.Id, PlatformRole.Player, avatarUrl: "https://example.com/old-avatar.png");
-        var (client, accessToken) = await LoginAsync(user.Id, game.Id);
-
-        var response = await PatchAuthorizedAsync(
-            client, "/api/identity/users/me", new UpdateProfileRequest(null, ""), accessToken);
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadFromJsonAsync<UserDto>(JsonOptions, TestContext.Current.CancellationToken);
-        body!.AvatarUrl.Should().BeNull();
-    }
-
-    [Fact]
-    public async Task UpdateMe_WithAvatarUrlOmitted_LeavesPreviouslySetAvatarUntouched()
-    {
-        var game = await SeedGameAsync();
-        var user = await SeedUserAsync(game.Id, PlatformRole.Player, avatarUrl: "https://example.com/old-avatar.png");
-        var (client, accessToken) = await LoginAsync(user.Id, game.Id);
-
-        var response = await PatchAuthorizedAsync(
-            client, "/api/identity/users/me", new UpdateProfileRequest(null, null), accessToken);
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadFromJsonAsync<UserDto>(JsonOptions, TestContext.Current.CancellationToken);
-        body!.AvatarUrl.Should().Be("https://example.com/old-avatar.png");
-    }
-
-    [Fact]
-    public async Task UpdateMe_WithMalformedAvatarUrl_Returns400()
-    {
-        var game = await SeedGameAsync();
-        var user = await SeedUserAsync(game.Id, PlatformRole.Player);
-        var (client, accessToken) = await LoginAsync(user.Id, game.Id);
-
-        var response = await PatchAuthorizedAsync(
-            client, "/api/identity/users/me", new UpdateProfileRequest(null, "not-a-url"), accessToken);
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -211,7 +153,7 @@ public sealed class UserEndpointsTests(IdentityApiFactory factory) : IClassFixtu
         var (client, accessToken) = await LoginAsync(user.Id, game.Id);
 
         var response = await PatchAuthorizedAsync(
-            client, "/api/identity/users/me", new UpdateProfileRequest("A", null), accessToken);
+            client, "/api/identity/users/me", new UpdateProfileRequest("A"), accessToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
@@ -226,7 +168,7 @@ public sealed class UserEndpointsTests(IdentityApiFactory factory) : IClassFixtu
         var (clientB, accessTokenB) = await LoginAsync(userB.Id, game.Id);
 
         await PatchAuthorizedAsync(
-            clientA, "/api/identity/users/me", new UpdateProfileRequest("User A Updated", null), accessTokenA);
+            clientA, "/api/identity/users/me", new UpdateProfileRequest("User A Updated"), accessTokenA);
 
         var responseA = await GetAuthorizedAsync(clientA, "/api/identity/users/me", accessTokenA);
         var bodyA = await responseA.Content.ReadFromJsonAsync<UserDto>(JsonOptions, TestContext.Current.CancellationToken);

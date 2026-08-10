@@ -1,15 +1,15 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, DestroyRef, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, inject, input, output, signal, viewChildren } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
+import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Router } from '@angular/router';
 import { Subscription, interval } from 'rxjs';
 import { take } from 'rxjs/operators';
 import { AuthService, DEFAULT_GAME_SLUG } from 'shared';
 
+const CODE_LENGTH = 6;
 const RESEND_COOLDOWN_SECONDS = 30;
 
 type ConfirmError = 'invalid-code' | 'unknown';
@@ -23,8 +23,9 @@ function classifyConfirmError(error: unknown): ConfirmError {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-confirm-email',
-  imports: [ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatButtonModule, MatProgressSpinnerModule],
+  imports: [ReactiveFormsModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule],
   templateUrl: './confirm-email.html',
   styleUrl: './confirm-email.scss',
 })
@@ -39,9 +40,15 @@ export class ConfirmEmail {
   readonly confirmed = output<void>();
   readonly backToLogin = output<void>();
 
-  protected readonly form = this.formBuilder.nonNullable.group({
-    code: ['', [Validators.required, Validators.pattern(/^\d{6}$/)]],
-  });
+  protected readonly digits = this.formBuilder.nonNullable.array(
+    Array.from({ length: CODE_LENGTH }, () =>
+      this.formBuilder.nonNullable.control('', [Validators.required, Validators.pattern(/^\d$/)]),
+    ),
+  );
+
+  protected readonly form = this.formBuilder.group({ digits: this.digits });
+
+  private readonly digitInputs = viewChildren<ElementRef<HTMLInputElement>>('digitInput');
 
   protected readonly submitting = signal(false);
   protected readonly error = signal<ConfirmError | null>(null);
@@ -55,15 +62,50 @@ export class ConfirmEmail {
     this.destroyRef.onDestroy(() => this.countdownSubscription?.unsubscribe());
   }
 
+  protected onDigitInput(event: Event, index: number): void {
+    const raw = (event.target as HTMLInputElement).value;
+    const digit = raw.replace(/\D/g, '').slice(-1);
+
+    this.digits.at(index).setValue(digit);
+
+    if (digit && index < CODE_LENGTH - 1) {
+      this.focusDigit(index + 1);
+    }
+  }
+
+  protected onDigitKeydown(event: KeyboardEvent, index: number): void {
+    if (event.key === 'Backspace' && !this.digits.at(index).value && index > 0) {
+      this.focusDigit(index - 1);
+    }
+  }
+
+  protected onPaste(event: ClipboardEvent): void {
+    event.preventDefault();
+
+    const pasted = event.clipboardData?.getData('text').replace(/\D/g, '').slice(0, CODE_LENGTH) ?? '';
+
+    pasted.split('').forEach((char, index) => this.digits.at(index)?.setValue(char));
+
+    if (pasted.length > 0) {
+      this.focusDigit(Math.min(pasted.length, CODE_LENGTH) - 1);
+    }
+  }
+
+  private focusDigit(index: number): void {
+    this.digitInputs()[index]?.nativeElement.focus();
+  }
+
   protected submit(): void {
-    if (this.form.invalid) {
+    if (this.digits.invalid) {
       return;
     }
 
     this.submitting.set(true);
     this.error.set(null);
 
-    this.authService.confirmEmail({ email: this.email(), code: this.form.getRawValue().code }).subscribe({
+    const code = this.digits.controls.map((control) => control.value).join('');
+
+    this.authService.confirmEmail({ email: this.email(), code }).subscribe({
       next: () => this.autoLogin(),
       error: (error: unknown) => {
         this.submitting.set(false);

@@ -141,11 +141,69 @@ public sealed class ResetPasswordTests(IdentityApiFactory factory) : IClassFixtu
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task ValidateToken_FreshToken_Returns204AndDoesNotConsumeIt()
+    {
+        using var client = factory.CreateClient();
+        var (user, _) = await SeedUserAsync();
+        var rawToken = await RequestTokenAsync(client, user.Email);
+
+        var validated = await ValidateAsync(client, rawToken);
+        validated.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        // The whole point of a read-only check: it must not use up the one-time token --
+        // the actual reset right after still has to work.
+        var reset = await ResetAsync(client, rawToken, NewPassword);
+        reset.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task ValidateToken_ConsumedToken_Returns400()
+    {
+        using var client = factory.CreateClient();
+        var (user, _) = await SeedUserAsync();
+        var rawToken = await RequestTokenAsync(client, user.Email);
+        await ResetAsync(client, rawToken, NewPassword);
+
+        var response = await ValidateAsync(client, rawToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task ValidateToken_ExpiredToken_Returns400()
+    {
+        using var client = factory.CreateClient();
+        var (user, _) = await SeedUserAsync();
+        var rawToken = await RequestTokenAsync(client, user.Email);
+
+        factory.TimeProvider.Advance(TimeSpan.FromMinutes(31));
+
+        var response = await ValidateAsync(client, rawToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task ValidateToken_UnknownToken_Returns400()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await ValidateAsync(client, "does-not-exist-at-all");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     private static Task<HttpResponseMessage> ResetAsync(HttpClient client, string token, string newPassword) =>
         client.PostAsJsonAsync(
             "/api/identity/auth/reset-password",
             new ResetPasswordRequest(token, newPassword),
             JsonOptions,
+            TestContext.Current.CancellationToken);
+
+    private static Task<HttpResponseMessage> ValidateAsync(HttpClient client, string token) =>
+        client.GetAsync(
+            $"/api/identity/auth/reset-password/validate?token={Uri.EscapeDataString(token)}",
             TestContext.Current.CancellationToken);
 
     private static Task<HttpResponseMessage> LoginAsync(HttpClient client, string gameSlug, string email, string password) =>

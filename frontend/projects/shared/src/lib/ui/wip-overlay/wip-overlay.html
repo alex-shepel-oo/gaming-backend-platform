@@ -1,0 +1,11 @@
+<div class="wip-overlay">
+  <div class="wip-overlay__content" inert>
+    <ng-content />
+  </div>
+  <div class="wip-overlay__scrim">
+    <span class="wip-overlay__pill">
+      <mat-icon aria-hidden="true">construction</mat-icon>
+      {{ label() }}
+    </span>
+  </div>
+</div>

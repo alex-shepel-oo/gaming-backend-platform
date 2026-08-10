@@ -89,6 +89,21 @@ public sealed class PasswordResetService(
         await transaction.CommitAsync(cancellationToken);
     }
 
+    public async Task ValidateTokenAsync(string rawToken, CancellationToken cancellationToken = default)
+    {
+        var hash = tokenGenerator.Hash(rawToken);
+
+        var token = await dbContext.PasswordResetTokens
+            .SingleOrDefaultAsync(t => t.TokenHash == hash, cancellationToken);
+
+        var now = timeProvider.GetUtcNow();
+
+        if (token is null || token.ConsumedAt is not null || token.ExpiresAt <= now)
+        {
+            throw new InvalidPasswordResetTokenException();
+        }
+    }
+
     public async Task<string> CompleteResetAsync(string rawToken, string newPassword, CancellationToken cancellationToken = default)
     {
         var hash = tokenGenerator.Hash(rawToken);

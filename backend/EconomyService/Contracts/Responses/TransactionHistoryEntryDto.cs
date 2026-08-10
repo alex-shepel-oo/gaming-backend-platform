@@ -8,4 +8,5 @@ public sealed record TransactionHistoryEntryDto(
     decimal Amount,
     TransactionType TransactionType,
     string? Reason,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string? IdempotencyKey);

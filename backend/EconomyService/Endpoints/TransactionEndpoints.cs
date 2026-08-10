@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using EconomyService.Auth;
 using EconomyService.Contracts.Requests;
 using EconomyService.Contracts.Responses;
+using EconomyService.Domain.Enums;
 using EconomyService.Persistence;
 using EconomyService.Services;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -68,6 +69,7 @@ public static class TransactionEndpoints
 
     private static async Task<Ok<PagedResult<TransactionHistoryEntryDto>>> GetMyHistoryAsync(
         Guid? currencyId,
+        TransactionType[]? types,
         ICurrentUser currentUser,
         EconomyDbContext dbContext,
         CancellationToken cancellationToken,
@@ -81,13 +83,21 @@ public static class TransactionEndpoints
             query = query.Where(e => e.CurrencyId == currencyId);
         }
 
+        // Repeatable ?types=Grant&types=Spend rather than a single value: the
+        // "Conversions" filter chip needs both ConversionOut and ConversionIn at once.
+        if (types is { Length: > 0 })
+        {
+            query = query.Where(e => types.Contains(e.TransactionType));
+        }
+
         var totalCount = await query.CountAsync(cancellationToken);
 
         var items = await query
             .OrderByDescending(e => e.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(e => new TransactionHistoryEntryDto(e.Id, e.CurrencyId, e.Amount, e.TransactionType, e.Reason, e.CreatedAt))
+            .Select(e => new TransactionHistoryEntryDto(
+                e.Id, e.CurrencyId, e.Amount, e.TransactionType, e.Reason, e.CreatedAt, e.IdempotencyKey))
             .ToListAsync(cancellationToken);
 
         return TypedResults.Ok(new PagedResult<TransactionHistoryEntryDto>(items, page, pageSize, totalCount));

@@ -12,6 +12,7 @@ public class OcelotConfigurationTests
     private static readonly string[] AnonymousUpstreamPathTemplates =
     [
         "/api/identity/auth/{everything}",
+        "/api/identity/auth/reset-password/validate",
         "/openapi/identity/v1.json",
     ];
 

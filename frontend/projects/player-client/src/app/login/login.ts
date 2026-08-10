@@ -1,10 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
-import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService, EMAIL_NOT_CONFIRMED_PROBLEM_TYPE } from 'shared';
@@ -24,16 +21,9 @@ function classifyLoginError(error: unknown): LoginError {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-login',
-  imports: [
-    ReactiveFormsModule,
-    MatFormFieldModule,
-    MatIconModule,
-    MatInputModule,
-    MatButtonModule,
-    MatProgressSpinnerModule,
-    RouterLink,
-  ],
+  imports: [ReactiveFormsModule, MatIconModule, MatProgressSpinnerModule, RouterLink],
   templateUrl: './login.html',
   styleUrl: './login.scss',
 })

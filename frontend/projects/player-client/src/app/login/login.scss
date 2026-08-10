@@ -1,15 +1,3 @@
 @use '../../styles/forms';
 
-.auth-form {
-  @include forms.stack();
-  @include forms.full-width-field();
-}
-
-.auth-error {
-  @include forms.error-text();
-}
-
-.forgot-password-link {
-  align-self: flex-end;
-  font: var(--mat-sys-body-small);
-}
+@include forms.auth-field-styles();

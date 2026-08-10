@@ -1,19 +1,40 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
-import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule, MatSelectChange } from '@angular/material/select';
 import { MatSidenavModule } from '@angular/material/sidenav';
-import { MatTableModule } from '@angular/material/table';
-import { RolePermissionsService, TokenStore, UserDetail, UserManagementService, UserSummary } from 'shared';
+import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
+import {
+  colorFor,
+  EmptyState,
+  initialsOf,
+  Loadable,
+  RolePermissionsService,
+  StatusPill,
+  StatusPillVariant,
+  TokenStore,
+  UserDetail,
+  UserManagementService,
+  UserSummary,
+} from 'shared';
 
-// The PlatformRole enum names, case-sensitive -- sent as-is to the roles endpoint.
+// The PlatformRole enum names, case-sensitive, sent as-is to the roles endpoint.
 const ROLES = ['Player', 'Moderator', 'Admin'] as const;
 type Role = (typeof ROLES)[number];
+
+// Purely a visual cue for scanning the table: Admin carries the widest blast
+// radius if misused, Player carries none, so the pill escalates from neutral
+// to warning rather than implying any real severity ranking.
+const ROLE_VARIANTS: Record<string, StatusPillVariant> = {
+  Admin: 'warning',
+  Moderator: 'progress',
+  Player: 'neutral',
+};
 
 const PAGE_SIZE = 20;
 
@@ -21,24 +42,25 @@ const PAGE_SIZE = 20;
 // session: one game's roster when scope=game, every game's roster when
 // scope=platform. A platform-scoped caller therefore sees rows spanning many
 // games in the same paginated list, which is why each row carries its own
-// gameId/gameSlug -- selecting a row, assigning its role, or revoking its
+// gameId/gameSlug: selecting a row, assigning its role, or revoking its
 // sessions must all act on that row's game, not the caller's own.
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'admin-user-management',
   imports: [
     DatePipe,
+    EmptyState,
     MatButtonModule,
-    MatCardModule,
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
     MatProgressSpinnerModule,
     MatSelectModule,
     MatSidenavModule,
-    MatTableModule,
+    StatusPill,
   ],
   templateUrl: './user-management.html',
-  styleUrl: './user-management.scss',
+  styleUrls: ['./user-management.scss', './user-management-detail.scss', './user-management-responsive.scss'],
 })
 export class UserManagement {
   private readonly userManagementService = inject(UserManagementService);
@@ -47,7 +69,6 @@ export class UserManagement {
 
   protected readonly roles = ROLES;
   protected readonly pageSize = PAGE_SIZE;
-  protected readonly displayedColumns = ['email', 'displayName', 'role', 'game', 'createdAt', 'lastLoginAt'];
 
   protected readonly scopeLabel = computed(() => (this.tokenStore.claims()?.gameId ? 'this game' : 'the platform'));
 
@@ -55,13 +76,16 @@ export class UserManagement {
   protected readonly page = signal(1);
   protected readonly users = signal<UserSummary[]>([]);
   protected readonly totalCount = signal(0);
-  protected readonly loading = signal(true);
-  protected readonly loadError = signal(false);
+  protected readonly pageCount = computed(() => Math.max(1, Math.ceil(this.totalCount() / PAGE_SIZE)));
+  private readonly listResource = new Loadable();
+  protected readonly loading = this.listResource.loading;
+  protected readonly loadError = this.listResource.error;
 
   protected readonly selectedUserId = signal<string | null>(null);
   protected readonly selectedUser = signal<UserDetail | null>(null);
-  protected readonly detailLoading = signal(false);
-  protected readonly detailError = signal(false);
+  private readonly detailResource = new Loadable();
+  protected readonly detailLoading = this.detailResource.loading;
+  protected readonly detailError = this.detailResource.error;
 
   protected readonly selectedRole = signal<Role>('Player');
   protected readonly assigning = signal(false);
@@ -70,6 +94,10 @@ export class UserManagement {
   protected readonly revoking = signal(false);
   protected readonly revokeError = signal(false);
   protected readonly revoked = signal(false);
+
+  // Tracks which id was last copied (not just a bare flag) so the
+  // check-mark swap is scoped to the row/field that was actually clicked.
+  protected readonly copiedUserId = signal<string | null>(null);
 
   // One permission-set lookup per candidate role, fetched once per scope --
   // mirrors the backend's IRoleEscalationGuard.EnsureCanGrant loop exactly
@@ -80,9 +108,50 @@ export class UserManagement {
   // Matches the backend's Policies.Admin requirement on revoke-sessions.
   protected readonly canRevokeSessions = computed(() => this.tokenStore.claims()?.role === 'Admin');
 
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly searchInput$ = new Subject<string>();
+
   constructor() {
     this.load();
     this.loadRolePermissions();
+
+    // Debounced so a full name/email doesn't fire a paginated request per
+    // keystroke. The signal itself still updates immediately so the input
+    // box stays responsive.
+    this.searchInput$
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.page.set(1);
+        this.load();
+      });
+  }
+
+  protected avatarInitials(name: string): string {
+    return initialsOf(name);
+  }
+
+  protected avatarColor(name: string): string {
+    return colorFor(name);
+  }
+
+  protected roleVariant(role: string): StatusPillVariant {
+    return ROLE_VARIANTS[role] ?? 'neutral';
+  }
+
+  protected copyUserId(id: string): void {
+    navigator.clipboard
+      .writeText(id)
+      .then(() => {
+        this.copiedUserId.set(id);
+
+        const timeoutId = setTimeout(() => this.copiedUserId.set(null), 1500);
+        this.destroyRef.onDestroy(() => clearTimeout(timeoutId));
+      })
+      .catch(() => {
+        // Clipboard access can be denied by the browser (permissions, an
+        // unfocused document); nothing useful to recover into, just don't
+        // leave an unhandled rejection behind.
+      });
   }
 
   protected isRoleDisabled(role: Role): boolean {
@@ -99,8 +168,7 @@ export class UserManagement {
 
   protected onSearch(value: string): void {
     this.search.set(value);
-    this.page.set(1);
-    this.load();
+    this.searchInput$.next(value);
   }
 
   protected nextPage(): void {
@@ -149,8 +217,8 @@ export class UserManagement {
     this.userManagementService.assignRole(userId, gameId, this.selectedRole()).subscribe({
       next: () => {
         this.assigning.set(false);
-        // The assign response is UserRoleDto (no email/displayName) -- refetch
-        // the full record so the detail view doesn't go stale or lose fields.
+        // The assign response is UserRoleDto (no email/displayName), so refetch
+        // the full record instead of patching the view from it directly.
         this.loadDetail(userId, gameId);
       },
       error: () => {
@@ -184,36 +252,19 @@ export class UserManagement {
   }
 
   private load(): void {
-    this.loading.set(true);
-    this.loadError.set(false);
-
-    this.userManagementService.listUsers(this.search() || undefined, this.page(), PAGE_SIZE).subscribe({
-      next: (result) => {
+    this.listResource.load(
+      this.userManagementService.listUsers(this.search() || undefined, this.page(), PAGE_SIZE),
+      (result) => {
         this.users.set(result.items);
         this.totalCount.set(result.totalCount);
-        this.loading.set(false);
       },
-      error: () => {
-        this.loading.set(false);
-        this.loadError.set(true);
-      },
-    });
+    );
   }
 
   private loadDetail(userId: string, gameId?: string | null): void {
-    this.detailLoading.set(true);
-    this.detailError.set(false);
-
-    this.userManagementService.getUser(userId, gameId).subscribe({
-      next: (user) => {
-        this.selectedUser.set(user);
-        this.selectedRole.set((user.role as Role) ?? 'Player');
-        this.detailLoading.set(false);
-      },
-      error: () => {
-        this.detailLoading.set(false);
-        this.detailError.set(true);
-      },
+    this.detailResource.load(this.userManagementService.getUser(userId, gameId), (user) => {
+      this.selectedUser.set(user);
+      this.selectedRole.set((user.role as Role) ?? 'Player');
     });
   }
 

@@ -1,0 +1,131 @@
+// Split from convert.scss on purpose -- Angular's anyComponentStyle budget
+// (frontend/angular.json) is checked per style FILE, and the form half plus
+// the transaction-status/stepper half of this screen are large enough
+// together to trip it even with no actual duplication between them.
+@use 'mixins';
+@use 'typography';
+
+.convert-to-card__placeholder {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-sm);
+  padding: var(--app-space-sm) 0;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-medium);
+  font-style: italic;
+
+  mat-icon {
+    flex-shrink: 0;
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+  }
+
+  &--hidden {
+    display: none;
+  }
+}
+
+.convert-to-card__row--hidden {
+  display: none;
+}
+
+.conversion-status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-sm);
+  margin-top: var(--app-space-sm);
+  padding-top: var(--app-space-md);
+  border-top: 1px solid color-mix(in srgb, var(--mat-sys-outline-variant) 60%, transparent);
+}
+
+.conversion-status__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.conversion-status__title {
+  color: var(--mat-sys-on-surface-variant);
+  @include typography.text-label-sm;
+}
+
+.conversion-status-line {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-xs);
+  margin: 0;
+  color: var(--app-color-player-primary);
+  font: var(--mat-sys-body-medium);
+}
+
+.conversion-status-line__spinner {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  animation: convert-spin 1s linear infinite;
+}
+
+@keyframes convert-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.convert-stepper__track {
+  position: relative;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--mat-sys-surface-container-highest);
+  overflow: hidden;
+}
+
+.convert-stepper__progress {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--app-color-player-primary);
+  transition: width 0.6s ease;
+}
+
+.convert-stepper__steps {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--app-space-xs);
+}
+
+.convert-stepper__step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.convert-stepper__dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--mat-sys-surface-container-highest);
+  border: 1px solid var(--mat-sys-outline-variant);
+  transition:
+    background-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.convert-stepper__label {
+  @include typography.text-label-sm;
+  font-size: 10px;
+}
+
+.convert-stepper__step--active {
+  color: var(--mat-sys-on-surface);
+
+  .convert-stepper__dot {
+    background: var(--app-color-player-primary);
+    border-color: transparent;
+    box-shadow: 0 0 10px color-mix(in srgb, var(--app-color-player-primary) 80%, transparent);
+  }
+}

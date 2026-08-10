@@ -3,9 +3,9 @@ import { ActivatedRouteSnapshot, provideRouter, Router, RouterStateSnapshot } fr
 import { GUEST_REDIRECT_PATH, guestGuard, TokenStore } from 'shared';
 
 describe('admin-client guestGuard wiring', () => {
-  it('redirects an already-authenticated visitor hitting /login to /dashboard, not /games', () => {
+  it('redirects an already-authenticated visitor hitting /login to /users, not /games', () => {
     TestBed.configureTestingModule({
-      providers: [provideRouter([]), { provide: GUEST_REDIRECT_PATH, useValue: '/dashboard' }],
+      providers: [provideRouter([]), { provide: GUEST_REDIRECT_PATH, useValue: '/users' }],
     });
 
     const tokenStore = TestBed.inject(TokenStore);
@@ -16,6 +16,6 @@ describe('admin-client guestGuard wiring', () => {
       guestGuard({} as ActivatedRouteSnapshot, {} as RouterStateSnapshot),
     );
 
-    expect(result).toEqual(router.createUrlTree(['/dashboard']));
+    expect(result).toEqual(router.createUrlTree(['/users']));
   });
 });

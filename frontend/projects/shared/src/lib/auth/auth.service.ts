@@ -47,6 +47,13 @@ export class AuthService {
     return this.http.post<void>(IdentityAuthEndpoints.requestPasswordReset, request);
   }
 
+  // Read-only check the reset-password page calls on load, before the player
+  // has typed anything, letting it show "this link is invalid or expired"
+  // immediately instead of only after a filled-out form gets rejected on submit.
+  validateResetToken(token: string): Observable<void> {
+    return this.http.get<void>(IdentityAuthEndpoints.validateResetToken, { params: { token } });
+  }
+
   resetPassword(request: ResetPasswordRequest): Observable<ResetPasswordResponse> {
     return this.http.post<ResetPasswordResponse>(IdentityAuthEndpoints.resetPassword, request);
   }

@@ -1,4 +1,4 @@
-<h1>Choose a game</h1>
+<h1 class="game-picker-title">Choose a game</h1>
 
 @if (loading()) {
   <div class="state-panel">
@@ -25,10 +25,15 @@
         (keydown.enter)="pick(game)"
         (keydown.space)="$event.preventDefault(); pick(game)"
       >
-        <mat-card-header>
-          <mat-card-title>{{ game.name }}</mat-card-title>
-          <mat-card-subtitle>{{ game.slug }}</mat-card-subtitle>
-        </mat-card-header>
+        <mat-card-content class="game-card-content">
+          <div class="game-card-icon">
+            <mat-icon aria-hidden="true">sports_esports</mat-icon>
+          </div>
+          <div>
+            <mat-card-title>{{ game.name }}</mat-card-title>
+            <mat-card-subtitle>{{ game.slug }}</mat-card-subtitle>
+          </div>
+        </mat-card-content>
       </mat-card>
     }
   </div>

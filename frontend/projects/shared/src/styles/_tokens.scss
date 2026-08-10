@@ -1,0 +1,101 @@
+// GBP design tokens, transcribed from .plan/stitch_universal_gaming_backend/code_ecosystem/DESIGN.md.
+// $m3-overrides feeds mat.theme()'s own $overrides map (real md-sys-color role names only, both
+// player-client and admin-client apply this identically); $app-colors and $spacing are DESIGN.md
+// values with no M3 role equivalent, applied as --app-* custom properties by each app's _theme.scss.
+// player-primary/admin-primary are deliberately NOT part of $m3-overrides: DESIGN.md itself uses them
+// as accents layered on top of the shared M3 palette (see e.g. the login button's
+// "from-player-primary to-primary-container" gradient in the mockups), not as a per-app swap of the
+// M3 primary role.
+
+$m3-overrides: (
+  primary: #c0c1ff,
+  on-primary: #1000a9,
+  primary-container: #8083ff,
+  on-primary-container: #0d0096,
+  inverse-primary: #494bd6,
+  primary-fixed: #e1e0ff,
+  primary-fixed-dim: #c0c1ff,
+  on-primary-fixed: #07006c,
+  on-primary-fixed-variant: #2f2ebe,
+  secondary: #4fdbc8,
+  on-secondary: #003731,
+  secondary-container: #04b4a2,
+  on-secondary-container: #003f38,
+  secondary-fixed: #71f8e4,
+  secondary-fixed-dim: #4fdbc8,
+  on-secondary-fixed: #00201c,
+  on-secondary-fixed-variant: #005048,
+  tertiary: #ffb783,
+  on-tertiary: #4f2500,
+  tertiary-container: #d97721,
+  on-tertiary-container: #452000,
+  tertiary-fixed: #ffdcc5,
+  tertiary-fixed-dim: #ffb783,
+  on-tertiary-fixed: #301400,
+  on-tertiary-fixed-variant: #703700,
+  error: #ef4444,
+  on-error: #690005,
+  error-container: #93000a,
+  on-error-container: #ffdad6,
+  background: #0b1326,
+  on-background: #dae2fd,
+  surface: #0b1326,
+  on-surface: #dae2fd,
+  surface-variant: #2d3449,
+  on-surface-variant: #c7c4d7,
+  surface-dim: #0b1326,
+  surface-bright: #31394d,
+  surface-container-lowest: #060e20,
+  surface-container-low: #131b2e,
+  surface-container: #171f33,
+  surface-container-high: #222a3d,
+  surface-container-highest: #2d3449,
+  surface-tint: #c0c1ff,
+  outline: #908fa0,
+  outline-variant: #464554,
+  inverse-surface: #dae2fd,
+  inverse-on-surface: #283044,
+);
+
+// success/warning have no M3 role (M3 only defines primary/secondary/tertiary/error) but transaction
+// and conversion status pills need a distinct color for "completed" and "pending" beyond those four --
+// container/on-container pairs follow the same dark-tinted-background-plus-light-text pattern DESIGN.md
+// already uses for error/error-container, since DESIGN.md itself only supplies the flat success/warning
+// hex, not a full M3-shaped family for either.
+$app-colors: (
+  player-primary: #6366f1,
+  admin-primary: #14b8a6,
+  code-gold: #fbbf24,
+  success: #10b981,
+  on-success: #ffffff,
+  success-container: #0f3d2c,
+  on-success-container: #6ee7b7,
+  warning: #f59e0b,
+  on-warning: #1a1206,
+  warning-container: #3d2d0a,
+  on-warning-container: #fcd34d,
+  surface-dark: #0f172a,
+  surface-light: #f8fafc,
+);
+
+$spacing: (
+  xs: 4px,
+  sm: 8px,
+  md: 16px,
+  lg: 24px,
+  xl: 32px,
+  2xl: 48px,
+  gutter: 24px,
+  margin-mobile: 16px,
+  margin-desktop: 40px,
+);
+
+@mixin app-custom-properties {
+  @each $name, $value in $app-colors {
+    --app-color-#{$name}: #{$value};
+  }
+
+  @each $name, $value in $spacing {
+    --app-space-#{$name}: #{$value};
+  }
+}

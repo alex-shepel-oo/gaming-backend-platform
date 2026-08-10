@@ -1,4 +1,6 @@
-<h1>Games</h1>
+<lib-page-background />
+
+<h1 class="games-title">Game Library</h1>
 
 @if (loading()) {
   <div class="state-panel">
@@ -16,40 +18,55 @@
 } @else {
   <div class="games-grid">
     @for (game of games(); track game.id) {
-      <mat-card
+      <div
         class="game-card"
-        [class.game-card-selected]="isSelected(game)"
-        tabindex="0"
-        role="button"
-        [attr.aria-label]="'View details for ' + game.name"
-        (click)="openDetails(game)"
-        (keydown.enter)="openDetails(game)"
-        (keydown.space)="$event.preventDefault(); openDetails(game)"
+        [class.game-card--clickable]="isMobile()"
+        [attr.tabindex]="isMobile() ? 0 : null"
+        [attr.role]="isMobile() ? 'button' : null"
+        [attr.aria-label]="isMobile() ? 'View details for ' + game.name : null"
+        (click)="onCardActivate(game)"
+        (keydown.enter)="onCardActivate(game)"
+        (keydown.space)="$event.preventDefault(); onCardActivate(game)"
       >
-        <mat-card-header>
-          <mat-card-title>{{ game.name }}</mat-card-title>
-          <mat-card-subtitle>{{ game.slug }}</mat-card-subtitle>
-        </mat-card-header>
-        @if (isSelected(game)) {
-          <mat-card-content>
-            <span class="game-selected-badge">
-              <mat-icon aria-hidden="true">check</mat-icon>
-              Selected
-            </span>
-          </mat-card-content>
-        }
-      </mat-card>
-    }
-  </div>
-}
+        <div class="game-card__hero">
+          @if (game.iconUrl && !failedIcons().has(game.id)) {
+            <img
+              class="game-card__hero-image"
+              [src]="game.iconUrl"
+              [alt]="game.name"
+              (error)="onIconError(game.id)"
+            />
+          } @else {
+            <div class="game-card__hero-placeholder">
+              <mat-icon aria-hidden="true">sports_esports</mat-icon>
+            </div>
+          }
+        </div>
 
-@if (entering()) {
-  <div class="state-panel">
-    <mat-spinner diameter="24" />
-    <p>Entering game…</p>
-  </div>
-} @else if (enterError()) {
-  <div class="state-panel">
-    <p class="state-error" role="alert">We couldn't enter that game. Please try again.</p>
+        <div class="game-card__body">
+          <h3 class="game-card__name">{{ game.name }}</h3>
+          <p class="game-card__slug">{{ game.slug }}</p>
+
+          <div class="game-card__info">
+            @if (balancesFor(game.id).length > 0) {
+              <div class="game-card__balances">
+                @for (balance of balancesFor(game.id); track balance.currencyId) {
+                  <span class="game-card__balance">
+                    <mat-icon aria-hidden="true">monetization_on</mat-icon>
+                    {{ balance.amount }} {{ balance.currencyCode }}
+                  </span>
+                }
+              </div>
+            }
+
+            @if (game.description) {
+              <p class="game-card__description">{{ game.description }}</p>
+            } @else {
+              <lib-not-available message="Game description isn't available yet" />
+            }
+          </div>
+        </div>
+      </div>
+    }
   </div>
 }

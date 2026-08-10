@@ -6,9 +6,14 @@
       "UpstreamHttpMethod": [ "POST" ]
     },
     {
+      "DownstreamPathTemplate": "/api/identity/auth/reset-password/validate",
+      "UpstreamPathTemplate": "/api/identity/auth/reset-password/validate",
+      "UpstreamHttpMethod": [ "GET" ]
+    },
+    {
       "DownstreamPathTemplate": "/api/identity/users/me",
       "UpstreamPathTemplate": "/api/identity/users/me",
-      "UpstreamHttpMethod": [ "GET" ],
+      "UpstreamHttpMethod": [ "GET", "PATCH" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKeys": [ "Bearer" ],
         "AllowedScopes": []
@@ -125,7 +130,7 @@
     {
       "DownstreamPathTemplate": "/api/identity/games/{id}",
       "UpstreamPathTemplate": "/api/admin/identity/games/{id}",
-      "UpstreamHttpMethod": [ "PATCH" ],
+      "UpstreamHttpMethod": [ "PATCH", "DELETE" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKeys": [ "Bearer" ],
         "AllowedScopes": []

@@ -1,26 +1,29 @@
 // Single source of truth for the admin-client visual language, mirroring
 // player-client's approach (see that app's _theme.scss): a single mat.theme
-// mixin, consumed via --mat-sys-* custom properties everywhere. A distinct
-// palette (violet, not azure) keeps the two apps visually distinguishable at
-// a glance -- there's no shared design system to invent here.
+// mixin, consumed via --mat-sys-* custom properties everywhere, on top of
+// the same GBP tokens shared with player-client (shared's _tokens.scss) --
+// the two apps stay visually distinguishable via --app-color-admin-primary
+// applied to specific accents, not a different M3 palette.
 @use '@angular/material' as mat;
+@use 'tokens';
 
 @mixin apply() {
   @include mat.theme(
     (
       color: (
-        primary: mat.$violet-palette,
-        tertiary: mat.$magenta-palette,
+        primary: mat.$cyan-palette,
+        tertiary: mat.$blue-palette,
       ),
-      typography: Roboto,
+      typography: (
+        plain-family: Inter,
+        brand-family: Sora,
+      ),
       density: 0,
-    )
+    ),
+    tokens.$m3-overrides
   );
 
-  --app-shell-max-width: 960px;
-  --app-space-xs: 4px;
-  --app-space-sm: 8px;
-  --app-space-md: 16px;
-  --app-space-lg: 24px;
-  --app-space-xl: 32px;
+  @include tokens.app-custom-properties;
+
+  --app-shell-max-width: 1280px;
 }

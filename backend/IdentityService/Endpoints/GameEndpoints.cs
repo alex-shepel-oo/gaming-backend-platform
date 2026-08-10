@@ -21,6 +21,8 @@ public static class GameEndpoints
         group.MapPost("", CreateGameAsync)
             .RequireAuthorization(policy => policy.RequireClaim(IdentityClaims.Perms, Permissions.PlatformGamesManage));
         group.MapPatch("/{id:guid}", UpdateGameAsync).RequireAuthorization();
+        group.MapDelete("/{id:guid}", DeleteGameAsync)
+            .RequireAuthorization(policy => policy.RequireClaim(IdentityClaims.Perms, Permissions.PlatformGamesManage));
 
         app.MapGet("/api/identity/games/public", ListPublicGamesAsync).RequireAuthorization();
     }
@@ -124,5 +126,30 @@ public static class GameEndpoints
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new GameDto(game.Id, game.Slug, game.Name, game.IsActive, game.CreatedAt, game.Description, game.IconUrl));
+    }
+
+    // Requires the game to already be inactive, a deliberate two-step gate
+    // before an irreversible delete. RolePermissions and UserGameRoles
+    // cascade-delete cleanly, but currencies/balances/conversions live in
+    // EconomyService's own database and can't be cleaned up from here.
+    private static async Task<NoContent> DeleteGameAsync(
+        Guid id, IdentityDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var game = await dbContext.Games.SingleOrDefaultAsync(g => g.Id == id, cancellationToken);
+
+        if (game is null)
+        {
+            throw new GameNotFoundException();
+        }
+
+        if (game.IsActive)
+        {
+            throw new GameStillActiveException();
+        }
+
+        dbContext.Games.Remove(game);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return TypedResults.NoContent();
     }
 }

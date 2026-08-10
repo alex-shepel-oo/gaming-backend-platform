@@ -87,6 +87,21 @@ public sealed class IdentityRoutingTests : IDisposable
     }
 
     [Fact]
+    public async Task Patch_UsersMe_UnderPlayerFacingPrefix_StillResolves()
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Patch, "/api/identity/users/me");
+        request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: null));
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        // The users/me route's UpstreamHttpMethod used to list GET only, so
+        // a real PATCH from Profile's edit form 404'd at the gateway before
+        // ever reaching IdentityService's own PATCH /me handler.
+        response.StatusCode.Should().NotBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task Get_UsersList_UnderPlayerFacingPrefix_IsGone()
     {
         using var client = _factory.CreateClient();
@@ -118,6 +133,19 @@ public sealed class IdentityRoutingTests : IDisposable
     {
         using var client = _factory.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/identity/games");
+        request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: "Game", audience: "gbp-admin"));
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Delete_Game_WithGameScopeToken_IsRejectedAtGatewayBeforeReachingService()
+    {
+        using var client = _factory.CreateClient();
+        var gameId = Guid.NewGuid();
+        using var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/admin/identity/games/{gameId}");
         request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: "Game", audience: "gbp-admin"));
 
         var response = await client.SendAsync(request, TestContext.Current.CancellationToken);

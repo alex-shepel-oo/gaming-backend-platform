@@ -1,17 +1,22 @@
-:host {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  max-width: var(--app-shell-max-width);
-  width: 100%;
-  margin: 0 auto;
-  padding: var(--app-space-lg);
-  box-sizing: border-box;
-}
+@use 'mixins';
+@use 'admin-page';
+
+// Create card
 
 .create-card {
+  background: var(--mat-sys-surface-container-low);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--app-space-sm);
+  padding: var(--app-space-md) var(--app-space-lg);
   margin-bottom: var(--app-space-lg);
+
+  h3 {
+    margin: 0 0 var(--app-space-sm);
+    font: var(--mat-sys-label-large);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--app-color-admin-primary);
+  }
 }
 
 .create-form {
@@ -21,49 +26,201 @@
   flex-wrap: wrap;
 }
 
-.page-container {
-  flex: 1;
-  min-height: 0;
-  background: transparent;
+// Plain button, not mat-flat-button: Material's MDC label wrapper doesn't
+// reliably flex-center an icon+text pair from outside CSS. Height matches
+// mat-form-field's own outlined box exactly, no extra offset needed.
+.create-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--app-space-sm);
+  height: 56px;
+  padding: 0 var(--app-space-lg);
+  border: none;
+  border-radius: 4px;
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+  font: var(--mat-sys-label-large);
+  cursor: pointer;
+  transition: opacity 150ms ease;
+
+  &:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
 }
+
+// Table
+
+.games-card {
+  background: var(--mat-sys-surface-container-low);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--app-space-sm);
+  overflow: hidden;
+}
+
+.games-table-scroll {
+  overflow-x: auto;
+}
+
+.games-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+
+  thead {
+    background: var(--mat-sys-surface-container);
+    border-bottom: 1px solid var(--mat-sys-outline-variant);
+  }
+
+  th {
+    padding: var(--app-space-sm) var(--app-space-lg);
+    font: var(--mat-sys-label-small);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--mat-sys-on-surface-variant);
+    white-space: nowrap;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid color-mix(in srgb, var(--mat-sys-outline-variant) 50%, transparent);
+    transition: background-color 150ms ease;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &:hover {
+      background: var(--mat-sys-surface-container-high);
+    }
+  }
+
+  &-row-active {
+    background: color-mix(in srgb, var(--app-color-admin-primary) 10%, transparent);
+  }
+
+  td {
+    padding: var(--app-space-sm) var(--app-space-lg);
+    font: var(--mat-sys-body-medium);
+  }
+
+  @include mixins.responsive-table-cards;
+}
+
+.games-table-mono {
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.games-table-actions {
+  text-align: right;
+}
+
+.games-table-delete {
+  // Not disabled: color: var(--mat-sys-error) even while the disabled
+  // (still-active) state grays it out via mat-icon-button's own styling --
+  // signals "this is the dangerous one" the moment it becomes clickable.
+  color: var(--mat-sys-error);
+}
+
+.games-table-row-error {
+  padding: var(--app-space-sm) var(--app-space-lg);
+  text-align: center;
+}
+
+// Detail sidenav
 
 .edit-sidenav {
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
   padding: var(--app-space-lg);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+
+  // Material's own inner scroll wrapper defaults to auto in both axes --
+  // this panel only ever needs to scroll vertically.
+  ::ng-deep .mat-drawer-inner-container {
+    overflow-x: hidden;
+  }
 }
 
 .detail-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   margin-bottom: var(--app-space-md);
+
+  h2 {
+    font: var(--mat-sys-title-medium);
+    margin: 0;
+  }
+}
+
+.detail-slug {
+  margin: var(--app-space-xs) 0 0;
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--mat-sys-on-surface-variant);
 }
 
 .edit-form {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  gap: var(--app-space-lg);
+
+  mat-form-field {
+    width: 100%;
+  }
+}
+
+.detail-section {
+  display: flex;
+  flex-direction: column;
   gap: var(--app-space-sm);
+
+  h4 {
+    margin: 0;
+    padding-bottom: var(--app-space-xs);
+    border-bottom: 1px solid var(--mat-sys-outline-variant);
+    font: var(--mat-sys-label-small);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--app-color-admin-primary);
+  }
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--app-space-xs) 0;
+}
+
+.status-row-label {
+  font: var(--mat-sys-label-medium);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.description-field {
+  width: 100%;
 }
 
 .edit-actions {
   display: flex;
+  justify-content: flex-end;
   gap: var(--app-space-sm);
-}
-
-.games-table {
-  width: 100%;
-}
-
-.state-panel {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--app-space-sm);
-  padding: var(--app-space-lg) 0;
-}
-
-.state-error {
-  color: var(--mat-sys-error);
+  margin-top: auto;
+  padding-top: var(--app-space-md);
 }

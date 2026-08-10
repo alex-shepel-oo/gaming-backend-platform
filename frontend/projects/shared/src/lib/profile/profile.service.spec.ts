@@ -46,12 +46,15 @@ describe('ProfileService', () => {
   });
 
   it('populates the shared signal after updateMe resolves', () => {
+    // avatarUrl in the response, not the request: it's read-only from the
+    // client's side now (see UpdateProfileRequest's own comment for why),
+    // but a previously-set value still comes back on every read.
     const updated: UserProfile = { ...profile, displayName: 'New Name', avatarUrl: 'https://example.com/a.png' };
 
-    service.updateMe({ displayName: 'New Name', avatarUrl: 'https://example.com/a.png' }).subscribe();
+    service.updateMe({ displayName: 'New Name' }).subscribe();
 
     const req = httpMock.expectOne((r) => r.url === IdentityProfileEndpoints.me && r.method === 'PATCH');
-    expect(req.request.body).toEqual({ displayName: 'New Name', avatarUrl: 'https://example.com/a.png' });
+    expect(req.request.body).toEqual({ displayName: 'New Name' });
     req.flush(updated);
 
     expect(service.profile()).toEqual(updated);

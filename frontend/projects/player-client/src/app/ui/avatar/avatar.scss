@@ -5,11 +5,13 @@
   width: var(--avatar-size, 40px);
   height: var(--avatar-size, 40px);
   border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--app-color-player-primary) 50%, transparent);
   color: #fff;
   font: var(--mat-sys-title-small);
   font-size: calc(var(--avatar-size, 40px) * 0.4);
   line-height: 1;
   user-select: none;
+  box-sizing: border-box;
 }
 
 img.avatar {

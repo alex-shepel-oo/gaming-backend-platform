@@ -16,6 +16,9 @@
       "ServiceName": "identity-service"
     },
     {
+      "ServiceName": "identity-service"
+    },
+    {
       "ServiceName": "economy-service"
     },
     {
