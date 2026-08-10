@@ -21,7 +21,6 @@ public sealed partial class GlobalExceptionHandler(
             EmailAlreadyExistsException => (StatusCodes.Status409Conflict, "Email already exists", exception.Message, null),
             InvalidVerificationCodeException => (StatusCodes.Status400BadRequest, "Invalid verification code", exception.Message, null),
             InvalidPasswordResetTokenException => (StatusCodes.Status400BadRequest, "Invalid password reset token", exception.Message, null),
-            InvalidAvatarUrlException => (StatusCodes.Status400BadRequest, "Invalid avatar URL", exception.Message, null),
             InvalidIconUrlException => (StatusCodes.Status400BadRequest, "Invalid icon URL", exception.Message, null),
             AccountDisabledException => (StatusCodes.Status403Forbidden, "Account disabled", exception.Message, null),
             EmailNotConfirmedException => (StatusCodes.Status403Forbidden, "Email not confirmed", exception.Message,
