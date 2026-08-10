@@ -1,4 +1,6 @@
 @use '../../styles/states';
+@use 'mixins';
+@use 'typography';
 
 .state-panel {
   @include states.state-panel();
@@ -8,36 +10,141 @@
   @include states.error-text();
 }
 
+.games-title {
+  @include typography.text-headline-lg;
+  margin: 0 0 var(--app-space-lg);
+}
+
 .games-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: var(--app-space-md);
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--app-space-lg);
 }
 
 .game-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 16px;
+  @include mixins.glass-panel;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.game-card--clickable {
   cursor: pointer;
-  transition: box-shadow 0.15s ease;
 
   &:hover,
   &:focus-visible {
-    box-shadow: var(--mat-sys-level2);
+    transform: translateY(-2px);
+    box-shadow: 0 0 20px color-mix(in srgb, var(--app-color-player-primary) 30%, transparent);
   }
 }
 
-.game-card-selected {
-  outline: 2px solid var(--mat-sys-primary);
+// Much smaller on mobile: a card that's mostly hero image doesn't leave
+// room for the info a tap-to-open dialog shows instead at that width.
+.game-card__hero {
+  position: relative;
+  height: 160px;
+  overflow: hidden;
+
+  @media (max-width: 639px) {
+    height: 56px;
+  }
 }
 
-.game-selected-badge {
+.game-card__hero-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.game-card__hero-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--app-color-player-primary), var(--mat-sys-primary-container));
+
+  mat-icon {
+    color: #fff;
+    font-size: 36px;
+    width: 36px;
+    height: 36px;
+
+    @media (max-width: 639px) {
+      font-size: 22px;
+      width: 22px;
+      height: 22px;
+    }
+  }
+}
+
+.game-card__body {
+  padding: var(--app-space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.game-card__name {
+  margin: 0;
+  @include typography.text-headline-md;
+}
+
+.game-card__slug {
+  margin: 0 0 var(--app-space-sm);
+  color: var(--mat-sys-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  @include typography.text-label-sm;
+}
+
+// Shown directly on the card at desktop widths, collapses to nothing below
+// the mobile breakpoint, where the same content lives in the dialog opened
+// by tapping the card instead.
+.game-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-sm);
+  padding-top: var(--app-space-sm);
+  border-top: 1px solid color-mix(in srgb, var(--mat-sys-outline-variant) 60%, transparent);
+
+  @media (max-width: 639px) {
+    display: none;
+  }
+}
+
+.game-card__balances {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-sm);
+}
+
+.game-card__balance {
   display: inline-flex;
   align-items: center;
   gap: var(--app-space-xs);
-  color: var(--mat-sys-primary);
-  font: var(--mat-sys-label-large);
+  padding: var(--app-space-xs) var(--app-space-md);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-color-code-gold) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--app-color-code-gold) 40%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--app-color-code-gold) 15%, transparent);
+  color: var(--app-color-code-gold);
+  font-weight: 700;
+  @include typography.text-label-md;
 
   mat-icon {
-    font-size: 18px;
-    width: 18px;
-    height: 18px;
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
   }
+}
+
+.game-card__description {
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-small);
 }

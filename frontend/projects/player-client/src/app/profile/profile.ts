@@ -1,33 +1,23 @@
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
-import { MatCardModule } from '@angular/material/card';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
+import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { DatePipe } from '@angular/common';
-import { ProfileService } from 'shared';
+import { CurrencyScope, NotAvailable, PageBackground, ProfileService, WalletService } from 'shared';
 import { Avatar } from '../ui/avatar/avatar';
-import { NotAvailable } from '../ui/not-available/not-available';
+import { PlayerLogoutService } from '../session/player-logout.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-profile',
-  imports: [
-    MatCardModule,
-    MatButtonModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatProgressSpinnerModule,
-    ReactiveFormsModule,
-    DatePipe,
-    Avatar,
-    NotAvailable,
-  ],
+  imports: [MatIconModule, MatProgressSpinnerModule, ReactiveFormsModule, DatePipe, Avatar, NotAvailable, PageBackground],
   templateUrl: './profile.html',
-  styleUrl: './profile.scss',
+  styleUrls: ['./profile.scss', './profile-edit.scss'],
 })
 export class Profile {
   private readonly formBuilder = inject(FormBuilder);
+  private readonly playerLogout = inject(PlayerLogoutService);
+  private readonly walletService = inject(WalletService);
 
   protected readonly profileService = inject(ProfileService);
 
@@ -36,21 +26,25 @@ export class Profile {
 
   protected readonly editForm = this.formBuilder.nonNullable.group({
     displayName: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(64)]],
-    avatarUrl: [''],
   });
 
   protected readonly saving = signal(false);
   protected readonly saveError = signal(false);
   protected readonly saved = signal(false);
 
+  // Mirrors the mockup's "Wallet Balance" card: the platform currency the
+  // player actually holds, not a fictional single "CODE" total.
+  protected readonly platformBalances = computed(
+    () => this.walletService.balances()?.filter((balance) => balance.scope === CurrencyScope.Platform) ?? [],
+  );
+
   constructor() {
+    this.walletService.refreshBalances().subscribe();
+
     this.profileService.refreshProfile().subscribe({
       next: (profile) => {
         this.loading.set(false);
-        this.editForm.setValue({
-          displayName: profile.displayName,
-          avatarUrl: profile.avatarUrl ?? '',
-        });
+        this.editForm.setValue({ displayName: profile.displayName });
       },
       error: () => {
         this.loading.set(false);
@@ -78,5 +72,21 @@ export class Profile {
         this.saveError.set(true);
       },
     });
+  }
+
+  protected cancelEdit(): void {
+    const profile = this.profileService.profile();
+
+    if (!profile) {
+      return;
+    }
+
+    this.editForm.setValue({ displayName: profile.displayName });
+    this.saveError.set(false);
+    this.saved.set(false);
+  }
+
+  protected logout(): void {
+    this.playerLogout.logout();
   }
 }

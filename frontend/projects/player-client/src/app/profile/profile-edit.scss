@@ -1,0 +1,131 @@
+// Split from profile.scss on purpose -- Angular's anyComponentStyle budget
+// (frontend/angular.json) is checked per style FILE, and the identity/wallet
+// card styles plus this edit-form half are large enough together to trip it.
+@use 'mixins';
+@use 'typography';
+
+.profile-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-lg);
+  max-width: 420px;
+}
+
+.profile-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-xs);
+}
+
+.profile-field__label {
+  color: var(--mat-sys-on-surface-variant);
+  @include typography.text-label-sm;
+}
+
+.profile-field__hint {
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-small);
+}
+
+.profile-field__input-wrap {
+  padding: var(--app-space-sm) var(--app-space-md);
+  border-radius: 8px;
+  background-color: rgba(6, 14, 32, 0.5);
+  border: 1px solid var(--mat-sys-outline-variant);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:focus-within {
+    border-color: var(--app-color-player-primary);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--app-color-player-primary) 20%, transparent);
+  }
+
+  input {
+    width: 100%;
+    box-sizing: border-box;
+    background: transparent;
+    border: none;
+    outline: none;
+    padding: 0;
+    color: var(--mat-sys-on-surface);
+    font: var(--mat-sys-body-medium);
+
+    &::placeholder {
+      color: color-mix(in srgb, var(--mat-sys-outline) 50%, transparent);
+    }
+  }
+}
+
+.profile-status {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-sm);
+  margin: 0;
+  padding: var(--app-space-sm) var(--app-space-md);
+  border-radius: 8px;
+  font: var(--mat-sys-body-medium);
+
+  mat-icon {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+  }
+
+  &--error {
+    background: color-mix(in srgb, var(--mat-sys-error) 15%, transparent);
+    color: var(--mat-sys-error);
+  }
+
+  &--success {
+    background: color-mix(in srgb, var(--app-color-success) 15%, transparent);
+    color: var(--app-color-success);
+  }
+}
+
+.profile-edit-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--app-space-md);
+  margin-top: var(--app-space-sm);
+  padding-top: var(--app-space-lg);
+  border-top: 1px solid color-mix(in srgb, var(--mat-sys-outline-variant) 60%, transparent);
+}
+
+.profile-cancel {
+  padding: var(--app-space-sm) var(--app-space-xl);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  background: none;
+  color: var(--mat-sys-on-surface-variant);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  @include typography.text-label-md;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+}
+
+.profile-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--app-space-sm);
+  padding: var(--app-space-sm) var(--app-space-xl);
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--app-color-player-primary), var(--mat-sys-primary-container));
+  color: #fff;
+  cursor: pointer;
+  @include typography.text-label-md;
+  @include mixins.glow-button;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+  }
+}

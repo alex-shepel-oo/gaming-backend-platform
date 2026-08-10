@@ -1,5 +1,7 @@
 @use '../../styles/forms';
 @use '../../styles/states';
+@use 'mixins';
+@use 'typography';
 
 .state-panel {
   @include states.state-panel();
@@ -9,47 +11,247 @@
   @include states.error-text();
 }
 
+.convert-page {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  min-height: 100%;
+}
+
+.convert-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 480px;
+  padding: var(--app-space-xl);
+  border-radius: 24px;
+  @include mixins.glass-panel;
+  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.1);
+}
+
+.convert-card__title {
+  @include typography.text-headline-lg;
+  margin: 0 0 var(--app-space-lg);
+}
+
 .convert-form {
   @include forms.stack();
-  @include forms.full-width-field();
-  max-width: 420px;
+}
+
+.convert-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-xs);
+}
+
+.convert-field__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  @include typography.text-label-sm;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.convert-field__row {
+  display: flex;
+  gap: var(--app-space-sm);
+}
+
+.convert-select-wrap,
+.convert-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  background-color: rgba(6, 14, 32, 0.5);
+  border: 1px solid var(--mat-sys-outline-variant);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:focus-within {
+    border-color: var(--app-color-player-primary);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--app-color-player-primary) 20%, transparent);
+  }
+}
+
+.convert-select-wrap {
+  flex: 1;
+
+  app-select-dropdown {
+    flex: 1;
+    min-width: 0;
+    color: var(--mat-sys-on-surface);
+    font: var(--mat-sys-body-medium);
+    // Padding lives on the dropdown's own trigger button (select-dropdown.scss),
+    // not on this wrap: it has to stay padding-free so the dropdown fills it
+    // edge-to-edge and the popup reaches this wrap's true outer edges.
+    --select-dropdown-padding: var(--app-space-sm) var(--app-space-md);
+  }
+}
+
+.convert-select-wrap--grow {
+  flex: 1;
+}
+
+.convert-input-wrap {
+  width: 120px;
+  flex-shrink: 0;
+  padding: var(--app-space-sm) var(--app-space-md);
+
+  input {
+    width: 100%;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    padding: 0;
+    color: var(--mat-sys-on-surface);
+    font: var(--mat-sys-body-medium);
+    text-align: right;
+
+    &::placeholder {
+      color: color-mix(in srgb, var(--mat-sys-outline) 50%, transparent);
+    }
+
+    // Chrome/Safari's spinner arrows don't match the glass-input look and
+    // aren't needed for a whole-number amount field.
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button {
+      appearance: none;
+      margin: 0;
+    }
+  }
 }
 
 .convert-error {
   @include forms.error-text();
 }
 
-.convert-receive-preview {
+// Decorative divider between From/To, purely visual, not interactive: the
+// conversion topology is one-directional (game currency -> platform, or
+// platform -> a game currency), so a working reverse-swap button would
+// misrepresent it.
+.convert-divider {
+  display: flex;
+  justify-content: center;
+  margin: calc(var(--app-space-sm) * -1) 0;
+  z-index: 2;
+
+  mat-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--mat-sys-surface-container-highest);
+    border: 1px solid var(--mat-sys-outline-variant);
+    color: var(--mat-sys-primary);
+    font-size: 18px;
+  }
+}
+
+.convert-to-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-xs);
+  padding: var(--app-space-lg) var(--app-space-md);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(6, 14, 32, 0.9) 100%);
+  border: 1px solid color-mix(in srgb, var(--app-color-code-gold) 50%, transparent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--app-color-code-gold) 10%, transparent);
+}
+
+.convert-to-card__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  @include typography.text-label-sm;
+  color: color-mix(in srgb, var(--app-color-code-gold) 80%, transparent);
+}
+
+.convert-to-card__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-xs) var(--app-space-sm);
+}
+
+.convert-to-card__ticker {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--app-space-xs);
-  margin: 0;
-  font: var(--mat-sys-body-medium);
+  // Hugs its own content instead of stretching to fill the row. Growing
+  // greedily inflated the box past what "SHOOTER_GOLD" actually needs and
+  // pushed the amount onto its own wrapped line.
+  flex: 0 1 auto;
+  min-width: 0;
+  color: var(--app-color-code-gold);
+  font-family: 'Sora', sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+
+  mat-icon:first-child {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+  }
+
+  app-select-dropdown {
+    min-width: 0;
+    max-width: 100%;
+    color: inherit;
+    font: inherit;
+    --select-dropdown-chevron-color: var(--app-color-code-gold);
+  }
 }
 
-.conversion-status {
-  margin-top: var(--app-space-lg);
-  padding: var(--app-space-md);
-  border-radius: 4px;
-  max-width: 420px;
+.convert-to-card__amount {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: #fff;
+  font-family: 'Sora', sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  text-align: right;
 }
 
-.status-progress {
-  background-color: var(--mat-sys-secondary-container);
-  color: var(--mat-sys-on-secondary-container);
+.convert-to-card__rate {
+  margin: var(--app-space-xs) 0 0;
+  text-align: right;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-small);
 }
 
-.status-success {
-  background-color: var(--app-color-success-container);
-  color: var(--app-color-on-success-container);
+.convert-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--app-space-sm);
+  margin-top: var(--app-space-sm);
+  padding: var(--app-space-sm) var(--app-space-lg);
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--app-color-player-primary), var(--mat-sys-primary-container));
+  color: #fff;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  @include typography.text-label-md;
+  @include mixins.glow-button;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+  }
 }
 
-.status-warning {
-  background-color: var(--app-color-warning-container);
-  color: var(--app-color-on-warning-container);
-}
-
-.status-error {
-  background-color: var(--mat-sys-error-container);
-  color: var(--mat-sys-on-error-container);
-}

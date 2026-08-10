@@ -1,0 +1,112 @@
+// A real flex box, not display:contents -- this component's use sites (a
+// flex-growing field vs. a hug-content ticker) size it by targeting the host
+// tag directly from convert.scss (flex: 1, or left at the flex-item default
+// of 0 1 auto), same as they would have targeted a plain <select>. That only
+// works if the host has a box of its own for flex to apply to; display:
+// contents removed it from the tree entirely, so convert.scss's flex: 1 was
+// silently a no-op and the trigger below only ever sized to its own label
+// text -- coincidentally close enough to look right for a long label like
+// "PLATFORM_CREDITS", wrong for anything shorter.
+:host {
+  display: flex;
+  min-width: 0;
+}
+
+.select-dropdown {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.select-dropdown__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-sm);
+  width: 100%;
+  // box-sizing: border-box is load-bearing here, not decorative -- a use
+  // site (e.g. convert.scss's .convert-select-wrap) that used to put its
+  // own padding on the *wrapping* div now puts it here instead via this
+  // custom property, so the popup below (sized off this same trigger box)
+  // can reach that wrapping div's true outer edges instead of stopping at
+  // its old padding. Without border-box, that padding would inflate width
+  // past 100% and overflow the wrap.
+  box-sizing: border-box;
+  padding: var(--select-dropdown-padding, 0);
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+  }
+}
+
+.select-dropdown__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-dropdown__chevron {
+  flex-shrink: 0;
+  // A plain CSS custom property, not a component @input -- inherits down
+  // through the normal cascade same as any other color, so a use site (e.g.
+  // convert.scss's gold ticker) can override it without needing its own
+  // dedicated input just for one color.
+  color: var(--select-dropdown-chevron-color, var(--mat-sys-outline));
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  transition: transform 0.15s ease;
+}
+
+.select-dropdown__trigger--open .select-dropdown__chevron {
+  transform: rotate(180deg);
+}
+
+.select-dropdown__popup {
+  position: absolute;
+  top: calc(100% + var(--app-space-xs));
+  left: 0;
+  z-index: 10;
+  margin: 0;
+  padding: var(--app-space-xs);
+  // The width set inline from the trigger's own getBoundingClientRect()
+  // must include this padding and the border below, not add on top of it,
+  // or the popup ends up wider than the trigger it's meant to match.
+  box-sizing: border-box;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  border-radius: 12px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+.select-dropdown__option {
+  padding: var(--app-space-xs) var(--app-space-sm);
+  border-radius: 8px;
+  color: var(--mat-sys-on-surface);
+  font: var(--mat-sys-body-medium);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &:hover,
+  &--active {
+    background: var(--mat-sys-surface-variant);
+  }
+
+  &--selected {
+    background: var(--app-color-player-primary);
+    color: #fff;
+  }
+}

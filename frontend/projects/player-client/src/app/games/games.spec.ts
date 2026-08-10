@@ -1,49 +1,56 @@
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
-import { GameSelectionService, IdentityAuthEndpoints, IdentityGameEndpoints } from 'shared';
+import { of } from 'rxjs';
+import { CurrencyScope, EconomyEndpoints, IdentityGameEndpoints } from 'shared';
 import { Games } from './games';
 
 describe('Games', () => {
   let httpMock: HttpTestingController;
-  let gameSelection: GameSelectionService;
-  let router: Router;
 
   const publicGames = [
-    { id: 'game-1', slug: 'space-invaders', name: 'Space Invaders' },
-    { id: 'game-2', slug: 'pac-man', name: 'Pac Man' },
+    { id: 'game-1', slug: 'space-invaders', name: 'Space Invaders', description: null, iconUrl: null },
+    { id: 'game-2', slug: 'pac-man', name: 'Pac Man', description: 'Classic arcade maze chase.', iconUrl: null },
   ];
 
-  beforeEach(() => {
+  function configureWithBreakpoint(matches: boolean): void {
     TestBed.configureTestingModule({
       imports: [Games],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: BreakpointObserver, useValue: { observe: () => of({ matches, breakpoints: {} }) } },
+      ],
     });
 
     httpMock = TestBed.inject(HttpTestingController);
-    gameSelection = TestBed.inject(GameSelectionService);
-    router = TestBed.inject(Router);
-  });
+  }
+
+  function flushInitialRequests(balances: unknown[] = [], games: unknown[] = publicGames): void {
+    httpMock.expectOne((req) => req.url === EconomyEndpoints.balances).flush(balances);
+    httpMock.expectOne(IdentityGameEndpoints.publicGames).flush(games);
+  }
 
   afterEach(() => {
     httpMock.verify();
   });
 
   it('shows a loading state before the games/public response arrives', () => {
+    configureWithBreakpoint(false);
     const fixture = TestBed.createComponent(Games);
     fixture.detectChanges();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Loading games');
 
-    httpMock.expectOne(IdentityGameEndpoints.publicGames).flush(publicGames);
+    flushInitialRequests();
   });
 
   it('renders the list returned by games/public', () => {
+    configureWithBreakpoint(false);
     const fixture = TestBed.createComponent(Games);
-
-    httpMock.expectOne(IdentityGameEndpoints.publicGames).flush(publicGames);
+    flushInitialRequests();
     fixture.detectChanges();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
@@ -52,9 +59,9 @@ describe('Games', () => {
   });
 
   it('shows an empty state when no games are returned', () => {
+    configureWithBreakpoint(false);
     const fixture = TestBed.createComponent(Games);
-
-    httpMock.expectOne(IdentityGameEndpoints.publicGames).flush([]);
+    flushInitialRequests([], []);
     fixture.detectChanges();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
@@ -62,8 +69,9 @@ describe('Games', () => {
   });
 
   it('shows an error state when the games/public request fails', () => {
+    configureWithBreakpoint(false);
     const fixture = TestBed.createComponent(Games);
-
+    httpMock.expectOne((req) => req.url === EconomyEndpoints.balances).flush([]);
     httpMock
       .expectOne(IdentityGameEndpoints.publicGames)
       .flush({ status: 500, title: 'Server error' }, { status: 500, statusText: 'Internal Server Error' });
@@ -73,57 +81,79 @@ describe('Games', () => {
     expect(text).toContain("couldn't load the games list");
   });
 
-  function openDialogFor(fixture: { nativeElement: unknown; detectChanges: () => void }, gameName: string): void {
-    const card = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('mat-card')).find((element) =>
-      element.textContent?.includes(gameName),
-    ) as HTMLElement;
+  it('shows balance and description directly on the card at desktop widths', () => {
+    configureWithBreakpoint(false);
+    const fixture = TestBed.createComponent(Games);
+    flushInitialRequests([
+      { currencyId: 'c1', currencyCode: 'PACMAN_COINS', scope: CurrencyScope.Game, gameId: 'game-2', amount: 12, iconUrl: null },
+    ]);
+    fixture.detectChanges();
 
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('12 PACMAN_COINS');
+    expect(text).toContain('Classic arcade maze chase.');
+  });
+
+  it('hides the balance badge entirely when the game balance is zero', () => {
+    configureWithBreakpoint(false);
+    const fixture = TestBed.createComponent(Games);
+    flushInitialRequests([
+      { currencyId: 'c1', currencyCode: 'PACMAN_COINS', scope: CurrencyScope.Game, gameId: 'game-2', amount: 0, iconUrl: null },
+    ]);
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector('.game-card__balance')).toBeNull();
+    expect(element.textContent).not.toContain('PACMAN_COINS');
+  });
+
+  it('falls back to the placeholder hero when a game icon fails to load', () => {
+    configureWithBreakpoint(false);
+    const fixture = TestBed.createComponent(Games);
+    flushInitialRequests([], [{ ...publicGames[1], iconUrl: 'https://example.test/broken.png' }]);
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    const image = element.querySelector('img.game-card__hero-image') as HTMLImageElement;
+    expect(image).not.toBeNull();
+
+    image.dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+
+    expect(element.querySelector('img.game-card__hero-image')).toBeNull();
+    expect(element.querySelector('.game-card__hero-placeholder')).not.toBeNull();
+  });
+
+  it('does not open a dialog when a card is clicked at desktop widths', () => {
+    configureWithBreakpoint(false);
+    const fixture = TestBed.createComponent(Games);
+    flushInitialRequests();
+    fixture.detectChanges();
+
+    const card = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('.game-card')).find((element) =>
+      element.textContent?.includes('Pac Man'),
+    ) as HTMLElement;
     card.dispatchEvent(new Event('click'));
     fixture.detectChanges();
-  }
 
-  it('opens a details dialog with the game name and slug when a card is clicked', () => {
+    expect(document.body.textContent ?? '').not.toContain('About this game');
+  });
+
+  it('opens a read-only details dialog on tap at mobile widths', () => {
+    configureWithBreakpoint(true);
     const fixture = TestBed.createComponent(Games);
-
-    httpMock.expectOne(IdentityGameEndpoints.publicGames).flush(publicGames);
+    flushInitialRequests();
     fixture.detectChanges();
 
-    openDialogFor(fixture, 'Pac Man');
+    const card = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('.game-card')).find((element) =>
+      element.textContent?.includes('Pac Man'),
+    ) as HTMLElement;
+    card.dispatchEvent(new Event('click'));
+    fixture.detectChanges();
 
     const dialogText = document.body.textContent ?? '';
     expect(dialogText).toContain('Pac Man');
     expect(dialogText).toContain('pac-man');
-    expect(dialogText).toContain("isn't available yet");
-  });
-
-  it('updates the shared game-selection state when "Select this game" is clicked in the dialog', async () => {
-    const fixture = TestBed.createComponent(Games);
-    const navigateSpy = vi.spyOn(router, 'navigateByUrl');
-
-    httpMock.expectOne(IdentityGameEndpoints.publicGames).flush(publicGames);
-    fixture.detectChanges();
-
-    expect(gameSelection.selected()).toBeNull();
-
-    openDialogFor(fixture, 'Pac Man');
-
-    const selectButton = Array.from(document.body.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Select this game'),
-    ) as HTMLButtonElement;
-    selectButton.click();
-
-    // Dialog close (even with animations disabled) resolves afterClosed()
-    // through a microtask chain, not synchronously -- see MatDialogContainer.
-    // A macrotask tick flushes the whole microtask queue ahead of it.
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    fixture.detectChanges();
-
-    expect(gameSelection.selected()).toEqual(publicGames[1]);
-
-    const selectGameRequest = httpMock.expectOne(IdentityAuthEndpoints.selectGame);
-    expect(selectGameRequest.request.body).toEqual({ gameId: 'game-2' });
-    selectGameRequest.flush({ accessToken: 'the-game-scoped-access-token' });
-
-    expect(navigateSpy).toHaveBeenCalledWith('/wallet');
+    expect(dialogText).not.toContain('Select this game');
   });
 });

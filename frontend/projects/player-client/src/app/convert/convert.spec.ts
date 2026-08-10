@@ -82,31 +82,45 @@ describe('Convert', () => {
   }
 
   // Selecting a valid from/to/amount triple now also fires a GET for the
-  // rate preview (3f) -- drain it here so tests that don't care about the
-  // preview aren't left with an unflushed request tripping httpMock.verify().
+  // rate preview. Drain it here so tests that don't care about the preview
+  // aren't left with an unflushed request tripping httpMock.verify().
   function drainPendingRateRequests(): void {
     // switchMap cancels a still-in-flight rate request the moment a newer
-    // from/to/amount combination comes in (e.g. re-selecting the same
-    // value still emits and triggers a fresh request) -- match() still
-    // returns those cancelled requests, but flushing one throws, so only
-    // the still-live ones need a response.
+    // from/to/amount combination comes in. match() still returns those
+    // cancelled requests, but flushing one throws, so only the still-live
+    // ones need a response.
     httpMock
       .match((req) => req.url === EconomyEndpoints.conversionRate)
       .filter((req) => !req.cancelled)
       .forEach((req) => req.flush({ fromCurrencyId: 'currency-a', toCurrencyId: 'currency-b', rate: 100 }));
   }
 
-  function fillAndSubmit(currentFixture: ComponentFixture<Convert>, amount = '10'): void {
+  // The dropdown's own option list only renders in the DOM while it's open
+  // (unlike a native <select>'s always-present <option>s), so this opens,
+  // clicks the option carrying that id (see select-dropdown.html's
+  // data-option-id), and leaves the popup closed again afterward.
+  function selectDropdownOption(
+    currentFixture: ComponentFixture<Convert>,
+    formControlName: string,
+    optionId: string,
+  ): void {
     const element = currentFixture.nativeElement as HTMLElement;
-    const fromSelect = element.querySelector('select[formcontrolname="fromCurrencyId"]') as HTMLSelectElement;
-    const toSelect = element.querySelector('select[formcontrolname="toCurrencyId"]') as HTMLSelectElement;
+    const dropdown = element.querySelector(`app-select-dropdown[formcontrolname="${formControlName}"]`) as HTMLElement;
 
-    fromSelect.value = 'currency-a';
-    fromSelect.dispatchEvent(new Event('change'));
+    dropdown.querySelector<HTMLButtonElement>('.select-dropdown__trigger')!.click();
     currentFixture.detectChanges();
 
-    toSelect.value = 'currency-b';
-    toSelect.dispatchEvent(new Event('change'));
+    dropdown.querySelector<HTMLLIElement>(`.select-dropdown__option[data-option-id="${optionId}"]`)!.click();
+    currentFixture.detectChanges();
+  }
+
+  function fillAndSubmit(currentFixture: ComponentFixture<Convert>, amount = '10'): void {
+    const element = currentFixture.nativeElement as HTMLElement;
+
+    selectDropdownOption(currentFixture, 'fromCurrencyId', 'currency-a');
+    // toCurrencyId auto-selects once fromCurrencyId narrows the catalog to a
+    // single reachable option (the default balances/catalog fixtures always
+    // land there), no click needed, same as the component's own auto-select.
 
     const amountInput = element.querySelector('input[type="number"]') as HTMLInputElement;
     amountInput.value = amount;
@@ -154,18 +168,36 @@ describe('Convert', () => {
     expect(secondKey).not.toBe(firstKey);
   });
 
-  it('disables the submit button when the requested amount exceeds the available balance', () => {
+  it('clamps a typed amount down to the available balance instead of allowing it to exceed', () => {
     fixture = createWithCurrencies();
 
-    fillAndSubmit(fixture, '1000');
+    fillAndSubmitPrep(fixture, '1000');
+    drainPendingRateRequests();
+
+    const amountInput = (fixture.nativeElement as HTMLElement).querySelector(
+      'input[type="number"]',
+    ) as HTMLInputElement;
+    expect(amountInput.value).toBe('100');
 
     const submitButton = (fixture.nativeElement as HTMLElement).querySelector(
       'button[type="submit"]',
     ) as HTMLButtonElement;
-    expect(submitButton.disabled).toBe(true);
+    expect(submitButton.disabled).toBe(false);
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Amount exceeds your available balance.');
+    expect(text).not.toContain('Amount exceeds your available balance.');
+  });
+
+  it('auto-fills the amount to 1 as soon as a from-currency with a balance is selected', () => {
+    fixture = createWithCurrencies();
+
+    selectFrom(fixture, 'currency-a');
+    drainPendingRateRequests();
+
+    const amountInput = (fixture.nativeElement as HTMLElement).querySelector(
+      'input[type="number"]',
+    ) as HTMLInputElement;
+    expect(amountInput.value).toBe('1');
   });
 
   it('does not show a game picker when only one game is available', () => {
@@ -173,6 +205,8 @@ describe('Convert', () => {
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).not.toContain('Convert into game');
+
+    drainPendingRateRequests();
   });
 
   it('includes a game currency the player has zero balance in among the To currency options', () => {
@@ -184,16 +218,19 @@ describe('Convert', () => {
 
     fixture = createWithCurrencies(onlyPlatformBalance, currencyCatalog, myGames, publicGames);
 
-    const element = fixture.nativeElement as HTMLElement;
-    const fromSelect = element.querySelector('select[formcontrolname="fromCurrencyId"]') as HTMLSelectElement;
-    fromSelect.value = 'currency-a';
-    fromSelect.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
+    selectDropdownOption(fixture, 'fromCurrencyId', 'currency-a');
 
-    const toSelect = element.querySelector('select[formcontrolname="toCurrencyId"]') as HTMLSelectElement;
-    const toOptionValues = Array.from(toSelect.options).map((option) => option.value);
+    // toCurrencyDropdownOptions is exactly what the "To" dropdown renders --
+    // checking it directly avoids needing the popup open, which a single-
+    // option (auto-selected, readonly) dropdown never does.
+    // eslint-disable-next-line @typescript-eslint/dot-notation
+    const toOptionIds = fixture.componentInstance['toCurrencyDropdownOptions']().map(
+      (option: { id: string }) => option.id,
+    );
 
-    expect(toOptionValues).toContain('currency-b');
+    expect(toOptionIds).toContain('currency-b');
+
+    drainPendingRateRequests();
   });
 
   it("orders the game picker with the player's own games first, then other public games", () => {
@@ -205,18 +242,16 @@ describe('Convert', () => {
 
     fixture = createWithCurrencies(balances, catalogWithTwoGames, myGames, [...publicGames, secondGame]);
 
-    const element = fixture.nativeElement as HTMLElement;
-    const fromSelect = element.querySelector('select[formcontrolname="fromCurrencyId"]') as HTMLSelectElement;
-    fromSelect.value = 'currency-a';
-    fromSelect.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
+    selectDropdownOption(fixture, 'fromCurrencyId', 'currency-a');
 
-    const gameSelect = element.querySelector('select[formcontrolname="targetGameId"]') as HTMLSelectElement;
-    const gameOptionLabels = Array.from(gameSelect.options)
-      .filter((option) => option.value !== '')
-      .map((option) => option.textContent?.trim());
+    // eslint-disable-next-line @typescript-eslint/dot-notation
+    const gameOptionLabels = fixture.componentInstance['targetGameDropdownOptions']().map(
+      (option: { label: string }) => option.label,
+    );
 
     expect(gameOptionLabels).toEqual(['Demo Shooter', 'Demo Puzzle']);
+
+    drainPendingRateRequests();
   });
 
   it('polls the conversion status until it reaches Completed, refreshing balances, then stops', () => {
@@ -251,7 +286,7 @@ describe('Convert', () => {
     expect(text).toContain('Status: Completed');
     expect(text).toContain('90 available');
 
-    // The shell toolbar reads this same shared signal -- proving it also
+    // The shell toolbar reads this same shared signal, proving it also
     // reflects the post-conversion balance, not just Convert's own view.
     expect(TestBed.inject(WalletService).balances()).toEqual([{ ...balances[0], amount: 90 }, balances[1]]);
 
@@ -327,19 +362,11 @@ describe('Convert', () => {
   ];
 
   function selectFrom(currentFixture: ComponentFixture<Convert>, currencyId: string): void {
-    const element = currentFixture.nativeElement as HTMLElement;
-    const fromSelect = element.querySelector('select[formcontrolname="fromCurrencyId"]') as HTMLSelectElement;
-    fromSelect.value = currencyId;
-    fromSelect.dispatchEvent(new Event('change'));
-    currentFixture.detectChanges();
+    selectDropdownOption(currentFixture, 'fromCurrencyId', currencyId);
   }
 
   function selectTargetGame(currentFixture: ComponentFixture<Convert>, gameId: string): void {
-    const element = currentFixture.nativeElement as HTMLElement;
-    const gameSelect = element.querySelector('select[formcontrolname="targetGameId"]') as HTMLSelectElement;
-    gameSelect.value = gameId;
-    gameSelect.dispatchEvent(new Event('change'));
-    currentFixture.detectChanges();
+    selectDropdownOption(currentFixture, 'targetGameId', gameId);
   }
 
   it('narrows to-currency to exactly the platform currency, with no game picker, when from is a game currency', () => {
@@ -350,14 +377,17 @@ describe('Convert', () => {
     const element = fixture.nativeElement as HTMLElement;
     expect(element.textContent ?? '').not.toContain('Convert into game');
 
-    const toSelect = element.querySelector('select[formcontrolname="toCurrencyId"]') as HTMLSelectElement;
-    const toOptionValues = Array.from(toSelect.options)
-      .map((option) => option.value)
-      .filter((value) => value !== '');
-    expect(toOptionValues).toEqual(['currency-a']);
+    // eslint-disable-next-line @typescript-eslint/dot-notation
+    const toOptionIds = fixture.componentInstance['toCurrencyDropdownOptions']().map(
+      (option: { id: string }) => option.id,
+    );
+    expect(toOptionIds).toEqual(['currency-a']);
 
-    // Auto-selected, per 3c -- a single-candidate set is not a real choice.
-    expect(toSelect.value).toBe('currency-a');
+    // Auto-selected, per 3c: a single-candidate set is not a real choice.
+    // eslint-disable-next-line @typescript-eslint/dot-notation
+    expect(fixture.componentInstance['form'].value.toCurrencyId).toBe('currency-a');
+
+    drainPendingRateRequests();
   });
 
   it('auto-selects the only currency of a game with exactly one currency, once that game is picked', () => {
@@ -366,10 +396,10 @@ describe('Convert', () => {
     selectFrom(fixture, 'currency-a');
     selectTargetGame(fixture, 'game-2');
 
-    const toSelect = (fixture.nativeElement as HTMLElement).querySelector(
-      'select[formcontrolname="toCurrencyId"]',
-    ) as HTMLSelectElement;
-    expect(toSelect.value).toBe('currency-c');
+    // eslint-disable-next-line @typescript-eslint/dot-notation
+    expect(fixture.componentInstance['form'].value.toCurrencyId).toBe('currency-c');
+
+    drainPendingRateRequests();
   });
 
   it('clears the stale target-game and to-currency selections when from changes to a different currency', () => {
@@ -382,21 +412,23 @@ describe('Convert', () => {
     expect(fixture.componentInstance['form'].value.toCurrencyId).toBe('currency-c');
 
     // Switching from to a game currency invalidates both the previous game
-    // pick and the previous to-currency pick -- neither is a live option
-    // for this new from anymore, so both must be back to empty (then
-    // re-populated by auto-select, which for this from narrows to platform).
+    // pick and the previous to-currency pick, neither is a live option for
+    // this new from anymore, so both must be back to empty (then re-populated
+    // by auto-select, which for this from narrows to platform).
     selectFrom(fixture, 'currency-b');
 
     // eslint-disable-next-line @typescript-eslint/dot-notation
     expect(fixture.componentInstance['form'].value.targetGameId).toBe('');
     // eslint-disable-next-line @typescript-eslint/dot-notation
     expect(fixture.componentInstance['form'].value.toCurrencyId).toBe('currency-a');
+
+    drainPendingRateRequests();
   });
 
   it('re-enables submit after the game picker is hidden by a from-is-game-currency switch, once an amount is entered', () => {
     // Regression case: the game picker's native `required` attribute gets
     // picked up by Angular's RequiredValidator directive, which composes
-    // Validators.required onto targetGameId's control -- and that stays
+    // Validators.required onto targetGameId's control, and that stays
     // attached even after the picker's element is removed from the DOM,
     // since Angular doesn't clear directive-contributed validators on
     // destroy. Resetting targetGameId back to '' in that state used to
@@ -442,12 +474,10 @@ describe('Convert', () => {
 
   function fillAndSubmitPrep(currentFixture: ComponentFixture<Convert>, amount = '10'): void {
     selectFrom(currentFixture, 'currency-a');
+    // toCurrencyId auto-selects to 'currency-b' once fromCurrencyId narrows
+    // the catalog to that single reachable option, no click needed.
 
     const element = currentFixture.nativeElement as HTMLElement;
-    const toSelect = element.querySelector('select[formcontrolname="toCurrencyId"]') as HTMLSelectElement;
-    toSelect.value = 'currency-b';
-    toSelect.dispatchEvent(new Event('change'));
-
     const amountInput = element.querySelector('input[type="number"]') as HTMLInputElement;
     amountInput.value = amount;
     amountInput.dispatchEvent(new Event('input'));
@@ -455,19 +485,39 @@ describe('Convert', () => {
   }
 
   describe('conversion rate preview', () => {
+    // fillAndSubmitPrep's own from/to/amount steps each supersede the last
+    // via switchMap (a from-currency pick alone can already auto-complete
+    // to-currency and the auto-filled amount, all before the amount this
+    // test actually cares about is typed). expectOne() counts cancelled
+    // requests too, so this needs the same live-only filter
+    // drainPendingRateRequests() uses instead of matching blind.
     function flushRate(rate: number): void {
-      httpMock.expectOne((req) => req.url === EconomyEndpoints.conversionRate).flush({
-        fromCurrencyId: 'currency-a',
-        toCurrencyId: 'currency-b',
-        rate,
-      });
+      const live = httpMock
+        .match((req) => req.url === EconomyEndpoints.conversionRate)
+        .filter((req) => !req.cancelled);
+
+      expect(live).toHaveLength(1);
+      live[0].flush({ fromCurrencyId: 'currency-a', toCurrencyId: 'currency-b', rate });
     }
 
-    it('shows the not-available placeholder before from, to, and an amount are all set', () => {
+    it('auto-selects a default currency pair on load, without the player having to choose', () => {
+      // With the placeholder "Select a currency"/"Select a game" options
+      // gone, a bare <select> would otherwise just visually default to its
+      // first option while the form control silently stayed empty --
+      // picking a real default for real keeps the two in sync from the start.
       fixture = createWithCurrencies();
 
-      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-      expect(text).toContain('shown after you confirm the conversion');
+      const element = fixture.nativeElement as HTMLElement;
+      // eslint-disable-next-line @typescript-eslint/dot-notation
+      const formValue = fixture.componentInstance['form'].value;
+
+      expect(formValue.fromCurrencyId).toBe('currency-a');
+      expect(formValue.toCurrencyId).toBe('currency-b');
+
+      const placeholder = element.querySelector('.convert-to-card__placeholder');
+      expect(placeholder?.classList.contains('convert-to-card__placeholder--hidden')).toBe(true);
+
+      drainPendingRateRequests();
     });
 
     it('fetches and shows the computed preview once from, to, and amount are all set', () => {
@@ -478,7 +528,7 @@ describe('Convert', () => {
       fixture.detectChanges();
 
       const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-      expect(text).toContain('1000.00 GEMS');
+      expect(text).toContain('1000 GEMS');
     });
 
     it('recomputes the preview when fromAmount changes', () => {
@@ -499,7 +549,7 @@ describe('Convert', () => {
       fixture.detectChanges();
 
       const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-      expect(text).toContain('500.00 GEMS');
+      expect(text).toContain('500 GEMS');
     });
 
     it('falls back to hiding the preview, without crashing, when the rate request fails', () => {
@@ -507,12 +557,15 @@ describe('Convert', () => {
 
       fillAndSubmitPrep(fixture, '10');
       httpMock
-        .expectOne((req) => req.url === EconomyEndpoints.conversionRate)
-        .flush({ status: 400, title: 'Unsupported conversion pair' }, { status: 400, statusText: 'Bad Request' });
+        .match((req) => req.url === EconomyEndpoints.conversionRate)
+        .filter((req) => !req.cancelled)
+        .forEach((req) =>
+          req.flush({ status: 400, title: 'Unsupported conversion pair' }, { status: 400, statusText: 'Bad Request' }),
+        );
       fixture.detectChanges();
 
       const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-      expect(text).toContain('shown after you confirm the conversion');
+      expect(text).toContain('Preview unavailable');
     });
   });
 });
