@@ -295,6 +295,18 @@ actually reaches this diagram in production, and [docs/architecture.md](docs/arc
 the full breakdown, including local-vs-Kubernetes differences and every implemented-vs-planned
 distinction.
 
+Deeper reading, one page per concern rather than one long scroll:
+
+- **[Frontend architecture](docs/architecture/frontend.md)** — both Angular apps' real structure,
+  the actual browser-to-backend request path, and the auth lifecycle
+- **[Data ownership](docs/architecture/data.md)** — who owns what across `identity_db`/`economy_db`,
+  and what crossing that boundary costs
+- **[Business/technical flows](docs/architecture/flows.md)** — end-to-end sequence diagrams:
+  registration, login/refresh, the conversion saga, game hard-delete's consistency gap, CI→GitOps
+- **[Security overview](docs/security/overview.md)** — what's actually enforced, and what isn't
+- **[Observability overview](docs/observability/overview.md)** — the OpenTelemetry/Grafana stack,
+  walked through on one real trace
+
 ## GitOps & CI/CD
 
 CI is per-service and path-filtered (nine workflows, each building/testing/scanning only the service
