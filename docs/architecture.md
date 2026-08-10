@@ -55,36 +55,24 @@ Solid lines — implemented. Dashed lines — designed and scheduled for impleme
 
 ## Local vs Kubernetes
 
-Both run the same images; only how services find each other, where
-configuration comes from, and how many replicas of each exist differs.
+Both run the same images; only how services find each other, where configuration comes from, and
+how many replicas of each exist differs. The biggest differences:
 
-The Kubernetes side now mirrors the full compose stack: `identity-db`,
-`identity-service`, `economy-db`, `rabbitmq`, `economy-service`,
-`platform-worker`, `player-client`, `api-gateway`, plus `mailpit` in
-non-production namespaces. Consul is the one piece that has no Kubernetes
-counterpart at all — see the service discovery row below.
+- **Service discovery**: Consul locally (`ocelot.Development.json`'s `ServiceName` routing) vs.
+  nothing deployed in Kubernetes — kube-DNS already resolves service names, so `ocelot.Kubernetes.json`
+  uses those directly rather than running a second system to answer a question Kubernetes already
+  answers. See [ADR 0002](adr/0002-api-gateway-ocelot-consul.md).
+- **Stateful services** (Postgres × 2, RabbitMQ) run as plain containers locally; in Kubernetes they're
+  StatefulSets with their own PVCs — stable identity and a single writer, not a Deployment.
+- **Secrets**: a local `.env` file vs. Kubernetes Secrets, with only placeholder `secrets.example/*.yaml`
+  templates committed — the real Secret is applied directly and never enters git.
+- **Migrations** run as one-shot containers locally, and as `pre-install`/`pre-upgrade` Helm-hook Jobs
+  in Kubernetes, ordered ahead of the app Deployments the same way compose's
+  `service_completed_successfully` orders them.
 
-| | docker-compose (`infra/docker-compose.yml`) | Kubernetes (`infra/helm/gaming-backend-platform/`) |
-|---|---|---|
-| Service discovery | Consul (`ServiceDiscoveryProvider: Consul` + `ServiceName` in `ocelot.Development.json`) | None deployed — Kubernetes Services and kube-DNS already resolve names like `identity-service.gaming-platform.svc.cluster.local`; `ocelot.Kubernetes.json` uses those directly. Running Consul here too would be a second system answering a question Kubernetes already answers. See ADR 0002 |
-| `identity_db` / `economy_db` | Single Postgres container each, no replicas | `identity-db` / `economy-db` StatefulSets, each with its own PVC via `volumeClaimTemplates` — stable pod identity and a single writer, not a Deployment. Dev/sandbox only; production points at managed instances |
-| RabbitMQ | Single container, no volume | `rabbitmq` StatefulSet + PVC (`rabbitmq:4-management-alpine`). The outbox dispatcher (ADR 0010) hands a message to the broker and then marks its own outbox row processed; a pod recreated between those two points with no volume loses exactly the message the outbox table already believes was delivered. Same dev/sandbox-only caveat as the databases above — production would use a managed broker |
-| Database migrations | `identity-migrator` / `economy-migrator` one-shot containers, ordered via `depends_on: condition: service_completed_successfully` | Kubernetes `Job`s (`identity-migrator` / `economy-migrator`), not an initContainer and not folded into the service Deployment — a Job is the object whose `backoffLimit`/completion semantics actually mean "run once to completion, then stop," which neither an initContainer (tied to one pod's lifecycle) nor a Deployment (expects a long-running process) give for free. Both Jobs are `pre-install`/`pre-upgrade` Helm hooks, at a later weight than the `identity-db`/`economy-db` StatefulSets (hooks too, for the same reason — see `templates/statefulset.yaml`'s own comment), so Helm finishes them before any app Deployment is even created — the same ordering compose gets for free from `service_completed_successfully`, expressed through Helm's own mechanism for it instead of a wrapper script re-implementing `kubectl wait` by hand |
-| Configuration | `.env` (committed as `.env.example`, localhost-only so it's not a real secret) | Non-secret values in `values.yaml`/`values-local.yaml` (rendered into a shared ConfigMap plus one per service); signing keys, connection strings and broker credentials in Secrets. Only the `secrets.example/*.yaml` templates are committed, with placeholder values — the real Secret is applied directly and never lands in git, and isn't part of the Helm release itself |
-| `ASPNETCORE_ENVIRONMENT` | `Development` | `Development` on every service's ConfigMap, not `Production` — this cluster is a local demo/sandbox target (clone the repo, stand up a kind cluster, no cloud credentials involved), and `Development` is what actually turns on the existing `DevelopmentSeeder`s for a working demo. **Known limitation:** a real Azure production target still needs its own decision about environment and seeding once that work starts — this branch doesn't make that call |
-| Mailpit | Always present (`mailpit` service) | Only in local kind clusters and the sandbox namespace, gated by `mailpit.enabled` (`true` in `values-local.yaml`, `false` in `values-production.yaml`). The production release never gets this Deployment; `email-service`'s `Email__Smtp__Host` there points at the real relay instead |
-| JWT signing key | Same value in `identity-service`'s and `api-gateway`'s `Jwt__Key`, from the shared `.env` | `identity-service`, `gateway` and `economy-service` all read `Jwt__Key` from the same `identity-secrets` Secret rather than each holding a copy — one source of truth, so rotating the key can't update two of the three and silently miss the other |
-| Platform.Worker | Single container, no scaling knob | Deployment with `replicas: 1`, and **no HPA object exists for it at all** — not an HPA capped at `maxReplicas: 1` (that would still let scale events fire), the manifest is simply absent. Quartz here runs its default, non-clustered `JobStore`; a second replica would run `CleanupExpiredTokensJob` from two pods with no coordination between them, unlike the outbox dispatcher, which `SELECT ... FOR UPDATE SKIP LOCKED` protects against the same class of problem. **Known limitation:** real horizontal scaling of the worker needs a clustered `AdoJobStore`, not built here |
-| player-client / Ingress | player-client's own Nginx proxies `/api/*` to `api-gateway` over the compose network, so the browser and the API share the `:8080` origin — what lets the refresh cookie use `SameSite=Strict` (ADR 0011) | The Ingress (Traefik, replacing the earlier ingress-nginx assumption) routes one single-level `*.localhost` hostname per web-facing Service: `player-client.localhost`, `admin-client.localhost`, `mailpit.localhost`, `gateway.localhost` (the last one for direct Postman/curl access, not something the web clients themselves need). There's no rule sending `/api` straight to `api-gateway` under `player-client.localhost` — that would duplicate the same-origin decision in two places (Ingress rules and `nginx.conf`) that could quietly drift apart later. player-client's Nginx does the identical `/api` proxy it does in compose, just resolving `api-gateway` through kube-DNS instead of a compose service name — one mechanism, one place, for both topologies. See ADR 0011 / ADR 0012 |
-| Gateway routing config | `ocelot.Development.json`, Consul-based `ServiceName` routing | `ocelot.Kubernetes.json`, static `DownstreamHostAndPorts` pointing at `*.svc.cluster.local` names. The chart's `gateway-config` ConfigMap embeds that file's contents directly rather than a hand-copied inline block — this file drifted from a manually maintained ConfigMap twice during this group before the switch, so generation removes that whole class of mistake. That source file lives outside `infra/helm/gaming-backend-platform/`, and Helm's `.Files.Get` can't read outside the chart's own directory any more than Kustomize could read outside a kustomization's — so `scripts/k8s/apply.sh` passes it in with `helm upgrade --install --set-file gateway.ocelotConfigJson=backend/ApiGateway/ocelot.Kubernetes.json` instead of keeping a second copy inside the chart |
-| Image pull policy | n/a — images are built locally and used directly | `imagePullPolicy: IfNotPresent` on every locally-built image (`identity-service`, `economy-service`, `api-gateway`, `platform-worker`, `player-client`, and both migrator Jobs). All of them are tagged `:latest`, which Kubernetes otherwise defaults to `imagePullPolicy: Always` for — that tries a registry pull on every pod start, which fails on a kind cluster with no registry access. Third-party images (`postgres`, `rabbitmq`, `mailpit`) are left on their own default; only the images this repo builds need the override |
-| Observability stack | `otel-collector`, `tempo`, `prometheus`, `loki`, `grafana` all present as containers (ADR-0019) | **Not deployed here yet.** No real otel-collector exists in this chart — this side of the platform currently has no metrics, traces, or centralized logs at all. `player-client`/`admin-client`'s Nginx still hardcodes an `otel-collector` upstream for its `/otlp/` proxy (ADR-0020), and Nginx resolves that hostname at config-load time rather than lazily, so the chart carries a placeholder `otel-collector` Service with no backing Pods purely so the name resolves and both Deployments can start; traffic to it just fails at connect time. Deferred to the still-pending VPS/staging-vs-production work: a real collector replacing that stub, and the same `*.localhost` Ingress pattern extended to its own UI once it exists here |
-
-Namespace is `gaming-platform`, created via `helm upgrade --install
---create-namespace` rather than a templated `Namespace` resource in the
-chart — the release itself only ever targets a namespace that already
-exists or is being created in the same command, so there's no ordering
-concern equivalent to the old Kustomize tree's numbered `base/` files.
+The full comparison — every row, including JWT key sourcing, `Platform.Worker`'s scaling posture,
+Ingress routing, and the observability stack's deployment state — lives in
+[Backend deployment topology](architecture/backend.md).
 
 ## Cross-cutting
 
@@ -120,10 +108,18 @@ management affects every service, not just the one whose folder changed.
 `infra/helm/**`, so chart changes are checked regardless of which branch
 they land on.
 
+## Related documentation
+
+- [Backend deployment topology](architecture/backend.md) — the full compose-vs-Kubernetes comparison
+- [Frontend architecture](architecture/frontend.md)
+- [Data ownership](architecture/data.md)
+- [Business/technical flows](architecture/flows.md)
+- [Architecture decisions](adr/README.md)
+
 ## Cleanup jobs (Platform.Worker)
 
 Implemented. See the [README's Platform.Worker section](../README.md#platformworker)
 for the job list, the tables it touches in `identity_db` and `economy_db`, and
 the database-per-service exception it relies on. In Kubernetes it runs as its
-own Deployment, pinned to a single replica — see the
-[Local vs Kubernetes](#local-vs-kubernetes) table above for why.
+own Deployment, pinned to a single replica with no HPA — see the
+[Platform.Worker row](architecture/backend.md) in the deployment topology doc for why.
