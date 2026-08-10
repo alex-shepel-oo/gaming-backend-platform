@@ -4,9 +4,23 @@ on:
   push:
     paths:
       - 'infra/helm/**'
+      - 'backend/ApiGateway/ocelot*.json'
+      - 'backend/EmailService/Templates/**'
+      - 'infra/otel-collector/**'
+      - 'infra/tempo/**'
+      - 'infra/prometheus/**'
+      - 'infra/loki/**'
+      - 'infra/grafana/**'
   pull_request:
     paths:
       - 'infra/helm/**'
+      - 'backend/ApiGateway/ocelot*.json'
+      - 'backend/EmailService/Templates/**'
+      - 'infra/otel-collector/**'
+      - 'infra/tempo/**'
+      - 'infra/prometheus/**'
+      - 'infra/loki/**'
+      - 'infra/grafana/**'
 
 jobs:
   kubeconform:
@@ -22,9 +36,33 @@ jobs:
       - uses: azure/setup-helm@v4
 
       - name: Validate manifests
+        # Mirrors scripts/k8s/apply.sh's value files and --set-file flags.
+        # Nothing else enforces the two staying in sync, so a new values/*.yaml
+        # file or --set-file needs updating here too.
         run: |
-          helm template infra/helm/gaming-backend-platform \
-            -f infra/helm/gaming-backend-platform/values-local.yaml \
-            --set-file gateway.ocelotConfigJson=backend/ApiGateway/ocelot.Kubernetes.json \
+          CHART="infra/helm/gaming-backend-platform"
+          VALUES_ARGS=()
+          for f in "$CHART"/values/*.yaml; do
+            VALUES_ARGS+=(-f "$f")
+          done
+          VALUES_ARGS+=(-f "$CHART/values-local.yaml")
+
+          helm template "$CHART" \
             --namespace gaming-platform \
+            "${VALUES_ARGS[@]}" \
+            --set-file gateway.ocelotConfigJson=backend/ApiGateway/ocelot.Kubernetes.json \
+            --set-file observability.otelCollectorConfigYaml=infra/otel-collector/otel-collector-config.yaml \
+            --set-file observability.tempoConfigYaml=infra/tempo/tempo-config.yaml \
+            --set-file observability.prometheusConfigYaml=infra/prometheus/prometheus.yml \
+            --set-file observability.lokiConfigYaml=infra/loki/loki-config.yaml \
+            --set-file observability.grafanaDatasourcesYaml=infra/grafana/provisioning/datasources/datasources.yml \
+            --set-file observability.grafanaDashboardsProviderYaml=infra/grafana/provisioning/dashboards/dashboards.yml \
+            --set-file observability.grafanaDashboardJson=infra/grafana/dashboards/service-overview.json \
+            --set-file observability.grafanaNodeResourcesDashboardJson=infra/grafana/dashboards/node-resources.json \
+            --set-file emailService.templates.emailVerificationHtml=backend/EmailService/Templates/EmailVerification.html \
+            --set-file emailService.templates.emailVerificationText=backend/EmailService/Templates/EmailVerification.txt \
+            --set-file emailService.templates.passwordResetHtml=backend/EmailService/Templates/PasswordReset.html \
+            --set-file emailService.templates.passwordResetText=backend/EmailService/Templates/PasswordReset.txt \
+            --set-file emailService.templates.duplicateRegistrationNoticeHtml=backend/EmailService/Templates/DuplicateRegistrationNotice.html \
+            --set-file emailService.templates.duplicateRegistrationNoticeText=backend/EmailService/Templates/DuplicateRegistrationNotice.txt \
             | kubeconform -strict -summary -
