@@ -1,3 +1,5 @@
+GBP -- Gaming Backend Platform
+
 Confirm your email for {{GameName}}.
 
 Your verification code is: {{Code}}
