@@ -1,8 +1,9 @@
-import { Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 
 @Component({
-  selector: 'app-not-available',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  selector: 'lib-not-available',
   imports: [MatIconModule],
   templateUrl: './not-available.html',
   styleUrl: './not-available.scss',

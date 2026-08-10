@@ -14,3 +14,54 @@ body {
   margin: 0;
   height: 100%;
 }
+
+// Every screen's top-level heading, styled once here instead of per component --
+// keeps the console's headline weight consistent without a repeated class.
+h1 {
+  font-family: 'Sora', sans-serif;
+  font-weight: 600;
+}
+
+// Material Symbols is a variable font; mat-icon's default font-variation-settings
+// otherwise render every glyph at its thinnest, unfilled weight.
+.material-symbols-outlined {
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+}
+
+// Custom scrollbar thumb, transparent by default and only revealed while the
+// pointer is over the scrolling area, rather than sitting on screen always.
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+
+  &:hover {
+    scrollbar-color: color-mix(in srgb, var(--mat-sys-outline) 30%, transparent) transparent;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+*:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--mat-sys-outline) 30%, transparent);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--mat-sys-outline) 50%, transparent);
+}

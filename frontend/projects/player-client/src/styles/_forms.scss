@@ -1,6 +1,9 @@
 // Shared layout patterns for the Login/Register/confirm-email forms, defined
 // once so the three components don't each re-derive the same spacing rules.
 
+@use 'mixins';
+@use 'typography';
+
 @mixin stack($gap: var(--app-space-md)) {
   display: flex;
   flex-direction: column;
@@ -16,5 +19,137 @@
 @mixin full-width-field() {
   mat-form-field {
     width: 100%;
+  }
+}
+
+// The mockups' raw `.input-glass` label+icon+input pattern (login, register,
+// reset-password), a real component instead of mat-form-field, since the
+// mockups never used Material's own form-field chrome, and reskinning it to
+// look identical would fight Material's internal DOM more than it saves.
+@mixin auth-field-styles() {
+  .auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--app-space-md);
+  }
+
+  .auth-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--app-space-xs);
+  }
+
+  .auth-field__label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .auth-field__label {
+    @include typography.text-label-sm;
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  .auth-field__link {
+    @include typography.text-label-sm;
+    color: var(--mat-sys-primary);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--app-color-player-primary);
+    }
+  }
+
+  .auth-field__hint {
+    margin: 0;
+    color: var(--mat-sys-on-surface-variant);
+    font: var(--mat-sys-body-small);
+  }
+
+  .auth-field__input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-sm);
+    padding: var(--app-space-sm) var(--app-space-md);
+    border-radius: 8px;
+    background-color: rgba(6, 14, 32, 0.5);
+    border: 1px solid var(--mat-sys-outline-variant);
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease;
+
+    &:focus-within {
+      border-color: var(--app-color-player-primary);
+      box-shadow: 0 0 12px color-mix(in srgb, var(--app-color-player-primary) 20%, transparent);
+    }
+
+    mat-icon:first-child {
+      color: var(--mat-sys-outline);
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    input {
+      flex: 1;
+      min-width: 0;
+      background: transparent;
+      border: none;
+      outline: none;
+      padding: 0;
+      color: var(--mat-sys-on-surface);
+      font: var(--mat-sys-body-medium);
+
+      &::placeholder {
+        color: color-mix(in srgb, var(--mat-sys-outline) 50%, transparent);
+      }
+    }
+  }
+
+  .auth-field__toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--mat-sys-outline);
+    cursor: pointer;
+    flex-shrink: 0;
+
+    &:hover {
+      color: var(--mat-sys-on-surface);
+    }
+  }
+
+  .auth-error {
+    margin: 0;
+    color: var(--mat-sys-error);
+    font: var(--mat-sys-body-medium);
+  }
+
+  .auth-submit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--app-space-sm);
+    margin-top: var(--app-space-sm);
+    padding: var(--app-space-sm) var(--app-space-lg);
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--app-color-player-primary), var(--mat-sys-primary-container));
+    color: #fff;
+    cursor: pointer;
+    @include typography.text-label-md;
+    @include mixins.glow-button;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
   }
 }

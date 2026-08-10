@@ -1,0 +1,38 @@
+.wip-overlay {
+  position: relative;
+  overflow: hidden;
+  border-radius: inherit;
+
+  &__content {
+    filter: blur(2px);
+    pointer-events: none;
+    user-select: none;
+  }
+
+  &__scrim {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: color-mix(in srgb, var(--mat-sys-surface) 55%, transparent);
+  }
+
+  &__pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--app-space-xs);
+    padding: var(--app-space-xs) var(--app-space-md);
+    border-radius: 999px;
+    background-color: var(--mat-sys-surface-container-highest);
+    color: var(--mat-sys-on-surface);
+    font: var(--mat-sys-label-medium);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+
+    mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+    }
+  }
+}

@@ -1,0 +1,140 @@
+// Presentational patterns repeated across the player-client mockups (glassmorphism, ambient background
+// glow, glowing gradient buttons) and the loading-skeleton shimmer used on both apps. Kept as mixins,
+// not components -- pure CSS with no state, and Angular's per-component style budget
+// (frontend/angular.json, 4kB/8kB) makes repeating the same declarations per component costly.
+
+@mixin glass-panel {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(199, 196, 215, 0.1);
+}
+
+@mixin ambient-orb($size: 400px, $color: var(--app-color-player-primary), $opacity: 0.5) {
+  position: absolute;
+  width: $size;
+  height: $size;
+  border-radius: 50%;
+  filter: blur(100px);
+  pointer-events: none;
+  z-index: -1;
+  opacity: $opacity;
+  background: $color;
+}
+
+// Matches the mockups' own `.orb-1`/`.orb-2` float keyframes (auth pages) --
+// alternating between two directions per orb keeps the drift from ever
+// looking synchronized, same reason the mockups vary duration/reverse per orb.
+@mixin ambient-orb-float($duration: 10s, $reverse: false) {
+  animation: gbp-orb-float $duration ease-in-out infinite #{if($reverse, 'alternate-reverse', 'alternate')};
+}
+
+@keyframes gbp-orb-float {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    transform: translate(30px, 50px) scale(1.1);
+  }
+}
+
+@mixin glow-button($color: var(--app-color-player-primary)) {
+  box-shadow: 0 0 20px color-mix(in srgb, #{$color} 40%, transparent);
+  transition:
+    box-shadow 0.3s ease,
+    transform 0.2s ease;
+
+  &:hover {
+    box-shadow: 0 0 30px color-mix(in srgb, #{$color} 60%, transparent);
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(1px);
+  }
+}
+
+@mixin skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--mat-sys-surface-container-low) 25%,
+    var(--mat-sys-surface-container-high) 50%,
+    var(--mat-sys-surface-container-low) 75%
+  );
+  background-size: 200% 100%;
+  animation: gbp-skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes gbp-skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-line {
+  @include skeleton-shimmer;
+  border-radius: 4px;
+  height: 16px;
+}
+
+.skeleton-block {
+  @include skeleton-shimmer;
+  border-radius: 8px;
+}
+
+// Turns a plain <table> into a stacked list of cards below $breakpoint --
+// the admin console tables (Users, Games) are too column-heavy for a phone
+// width, and horizontal scroll on a data table is a worse mobile experience
+// than one row per card. Relies on each <td> carrying a `data-label`
+// attribute (the column header text) that ::before pulls in as the cell's
+// own label once <thead> is hidden. The first cell in each row commonly
+// needs its own look (an identity block, not a label:value pair) --
+// override `td:first-child` in the consuming stylesheet after including this.
+@mixin responsive-table-cards($breakpoint: 767px) {
+  @media (max-width: $breakpoint) {
+    thead {
+      display: none;
+    }
+
+    tbody {
+      display: flex;
+      flex-direction: column;
+      gap: var(--app-space-sm);
+      padding: var(--app-space-sm);
+    }
+
+    tr {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--mat-sys-outline-variant);
+      border-radius: var(--app-space-sm);
+      padding: var(--app-space-sm) var(--app-space-md);
+      background: var(--mat-sys-surface-container);
+    }
+
+    td {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--app-space-md);
+      padding: var(--app-space-xs) 0;
+      border-bottom: 1px solid color-mix(in srgb, var(--mat-sys-outline-variant) 40%, transparent);
+
+      &:last-child {
+        border-bottom: none;
+      }
+
+      &::before {
+        content: attr(data-label);
+        flex-shrink: 0;
+        font: var(--mat-sys-label-small);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--mat-sys-on-surface-variant);
+      }
+    }
+  }
+}
