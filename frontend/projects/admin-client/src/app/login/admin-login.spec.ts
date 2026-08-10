@@ -25,11 +25,11 @@ describe('AdminLogin', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
-        // Real route targets (not []) -- navigateByUrl to a route the test
+        // Real route targets (not []): navigateByUrl to a route the test
         // router doesn't know about throws NG04002 as an unhandled
         // rejection and fails the run even though every assertion passes.
         provideRouter([
-          { path: 'dashboard', component: RouteStub },
+          { path: 'users', component: RouteStub },
           { path: 'select-game', component: RouteStub },
         ]),
       ],
@@ -64,7 +64,7 @@ describe('AdminLogin', () => {
     return fixture;
   }
 
-  it('sends no gameSlug -- login is always account-first, never game-specific', () => {
+  it('sends no gameSlug, login is always account-first, never game-specific', () => {
     createAndSubmit();
 
     const request = httpMock.expectOne(IdentityAuthEndpoints.login);
@@ -73,14 +73,14 @@ describe('AdminLogin', () => {
     request.flush({ accessToken: fakeAccessToken('Platform') });
   });
 
-  it('routes a platform-scoped login straight to the dashboard, no picker', () => {
+  it('routes a platform-scoped login straight into the app, no picker', () => {
     const navigateSpy = vi.spyOn(router, 'navigateByUrl');
 
     createAndSubmit();
 
     httpMock.expectOne(IdentityAuthEndpoints.login).flush({ accessToken: fakeAccessToken('Platform') });
 
-    expect(navigateSpy).toHaveBeenCalledWith('/dashboard');
+    expect(navigateSpy).toHaveBeenCalledWith('/users');
   });
 
   it('routes an account-scoped login (no platform role yet) to the game picker', () => {
@@ -93,14 +93,14 @@ describe('AdminLogin', () => {
     expect(navigateSpy).toHaveBeenCalledWith('/select-game');
   });
 
-  it('treats a game-scoped login the same as platform -- straight to the dashboard', () => {
+  it('treats a game-scoped login the same as platform, straight into the app', () => {
     const navigateSpy = vi.spyOn(router, 'navigateByUrl');
 
     createAndSubmit();
 
     httpMock.expectOne(IdentityAuthEndpoints.login).flush({ accessToken: fakeAccessToken('Game') });
 
-    expect(navigateSpy).toHaveBeenCalledWith('/dashboard');
+    expect(navigateSpy).toHaveBeenCalledWith('/users');
   });
 
   it('shows an invalid-credentials message on a 401', () => {
