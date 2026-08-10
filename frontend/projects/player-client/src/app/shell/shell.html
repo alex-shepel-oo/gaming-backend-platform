@@ -1,52 +1,70 @@
-<mat-toolbar class="shell-toolbar">
-  <span class="shell-brand">Gaming Backend Platform</span>
+<header class="shell-header">
+  <div class="shell-header__inner">
+    <div class="shell-header__brand-group">
+      <a routerLink="/games" class="shell-brand-link">
+        <img class="shell-brand" src="gbp-logo.svg" alt="GBP" draggable="false" />
+      </a>
 
-  <nav class="shell-nav" aria-label="Main navigation">
-    <a mat-button routerLink="/games" routerLinkActive="shell-nav-link-active">Games</a>
-    <a mat-button routerLink="/wallet" routerLinkActive="shell-nav-link-active">Wallet</a>
-    <a mat-button routerLink="/convert" routerLinkActive="shell-nav-link-active">Convert</a>
-  </nav>
+      <nav class="shell-nav" aria-label="Main navigation">
+        <a class="shell-nav-link" routerLink="/games" routerLinkActive="shell-nav-link-active">Games</a>
+        <a class="shell-nav-link" routerLink="/wallet" routerLinkActive="shell-nav-link-active">Wallet</a>
+        <a class="shell-nav-link" routerLink="/convert" routerLinkActive="shell-nav-link-active">Convert</a>
+      </nav>
+    </div>
 
-  <span class="shell-spacer"></span>
-
-  @for (balance of platformBalances(); track balance.currencyId) {
-    <span class="shell-balance" title="Platform balance">
-      @if (balance.iconUrl) {
-        <img class="shell-balance-icon" [src]="balance.iconUrl" [alt]="balance.currencyCode" />
+    <div class="shell-header__actions">
+      @for (balance of platformBalances(); track balance.currencyId) {
+        <span class="shell-balance" title="Platform balance">
+          @if (balance.iconUrl && !failedIcons().has(balance.currencyId)) {
+            <img
+              class="shell-balance-icon"
+              [src]="balance.iconUrl"
+              [alt]="balance.currencyCode"
+              (error)="onIconError(balance.currencyId)"
+            />
+          } @else {
+            <mat-icon aria-hidden="true">monetization_on</mat-icon>
+          }
+          {{ balance.amount }}
+        </span>
       }
-      {{ balance.amount }}
-    </span>
-  }
 
-  @if (gameSelection.selected(); as game) {
-    <span class="shell-game" title="Selected game">{{ game.name }}</span>
-  }
+      @if (gameSelection.selected(); as game) {
+        <span class="shell-game" title="Selected game">{{ game.name }}</span>
+      }
 
-  <button
-    type="button"
-    mat-icon-button
-    (click)="theme.toggle()"
-    [attr.aria-label]="theme.mode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
-  >
-    <mat-icon aria-hidden="true">{{ theme.mode() === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
-  </button>
-
-  @if (tokenStore.claims(); as claims) {
-    <a routerLink="/profile" class="shell-avatar-link" title="Profile">
-      <app-avatar
-        [name]="claims.displayName"
-        [avatarUrl]="profileService.profile()?.avatarUrl ?? null"
-        style="--avatar-size: 32px"
-      />
-    </a>
-  }
-
-  <button type="button" mat-button (click)="logout()">
-    <mat-icon aria-hidden="true">logout</mat-icon>
-    Log out
-  </button>
-</mat-toolbar>
+      @if (tokenStore.claims(); as claims) {
+        <a routerLink="/profile" class="shell-avatar-link" title="Profile">
+          <app-avatar
+            [name]="claims.displayName"
+            [avatarUrl]="profileService.profile()?.avatarUrl ?? null"
+            style="--avatar-size: 32px"
+          />
+        </a>
+      }
+    </div>
+  </div>
+</header>
 
 <main class="shell-content">
   <router-outlet />
 </main>
+
+<nav class="shell-bottom-nav" aria-label="Main navigation">
+  <a routerLink="/games" routerLinkActive="shell-bottom-nav-link-active" class="shell-bottom-nav-link">
+    <mat-icon aria-hidden="true">sports_esports</mat-icon>
+    <span>Games</span>
+  </a>
+  <a routerLink="/wallet" routerLinkActive="shell-bottom-nav-link-active" class="shell-bottom-nav-link">
+    <mat-icon aria-hidden="true">account_balance_wallet</mat-icon>
+    <span>Wallet</span>
+  </a>
+  <a routerLink="/convert" routerLinkActive="shell-bottom-nav-link-active" class="shell-bottom-nav-link">
+    <mat-icon aria-hidden="true">currency_exchange</mat-icon>
+    <span>Convert</span>
+  </a>
+  <a routerLink="/profile" routerLinkActive="shell-bottom-nav-link-active" class="shell-bottom-nav-link">
+    <mat-icon aria-hidden="true">person</mat-icon>
+    <span>Profile</span>
+  </a>
+</nav>

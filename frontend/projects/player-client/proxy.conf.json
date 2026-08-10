@@ -1,0 +1,16 @@
+{
+  "/api": {
+    "target": "http://localhost:5100",
+    "secure": false
+  },
+  "/hubs": {
+    "target": "http://localhost:5003",
+    "secure": false,
+    "ws": true
+  },
+  "/otlp": {
+    "target": "http://localhost:4318",
+    "secure": false,
+    "pathRewrite": { "^/otlp": "" }
+  }
+}

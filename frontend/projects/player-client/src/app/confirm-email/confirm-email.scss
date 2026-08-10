@@ -1,16 +1,56 @@
 @use '../../styles/forms';
 
+@include forms.auth-field-styles();
+
 .confirm-email {
   @include forms.stack(var(--app-space-lg));
 }
 
-.auth-form {
-  @include forms.stack();
-  @include forms.full-width-field();
+.confirm-email__header {
+  text-align: center;
 }
 
-.auth-error {
-  @include forms.error-text();
+.confirm-email__title {
+  margin: 0;
+  font: var(--mat-sys-headline-small);
+}
+
+.confirm-email__subtitle {
+  margin: var(--app-space-xs) 0 0;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-medium);
+}
+
+.confirm-email-form {
+  @include forms.stack();
+}
+
+.code-input-group {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--app-space-sm);
+}
+
+.code-digit {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  background-color: var(--mat-sys-surface-container-low);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  color: var(--mat-sys-on-surface);
+  font-family: 'Sora', sans-serif;
+  font-size: 24px;
+  font-weight: 600;
+  text-align: center;
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:focus {
+    border-color: var(--app-color-player-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-color-player-primary) 30%, transparent);
+  }
 }
 
 .confirm-email-actions {

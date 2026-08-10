@@ -1,35 +1,58 @@
 <div class="auth-page">
-  <mat-card class="auth-card">
-    @if (state() === 'auth') {
-      <mat-tab-group
-        animationDuration="0ms"
-        [selectedIndex]="selectedTabIndex()"
-        (selectedIndexChange)="selectedTabIndex.set($event)"
-      >
-        <mat-tab label="Log in">
-          <div class="auth-tab-content">
-            <app-login />
-          </div>
-        </mat-tab>
-        <mat-tab label="Register">
-          <div class="auth-tab-content">
-            <app-register (registered)="onRegistered($event)" />
-          </div>
-        </mat-tab>
-      </mat-tab-group>
+  <div class="auth-page__orb auth-page__orb--primary"></div>
+  <div class="auth-page__orb auth-page__orb--container"></div>
+  <div class="auth-page__orb auth-page__orb--secondary"></div>
 
-      @if (notice(); as message) {
-        <p class="auth-notice">{{ message }}</p>
-      }
-    } @else if (pendingRegistration(); as pending) {
-      <div class="auth-tab-content">
+  <main class="auth-shell">
+    <div class="auth-brand">
+      <a routerLink="/" class="auth-brand__link">
+        <img class="auth-brand__mark" src="gbp-logo.svg" alt="GBP" draggable="false" />
+      </a>
+      <p class="auth-brand__tagline">Initialize your connection</p>
+    </div>
+
+    <div class="auth-card">
+      @if (state() === 'auth') {
+        <div class="auth-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            class="auth-tab"
+            [class.auth-tab-active]="activeTab() === 'login'"
+            [attr.aria-selected]="activeTab() === 'login'"
+            (click)="activeTab.set('login')"
+          >
+            Log in
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="auth-tab"
+            [class.auth-tab-active]="activeTab() === 'register'"
+            [attr.aria-selected]="activeTab() === 'register'"
+            (click)="activeTab.set('register')"
+          >
+            Register
+          </button>
+        </div>
+
+        @if (activeTab() === 'login') {
+          <app-login />
+        } @else {
+          <app-register (registered)="onRegistered($event)" />
+        }
+
+        @if (notice(); as message) {
+          <p class="auth-notice">{{ message }}</p>
+        }
+      } @else if (pendingRegistration(); as pending) {
         <app-confirm-email
           [email]="pending.email"
           [password]="pending.password"
           (confirmed)="onConfirmed()"
           (backToLogin)="onBackToLogin()"
         />
-      </div>
-    }
-  </mat-card>
+      }
+    </div>
+  </main>
 </div>

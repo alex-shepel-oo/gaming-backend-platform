@@ -1,20 +1,106 @@
+@use 'mixins';
+@use 'typography';
+
 .auth-page {
+  position: relative;
+  overflow: hidden;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center;
   min-height: 100%;
-  padding: var(--app-space-xl) var(--app-space-md);
+  padding: var(--app-space-md);
   box-sizing: border-box;
+}
+
+.auth-page__orb {
+  &--primary {
+    @include mixins.ambient-orb(400px);
+    top: -100px;
+    left: -100px;
+  }
+
+  &--container {
+    @include mixins.ambient-orb(500px, var(--mat-sys-primary-container), 0.3);
+    bottom: -150px;
+    right: -100px;
+  }
+
+  &--secondary {
+    @include mixins.ambient-orb(300px, var(--mat-sys-secondary), 0.2);
+    top: 20%;
+    right: 10%;
+  }
+}
+
+.auth-shell {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.auth-brand {
+  text-align: center;
+  margin-bottom: var(--app-space-xl);
+
+  &__link {
+    display: inline-flex;
+  }
+
+  &__mark {
+    height: 112px;
+    width: auto;
+  }
+
+  &__tagline {
+    margin: var(--app-space-xs) 0 0;
+    font: var(--mat-sys-body-medium);
+    color: var(--mat-sys-on-surface-variant);
+  }
 }
 
 .auth-card {
   width: 100%;
-  max-width: 420px;
-  padding: var(--app-space-md);
+  padding: var(--app-space-xl);
+  border-radius: 24px;
+  @include mixins.glass-panel;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
-.auth-tab-content {
-  padding-top: var(--app-space-lg);
+.auth-tabs {
+  display: flex;
+  border-bottom: 1px solid color-mix(in srgb, var(--mat-sys-outline-variant) 60%, transparent);
+  margin-bottom: var(--app-space-lg);
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 0 0 var(--app-space-sm);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  @include typography.text-label-md;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--mat-sys-on-surface-variant);
+  transition: color 0.2s ease;
+
+  &:hover {
+    color: var(--mat-sys-on-surface);
+  }
+}
+
+.auth-tab-active {
+  color: var(--mat-sys-primary);
+  border-bottom-color: var(--mat-sys-primary);
+
+  &:hover {
+    color: var(--mat-sys-primary);
+  }
 }
 
 .auth-notice {

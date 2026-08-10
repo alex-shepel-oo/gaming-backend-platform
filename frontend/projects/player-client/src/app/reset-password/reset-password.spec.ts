@@ -72,9 +72,21 @@ describe('ResetPassword', () => {
       router = TestBed.inject(Router);
     });
 
-    function createAndSubmit(password: string, confirmPassword: string): ComponentFixture<ResetPassword> {
+    // Constructor fires a GET to validate the token before the form even
+    // renders (a spinner shows in its place until this resolves); every
+    // test below that needs the actual form has to clear this first.
+    function createWithValidToken(): ComponentFixture<ResetPassword> {
       const fixture = TestBed.createComponent(ResetPassword);
       fixture.detectChanges();
+
+      httpMock.expectOne((r) => r.url === IdentityAuthEndpoints.validateResetToken).flush(null, { status: 204, statusText: 'No Content' });
+      fixture.detectChanges();
+
+      return fixture;
+    }
+
+    function createAndSubmit(password: string, confirmPassword: string): ComponentFixture<ResetPassword> {
+      const fixture = createWithValidToken();
 
       const element = fixture.nativeElement as HTMLElement;
       const passwordInputs = element.querySelectorAll('input[type="password"]');
@@ -93,6 +105,48 @@ describe('ResetPassword', () => {
 
       return fixture;
     }
+
+    it('checks the token on load, before the player can see or fill out the form', () => {
+      const fixture = TestBed.createComponent(ResetPassword);
+      fixture.detectChanges();
+
+      const request = httpMock.expectOne((r) => r.url === IdentityAuthEndpoints.validateResetToken);
+      expect(request.request.params.get('token')).toBe('the-reset-token');
+
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('Checking your link');
+      expect((fixture.nativeElement as HTMLElement).querySelector('form')).toBeNull();
+
+      request.flush(null, { status: 204, statusText: 'No Content' });
+    });
+
+    it('shows the link-expired view on a 400 from the upfront check, without ever rendering the form', () => {
+      const fixture = TestBed.createComponent(ResetPassword);
+      fixture.detectChanges();
+
+      httpMock
+        .expectOne((r) => r.url === IdentityAuthEndpoints.validateResetToken)
+        .flush({ status: 400, title: 'Invalid token' }, { status: 400, statusText: 'Bad Request' });
+      fixture.detectChanges();
+
+      const element = fixture.nativeElement as HTMLElement;
+      expect(element.textContent).toContain('This reset link is invalid or has expired');
+      expect(element.querySelector('form')).toBeNull();
+    });
+
+    it('fails open into the form when the upfront check fails for a reason other than an invalid token', () => {
+      const fixture = TestBed.createComponent(ResetPassword);
+      fixture.detectChanges();
+
+      httpMock
+        .expectOne((r) => r.url === IdentityAuthEndpoints.validateResetToken)
+        .flush({ status: 500, title: 'Server error' }, { status: 500, statusText: 'Internal Server Error' });
+      fixture.detectChanges();
+
+      const element = fixture.nativeElement as HTMLElement;
+      expect(element.querySelector('form')).not.toBeNull();
+      expect(element.textContent).not.toContain('This reset link is invalid or has expired');
+    });
 
     it('logs in and redirects to /games after a successful reset', () => {
       const navigateSpy = vi.spyOn(router, 'navigateByUrl');
@@ -141,8 +195,7 @@ describe('ResetPassword', () => {
     });
 
     it('toggles the new and confirm password fields independently', () => {
-      const fixture = TestBed.createComponent(ResetPassword);
-      fixture.detectChanges();
+      const fixture = createWithValidToken();
 
       const element = fixture.nativeElement as HTMLElement;
       const passwordInputs = element.querySelectorAll('input[type="password"]');
