@@ -82,3 +82,40 @@ If frontend error tracking, session replay, or Web Vitals become a real ask, tha
 decide on a Faro receiver (Grafana Alloy is the natural choice, staying Grafana-native) rather than
 retrofitting the tracing-only setup here. If the remaining bundle-size overage becomes a real problem
 rather than a budget-warning annoyance, the deferred optimizations above are the next lever.
+
+## Addendum: lazy-loading Faro instead of chasing it with zoneless CD / a Material audit
+
+### Context
+
+The Trade-offs section above named zoneless change detection and a Material-imports audit as the
+next levers if the remaining overage became a real problem. Neither turned out to be necessary: Faro
+and the `@opentelemetry/*` packages it pulls in were the single largest eager-bundle contributor
+identified above, and both are CommonJS (confirmed via the CLI's own "optimization bailout" warnings),
+so they were never going to tree-shake regardless of what else changed in the app.
+
+### Decision
+
+Split `provideFrontendTelemetry()`'s actual Faro/OpenTelemetry setup out into its own module
+(`frontend-telemetry.init.ts`), reached only through a dynamic `import()` that the app initializer
+kicks off but deliberately does not `await` or return — the app becomes interactive without waiting
+on it, and Angular's esbuild builder puts the dynamically-imported module in its own lazy chunk
+instead of the eager one every visitor pays for on first paint. A first attempt at verifying this
+measured against a stale `dist/shared` build (the `shared` library ng-packagr output wasn't
+rebuilt after the source change) and appeared to still land the code in the main chunk; rebuilding
+`shared` before re-measuring showed the split working as intended, worth noting since it's an easy
+trap to fall into with this workspace's `player-client`/`admin-client` → `dist/shared` path mapping.
+
+Confirmed live: the same telemetry code that used to block on `initializeFaro()` synchronously now
+resolves in the background, and a real HTTP request made shortly after login still carries a
+`traceparent` header once the chunk finishes loading — the lazy path doesn't lose the tracing
+behavior ADR-0020 wired up, it just stops paying for it before the app is usable.
+
+### Consequences
+
+**Gained:** `player-client`'s initial chunk dropped from roughly 1&nbsp;MB (padding out the original
+~500&nbsp;kB overage) to 575.58&nbsp;kB; `admin-client` to 548.66&nbsp;kB — both now only marginally
+over the original 500&nbsp;kB budget instead of by hundreds of kilobytes, with zero change to
+zoneless-vs-zone change detection or Material's own import surface. **Given up / accepted:** per an
+explicit owner call, the small remainder was closed by raising `angular.json`'s initial-bundle budget
+from 500&nbsp;kB to 600&nbsp;kB rather than chasing it further — the two deferred levers from the
+original Trade-offs section remain on the table if a future change pushes the app back over that.

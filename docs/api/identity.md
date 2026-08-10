@@ -10,13 +10,14 @@ policies underneath regardless of what the gateway already checked.
 | POST | `/api/identity/auth/confirm-email` | anonymous | Confirm the code sent by email |
 | POST | `/api/identity/auth/resend-verification` | anonymous | Request a new confirmation code |
 | POST | `/api/identity/auth/request-password-reset` | anonymous | Request a password reset link by email; 202 regardless of whether the account exists |
+| GET | `/api/identity/auth/reset-password/validate` | anonymous | Read-only check of a reset token (`?token=`); 204 if still usable, 400 otherwise. Lets the reset-password page show "this link is invalid or expired" before the player types anything, without consuming the token |
 | POST | `/api/identity/auth/reset-password` | anonymous | Complete a password reset using the emailed token; 204, or 400 for any invalid, expired, or already-used token |
 | POST | `/api/identity/auth/login` | anonymous | Exchange credentials for a token pair; without `gameSlug`, an account-scoped session with no game attached |
 | POST | `/api/identity/auth/select-game` | bearer | Exchange the current session for a game-scoped one for `gameId`, self-joining as `Player` if the caller has no role there yet |
 | POST | `/api/identity/auth/refresh` | anonymous | Rotate a refresh token for a new pair (body or cookie, depending on mode) |
 | POST | `/api/identity/auth/logout` | anonymous at the gateway, bearer required by the service | Revoke the current session |
 | GET | `/api/identity/users/me` | bearer | Current user's profile |
-| PATCH | `/api/identity/users/me` | bearer | Update the caller's own `displayName` and/or `avatarUrl` |
+| PATCH | `/api/identity/users/me` | bearer | Update the caller's own `displayName`. `avatarUrl` is read-only from the client's side (see below) - not accepted here even if sent |
 | GET | `/api/identity/games/public` | bearer, any player | List active games only, `id`/`slug`/`name` only - the catalog a player picks a game from |
 | GET | `/openapi/identity/v1.json` | anonymous | IdentityService's OpenAPI document, proxied through the gateway |
 | GET | `/scalar/identity` | anonymous | Interactive API reference (Scalar) |
@@ -60,6 +61,44 @@ they did before the move.
 | GET | `/api/admin/identity/games` | bearer, `platform.games.manage` permission | List registered games, all fields |
 | POST | `/api/admin/identity/games` | bearer, `platform.games.manage` permission | Register a new game |
 | PATCH | `/api/admin/identity/games/{id}` | bearer; `platform.games.manage`, or `game.metadata.edit` scoped to that game (`IScopeAuthorityGuard` checks either) | Update a game; `name`/`isActive` require `platform.games.manage`, while `description`/`iconUrl` are also open to a game-scoped `game.metadata.edit` caller |
+| DELETE | `/api/admin/identity/games/{id}` | bearer, `platform.games.manage` permission | Permanently delete a game; 409 if the game is still active (must be deactivated via the PATCH above first) - see [Game deletion](#game-deletion) below |
+
+## Game deletion
+
+Deleting a game is deliberately two-step: `DELETE` only succeeds once the
+game is already `isActive: false` (via the `PATCH` above), which exists as a
+forced pause before an irreversible action, not just habit. Within
+IdentityService's own database, deleting the `Game` row cascades cleanly to
+its `RolePermissions`, `UserGameRoles`, and `RefreshTokenFamilies` (all
+`OnDelete(DeleteBehavior.Cascade)` on their `Game` foreign key).
+
+What it does **not** do: clean up that game's currencies, balances, or
+conversion history in EconomyService's own database. Games are referenced
+there only by a loose `game_id` column, with no cross-service foreign key -
+IdentityService has no way to know, let alone clean up, what EconomyService
+holds for a game it just deleted. Hard-deleting a game that ever had real
+economic activity leaves that data orphaned, pointing at a game that no
+longer exists. There's no cleanup path for this yet; the admin UI's delete
+confirmation says so explicitly. A proper fix would be IdentityService
+publishing a `GameDeleted` event for EconomyService to react to, using the
+same outbox/RabbitMQ pipeline already wired up for other cross-service
+events - not implemented, since nothing today needs a game actually gone
+rather than just deactivated. Full reasoning in
+[ADR 0026](../adr/0026-game-hard-delete-orphaned-economy-data.md).
+
+## Avatar URLs
+
+Players used to be able to set an arbitrary `avatarUrl` (any `http(s)` URL,
+rendered as an `<img src>` on their profile) through `PATCH /users/me`. That
+write path is gone: `UpdateProfileRequest` no longer has an `AvatarUrl`
+field at all, so sending one is silently ignored rather than validated. This
+was a self-service, self-registering-user-facing surface accepting an
+arbitrary external URL with nothing beyond a scheme check
+(`UrlValidation.TryNormalize`, still used for admin-only game `iconUrl`
+updates) - closing it off was cheaper than building real validation or
+moderation for it. A previously-set `avatarUrl` still reads back fine on
+`GET /users/me` and still renders; only setting a *new* one is closed. Full
+reasoning in [ADR 0025](../adr/0025-close-self-service-avatar-url.md).
 
 ## Web auth (cookie mode)
 
@@ -118,14 +157,16 @@ permissions - the kind of call `demo-racer` exists to exercise, scoped to
 one game rather than the platform-wide admin `demo-shooter` already had.
 
 ```bash
-# 1. Log in as demo-racer's Game-Admin
+# 1. Log in as demo-racer's Game-Admin (X-Client-Type: admin so the token
+#    actually carries aud=gbp-admin - the /api/admin/** call in step 2 is
+#    rejected at the gateway otherwise, regardless of the caller's role)
 curl -s -X POST http://localhost:5100/api/identity/auth/login \
-  -H "Content-Type: application/json" \
+  -H "Content-Type: application/json" -H "X-Client-Type: admin" \
   -d '{"email":"gameadmin@demo-racer.dev","password":"DemoPassword123!","gameSlug":"demo-racer"}'
 
 # 2. Read the Admin role's permissions for demo-racer (use the accessToken from
 #    step 1; demo-racer's seeded id is 00000000-0000-7000-8000-000000000002)
-curl -s "http://localhost:5100/api/identity/roles/Admin/permissions?gameId=00000000-0000-7000-8000-000000000002" \
+curl -s "http://localhost:5100/api/admin/identity/roles/Admin/permissions?gameId=00000000-0000-7000-8000-000000000002" \
   -H "Authorization: Bearer <accessToken from step 1>"
 ```
 

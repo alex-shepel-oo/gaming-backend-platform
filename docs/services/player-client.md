@@ -1,12 +1,15 @@
 # Player-client (Angular)
 
 An Angular 22 workspace under `frontend/` (`shared` library + `player-client`
-app) — the first browser client for the platform, covering Login, Games,
-Wallet, Convert, Profile, and password reset (a "Forgot password?" link off
-the login screen, through to the emailed-link screen). Profile shows real
-account data — member-since date, last login, avatar — rather than just
-mirroring the JWT's claims, and lets the player edit their display name
-and avatar.
+app) — the first browser client for the platform, covering a public landing
+page, Login, Games, Wallet, Convert, Profile, and password reset (a "Forgot
+password?" link off the login screen, through to the emailed-link screen,
+which checks the token's validity as soon as the page loads rather than
+waiting for a submit attempt — see
+[identity API's reset-password/validate entry](../api/identity.md)). Profile
+shows real account data — member-since date, last login, avatar if one was
+ever set — rather than just mirroring the JWT's claims, and lets the player
+edit their display name (not the avatar; see known limitations below).
 
 ## Running it
 
@@ -36,9 +39,11 @@ npm test         # Vitest, both projects
 ```
 
 `ng serve` doesn't go through the Nginx proxy, so it relies on the gateway's
-CORS whitelist (below) rather than a same-origin `/api` path. It currently
-has no `proxy.conf.json`, so API calls resolve against `:4200` itself unless
-one is added — see known limitations.
+CORS whitelist (below) rather than a same-origin `/api` path by default.
+`projects/player-client/proxy.conf.json` exists (proxies `/api`, `/hubs`,
+and `/otlp` at the gateway/NotificationService/otel-collector) but isn't
+wired into the plain `npm start`/`ng serve` script — pass it explicitly:
+`ng serve player-client --proxy-config projects/player-client/proxy.conf.json`.
 
 Once logged in, the toolbar balance stays live: `Shell` opens a SignalR
 connection to NotificationService right after the initial `refreshBalances()`
@@ -75,7 +80,11 @@ any future direct client. See [ADR 0016](../adr/0016-admin-surface-isolation.md)
 
 ## Known limitations
 
-- **`ng serve` has no `proxy.conf.json` yet.** Local dev currently needs
-  either that file (pointing `/api` at the gateway) or manually hitting the
-  gateway's absolute URL; CORS alone doesn't help until requests are
-  actually cross-origin.
+- **No self-service avatar.** `Profile` shows a previously-set avatar if one
+  exists, but the player can no longer set a new one — closed off as an
+  unmoderated arbitrary-URL surface rather than validated properly. See
+  [identity API's Avatar URLs section](../api/identity.md#avatar-urls).
+- **Game hard-delete (admin-client) doesn't reach player-client directly**,
+  but a deleted game's currencies stop resolving anywhere a player still
+  holds a balance in one — see
+  [identity API's Game deletion section](../api/identity.md#game-deletion).

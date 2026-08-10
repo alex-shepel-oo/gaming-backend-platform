@@ -31,3 +31,5 @@ See the template: [0000-template.md](0000-template.md).
 | [0022](0022-observability-stack.md) | Observability Stack: OpenTelemetry, Grafana, and Real Infra Visibility | Accepted | — |
 | [0023](0023-gitops-argocd.md) | GitOps with Argo CD: Sync Scope, RBAC, and Per-Service Image Tags | Accepted | — |
 | [0024](0024-email-service-extraction.md) | Email Delivery Moves Out of IdentityService into EmailService | Accepted | — |
+| [0025](0025-close-self-service-avatar-url.md) | Close Self-Service Avatar URLs | Accepted | — |
+| [0026](0026-game-hard-delete-orphaned-economy-data.md) | Game Hard-Delete, and the EconomyService Data It Can't Clean Up | Accepted | — |

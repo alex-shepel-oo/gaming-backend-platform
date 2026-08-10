@@ -54,7 +54,11 @@ being a genuinely separate frontend on a different host and port. See
 
 ## Screens
 
-- **Games** (`platform.games.manage`) — list/register/update games.
+- **Games** (`platform.games.manage`) — list/register/update games, plus a
+  one-click deactivate toggle and a delete action in the table itself
+  (delete only enables once a game is already inactive — see
+  [identity API's Game deletion section](../api/identity.md#game-deletion)
+  for why that's a hard gate, not just a confirmation dialog).
 - **Roles** (`platform.roles.manage`) — the permission catalog and each
   role's effective permission set, per game or platform-wide.
 - **Users** (Moderator/Admin role tier) — search and look up users in the
