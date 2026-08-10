@@ -18,12 +18,23 @@ on `localhost`.
 [![k8s-validate](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/k8s-validate.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/k8s-validate.yml)
 [![gitleaks](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/gitleaks.yml/badge.svg?branch=main)](https://github.com/alex-shepel-oo/gaming-backend-platform/actions/workflows/gitleaks.yml)
 
+## Tech stack
+
+| | |
+|---|---|
+| **Backend** | ![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet) ![ASP.NET Core](https://img.shields.io/badge/ASP.NET%20Core-Minimal%20APIs-512BD4?logo=dotnet) ![Ocelot](https://img.shields.io/badge/Ocelot-API%20Gateway-008080) |
+| **Frontend** | ![Angular](https://img.shields.io/badge/Angular-20-DD0031?logo=angular) |
+| **Data & messaging** | ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-336791?logo=postgresql) ![RabbitMQ](https://img.shields.io/badge/RabbitMQ-FF6600?logo=rabbitmq) |
+| **Observability** | ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-425CC7?logo=opentelemetry&logoColor=white) ![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?logo=prometheus&logoColor=white) ![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white) ![Loki](https://img.shields.io/badge/Loki-Log%20Aggregation-F46800?logo=grafana&logoColor=white) ![Tempo](https://img.shields.io/badge/Tempo-Distributed%20Tracing-F46800?logo=grafana&logoColor=white) ![Grafana Faro](https://img.shields.io/badge/Faro-Frontend%20Tracing-F46800?logo=grafana&logoColor=white) |
+| **Infrastructure** | ![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker) ![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?logo=kubernetes) ![Helm](https://img.shields.io/badge/Helm-0F1689?logo=helm) ![Argo CD](https://img.shields.io/badge/Argo%20CD-EF7B4D?logo=argo) ![Traefik](https://img.shields.io/badge/Traefik-24A1C1?logo=traefikproxy&logoColor=white) |
+
 ## Contents
 
-- [Tech stack](#tech-stack)
 - [Live demo](#live-demo)
+- [Screenshots](#screenshots)
 - [Architecture](#architecture)
 - [GitOps & CI/CD](#gitops--cicd)
+- [Automation](#automation)
 - [Running locally](#running-locally)
 - [Running on Kubernetes](#running-on-kubernetes)
 - [Identity API](#identity-api)
@@ -36,16 +47,6 @@ on `localhost`.
 - [Architecture decisions](#architecture-decisions)
 - [Known limitations / what's next](#known-limitations--whats-next)
 
-## Tech stack
-
-| | |
-|---|---|
-| **Backend** | ![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet) ![ASP.NET Core](https://img.shields.io/badge/ASP.NET%20Core-Minimal%20APIs-512BD4?logo=dotnet) ![Ocelot](https://img.shields.io/badge/Ocelot-API%20Gateway-008080) |
-| **Frontend** | ![Angular](https://img.shields.io/badge/Angular-20-DD0031?logo=angular) |
-| **Data & messaging** | ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-336791?logo=postgresql) ![RabbitMQ](https://img.shields.io/badge/RabbitMQ-FF6600?logo=rabbitmq) |
-| **Observability** | ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-425CC7?logo=opentelemetry&logoColor=white) ![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?logo=prometheus&logoColor=white) ![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white) ![Loki](https://img.shields.io/badge/Loki-Log%20Aggregation-F46800?logo=grafana&logoColor=white) ![Tempo](https://img.shields.io/badge/Tempo-Distributed%20Tracing-F46800?logo=grafana&logoColor=white) ![Grafana Faro](https://img.shields.io/badge/Faro-Frontend%20Tracing-F46800?logo=grafana&logoColor=white) |
-| **Infrastructure** | ![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker) ![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?logo=kubernetes) ![Helm](https://img.shields.io/badge/Helm-0F1689?logo=helm) ![Argo CD](https://img.shields.io/badge/Argo%20CD-EF7B4D?logo=argo) ![Traefik](https://img.shields.io/badge/Traefik-24A1C1?logo=traefikproxy&logoColor=white) |
-
 ## Live demo
 
 Running on a real VPS behind Cloudflare, not just locally.
@@ -55,6 +56,7 @@ Running on a real VPS behind Cloudflare, not just locally.
 | [shepel.dev](https://shepel.dev) | Welcome page — links to everything below, plus a short bio |
 | [gbplatform.shepel.dev](https://gbplatform.shepel.dev) | Player-facing app — register a real account (email confirmation goes through a real SMTP relay) or explore as a guest: `xosime2935@copawoke.com` / `GuestUser123` |
 | [gbgrafana.shepel.dev](https://gbgrafana.shepel.dev) | Observability — dashboards, traces, logs, including [live node/pod resource usage](infra/grafana/dashboards/node-resources.json) and, on the main dashboard, a query that finds real cross-service traces crossing RabbitMQ. Guest login: `viewer` / `GbpDemo2026Viewer!` (read-only) |
+| [gbgateway.shepel.dev/scalar](https://gbgateway.shepel.dev/scalar) | Interactive OpenAPI reference for IdentityService, served straight off the running gateway — not a static export |
 
 `gbargocd.shepel.dev` runs the real GitOps deployment behind this demo (see [GitOps & CI/CD](#gitops--cicd) below) but
 isn't linked with a shared login: Argo CD only enforces RBAC on write actions for
@@ -64,11 +66,10 @@ regardless of policy. `gbadmin.shepel.dev` (the admin panel) similarly isn't lin
 login, since it has no built-in read-only guest mode of its own and a public account would mean
 real write access to live demo data, not just a view of it.
 
-<details>
-<summary>Screenshots</summary>
+## Screenshots
 
 <details>
-<summary>Player Client</summary>
+<summary><b>Player Client</b></summary>
 
 ### Home
 
@@ -152,7 +153,7 @@ Player profile — account details, member-since date, and avatar.
 </details>
 
 <details>
-<summary>Emails</summary>
+<summary><b>Emails</b></summary>
 
 ### Register code
 
@@ -176,7 +177,7 @@ an account for that game; the existing account is left untouched.
 </details>
 
 <details>
-<summary>Admin Client</summary>
+<summary><b>Admin Client</b></summary>
 
 ### Login
 
@@ -214,7 +215,7 @@ Searching users and viewing their account details.
 </details>
 
 <details>
-<summary>Observability</summary>
+<summary><b>Observability</b></summary>
 
 ### Dashboard - main board
 
@@ -243,7 +244,7 @@ Filtering traces to everything a specific player triggered, by their `enduser.id
 </details>
 
 <details>
-<summary>Deployment</summary>
+<summary><b>Deployment</b></summary>
 
 Argo CD's resource tree after a real sync — every object this chart manages, healthy.
 
@@ -252,7 +253,7 @@ Argo CD's resource tree after a real sync — every object this chart manages, h
 </details>
 
 <details>
-<summary>API</summary>
+<summary><b>API</b></summary>
 
 Interactive OpenAPI reference for IdentityService, served through the gateway.
 
@@ -260,10 +261,9 @@ Interactive OpenAPI reference for IdentityService, served through the gateway.
 
 </details>
 
-</details>
-
-> **Status:** Slice 3's backend is complete and running live in production on Kubernetes via Argo
-> CD. Next up: inventory (slice 3b) and continued polish on the pieces above.
+> **Status:** Backend and frontend are complete and running live in production on
+> Kubernetes via Argo CD. Next up: an inventory/items system, and a self-hosted Garage
+> (S3-compatible object storage) instance on the VPS for it to store against.
 
 ## Architecture
 
@@ -295,6 +295,28 @@ actually reaches this diagram in production, and [docs/architecture.md](docs/arc
 the full breakdown, including local-vs-Kubernetes differences and every implemented-vs-planned
 distinction.
 
+How a request actually reaches that diagram from the public internet — a single-node k3s cluster on
+the VPS, fronted by Cloudflare rather than exposed directly:
+
+```mermaid
+flowchart LR
+    Browser -->|HTTPS, Cloudflare edge cert| CF[Cloudflare]
+    CF -->|HTTPS, Origin Certificate<br/>Full strict TLS| Traefik[Traefik Ingress<br/>k3s, one VPS node]
+
+    Traefik --> PC["player-client<br/>gbplatform.shepel.dev"]
+    Traefik --> AC["admin-client<br/>gbadmin.shepel.dev"]
+    Traefik --> GW["api-gateway<br/>gbgateway.shepel.dev"]
+    Traefik --> GF["Grafana<br/>gbgrafana.shepel.dev"]
+    Traefik --> AR["Argo CD<br/>gbargocd.shepel.dev"]
+
+    PC -.->|same-origin /api proxy| GW
+    AC -.->|same-origin /api proxy| GW
+```
+
+Cloudflare terminates the public-facing certificate at its own edge; the VPS only needs to be trusted
+by Cloudflare specifically, via a Cloudflare Origin Certificate rather than a Let's Encrypt one — the
+origin is never directly reachable on a certificate a browser would trust on its own.
+
 Deeper reading, one page per concern rather than one long scroll:
 
 - **[Frontend architecture](docs/architecture/frontend.md)** — both Angular apps' real structure,
@@ -311,9 +333,28 @@ Deeper reading, one page per concern rather than one long scroll:
 
 CI is per-service and path-filtered (nine workflows, each building/testing/scanning only the service
 its trigger paths cover); a passing build ends with that service's own workflow bumping its
-`imageTag` file, the commit Argo CD's `main`-watching sync actually reacts to.
+`imageTag` file, the commit Argo CD's `main`-watching sync actually reacts to — not the image landing
+in the registry.
+
+```mermaid
+flowchart LR
+    Dev[Developer] -->|git push, path-filtered| CI[GitHub Actions]
+    CI -->|build, test, scan| CI
+    CI -->|push image, tag=sha| GHCR[(GHCR)]
+    CI -->|bump image-tags/*.yaml| Main[main branch]
+    Main -->|auto-sync, main only| ArgoCD[Argo CD]
+    ArgoCD -->|helm upgrade| K8s[Kubernetes]
+```
 
 [Read GitOps and CI/CD →](docs/operations/gitops.md)
+
+## Automation
+
+`scripts/` mirrors every CI step above for local use — build, test, and full-stack deploy commands
+that call the exact same commands their corresponding GitHub Actions workflow does, so local and CI
+can't quietly drift apart.
+
+[Read local development and automation →](docs/operations/local-development.md#local-automation)
 
 ## Running locally
 

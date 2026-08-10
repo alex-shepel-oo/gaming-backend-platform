@@ -12,6 +12,33 @@ The Kubernetes side mirrors the full compose stack: `identity-db`, `identity-ser
 non-production namespaces. Consul is the one piece with no Kubernetes counterpart at all — see the
 service discovery row below.
 
+## Production ingress topology
+
+A single-node k3s cluster on the VPS, never exposed directly — Cloudflare sits in front of every
+public hostname:
+
+```mermaid
+flowchart LR
+    Browser -->|HTTPS, Cloudflare edge cert| CF[Cloudflare]
+    CF -->|HTTPS, Origin Certificate<br/>Full strict TLS| Traefik[Traefik Ingress]
+
+    subgraph K3s[k3s, one VPS node]
+        Traefik --> PC["player-client<br/>gbplatform.shepel.dev"]
+        Traefik --> AC["admin-client<br/>gbadmin.shepel.dev"]
+        Traefik --> GW["api-gateway<br/>gbgateway.shepel.dev"]
+        Traefik --> GF["Grafana<br/>gbgrafana.shepel.dev, observability ns"]
+        Traefik --> AR["Argo CD<br/>gbargocd.shepel.dev"]
+        PC -.->|same-origin /api proxy| GW
+        AC -.->|same-origin /api proxy| GW
+    end
+```
+
+`values-production.yaml`'s `ingress.tlsSecretName: cloudflare-origin-tls` is the concrete artifact of
+the Full Strict mode above: Traefik presents a Cloudflare Origin Certificate, not a Let's Encrypt
+one, since the origin only ever needs to be trusted by Cloudflare itself, not by a browser directly.
+That Secret (cert + key) is applied out of band in both the `gaming-platform` and `observability`
+namespaces — it's not created by this chart.
+
 | | docker-compose (`infra/docker-compose.yml`) | Kubernetes (`infra/helm/gaming-backend-platform/`) |
 |---|---|---|
 | Service discovery | Consul (`ServiceDiscoveryProvider: Consul` + `ServiceName` in `ocelot.Development.json`) | None deployed — Kubernetes Services and kube-DNS already resolve names like `identity-service.gaming-platform.svc.cluster.local`; `ocelot.Kubernetes.json` uses those directly. Running Consul here too would be a second system answering a question Kubernetes already answers. See [ADR 0002](../adr/0002-api-gateway-ocelot-consul.md) |

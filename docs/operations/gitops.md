@@ -1,8 +1,17 @@
 # GitOps and CI/CD
 
-```text
-Developer → git push → CI (build/test/scan) → GHCR → image-tag bump → Argo CD sync → Kubernetes
+```mermaid
+flowchart LR
+    Dev[Developer] -->|git push, path-filtered| CI[GitHub Actions]
+    CI -->|dotnet/npm build + test<br/>Trivy + gitleaks scans| CI
+    CI -->|push image, tag = commit SHA| GHCR[(GHCR)]
+    CI -->|bump this service's<br/>image-tags/*.yaml, push| Main[main branch]
+    Main -->|auto-sync, main only,<br/>never develop or a PR| ArgoCD[Argo CD]
+    ArgoCD -->|helm upgrade --install,<br/>only the changed service's manifests differ| K8s[Kubernetes]
 ```
+
+A fresh image landing in GHCR changes nothing on its own — Argo CD reacts to the image-tag bump
+commit reaching `main`, not the registry push.
 
 ## CD
 
