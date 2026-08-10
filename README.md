@@ -72,11 +72,40 @@ real write access to live demo data, not just a view of it.
 <details>
 <summary>Player Client</summary>
 
+### Home
+
+Public landing page: the platform's pitch (shared identity, one wallet, currencies that convert
+across games), a feature highlight grid, and a roadmap section for what's next.
+
+ <img src="docs/screenshots/player/pc/player-home-PC.png" width="700">
+
+ <details>
+ <summary>Mobile</summary>
+ <img src="docs/screenshots/player/mobile/player-home-mobile.png" width="250">
+ </details>
+
 ### Login
 
 Authentication screen for the player client.
 
 <img src="docs/screenshots/player/gifs/player-login-register.gif" width="700">
+
+ <details>
+ <summary>Mobile</summary>
+ <img src="docs/screenshots/player/gifs/player-login-register-mobile.gif" width="250">
+ </details>
+
+ ### Reset password
+
+Reset password screnns with expire link screen for the player client.
+
+<img src="docs/screenshots/player/gifs/player-reset-pass.gif" width="700">
+
+ <details>
+ <summary>Mobile</summary>
+ <img src="docs/screenshots/player/gifs/player-reset-pass-mobile.gif" width="250">
+ </details>
+
 
 ### Wallet
 
@@ -84,23 +113,67 @@ Real-time wallet balance updates delivered through SignalR.
 
 <img src="docs/screenshots/player/gifs/player-wallet.gif" width="700">
 
+ <details>
+ <summary>Mobile</summary>
+ <img src="docs/screenshots/player/gifs/player-wallet-mobile.gif" width="250">
+ </details>
+
 ### Convert
 
 Converting platform credits to a game currency, with the resulting balance update delivered through SignalR.
 
 <img src="docs/screenshots/player/gifs/player-convert.gif" width="700">
 
+ <details>
+ <summary>Mobile</summary>
+ <img src="docs/screenshots/player/gifs/player-convert-mobile.gif" width="250">
+ </details>
+
 ### Games
 
 Game catalog and detail view.
 
-<img src="docs/screenshots/player/player-game-datail.png" width="700">
+<img src="docs/screenshots/player/pc/player-games-PC.png" width="700">
+
+ <details>
+ <summary>Mobile</summary>
+ <img src="docs/screenshots/player/gifs/player-games-mobile.gif" width="250">
+ </details>
 
 ### Profile
 
 Player profile — account details, member-since date, and avatar.
 
-<img src="docs/screenshots/player/player-account.png" width="700">
+<img src="docs/screenshots/player/pc/player-account-PC.png" width="700">
+
+ <details>
+ <summary>Mobile</summary>
+ <img src="docs/screenshots/player/mobile/player-account-mobile.png" width="250">
+ </details>
+
+</details>
+
+<details>
+<summary>Emails</summary>
+
+### Register code
+
+Verification code sent after registering, needed to confirm the account before it can log in.
+
+<img src="docs/screenshots/email/email-code.png" width="700">
+
+### Reset password
+
+Password reset link sent after requesting one from the login screen, expires after a fixed window.
+
+<img src="docs/screenshots/email/email-reset-pass.png" width="700">
+
+### Duplicate registration attempt
+
+Sent instead of a new verification code when someone tries to register an email that already has
+an account for that game; the existing account is left untouched.
+
+<img src="docs/screenshots/email/email-attempt.png" width="700">
 
 </details>
 
@@ -111,19 +184,34 @@ Player profile — account details, member-since date, and avatar.
 
 Authentication screen for the admin client.
 
-<img src="docs/screenshots/admin/admin-login.png" width="700">
+<img src="docs/screenshots/admin/pc/admin-login-PC.png" width="700">
+
+ <details>
+ <summary>Mobile</summary>
+ <img src="docs/screenshots/admin/mobile/admin-login-mobile.png" width="250">
+ </details>
 
 ### Game Edits
 
 Editing a game's metadata as a platform admin.
 
-<img src="docs/screenshots/admin/gifs/admin-game-edit.gif" width="700">
+<img src="docs/screenshots/admin/gifs/admin-games-edit.gif" width="700">
+
+ <details>
+ <summary>Mobile</summary>
+ <img src="docs/screenshots/admin/gifs/admin-games-edit-mobile.gif" width="250">
+ </details>
 
 ### Users
 
 Searching users and viewing their account details.
 
-<img src="docs/screenshots/admin/gifs/admin-players.gif" width="700">
+<img src="docs/screenshots/admin/gifs/admin-players-edit.gif" width="700">
+
+ <details>
+ <summary>Mobile</summary>
+ <img src="docs/screenshots/admin/gifs/admin-players-edit-mobile.gif" width="250">
+ </details>
 
 </details>
 
@@ -311,6 +399,15 @@ not a placeholder. See
 [docs/architecture.md](docs/architecture.md#local-vs-kubernetes) for the full
 local-vs-cluster breakdown, including why the environment is pinned to
 `Development` here.
+
+This path pulls published images by the tag each service's own CI workflow last
+wrote to its `image-tags/*.yaml` file — it never builds from whatever is on disk.
+Uncommitted local changes (or anything on a branch CI hasn't run for yet) won't
+show up here even after `scripts/k8s/up.sh`/`apply.sh`, and `pullPolicy: IfNotPresent`
+means a `kind` node that already pulled a tag once won't re-pull it either. For
+iterating on local source — frontend or backend — use
+[`scripts/all/deploy.sh`](#running-locally) instead: it rebuilds every image from
+the current working tree on every run.
 
 A local `kind` cluster needs Traefik as its ingress controller and a couple
 of host port mappings to actually front it — `kind`'s own node image ships
