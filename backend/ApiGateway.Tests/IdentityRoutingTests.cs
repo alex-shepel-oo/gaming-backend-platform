@@ -141,6 +141,19 @@ public sealed class IdentityRoutingTests : IDisposable
     }
 
     [Fact]
+    public async Task Delete_Game_WithGameScopeToken_IsRejectedAtGatewayBeforeReachingService()
+    {
+        using var client = _factory.CreateClient();
+        var gameId = Guid.NewGuid();
+        using var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/admin/identity/games/{gameId}");
+        request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: "Game", audience: "gbp-admin"));
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task Put_RolePermissions_WithGameScopeToken_ReachesServiceInsteadOfBeingBlockedAtGateway()
     {
         using var client = _factory.CreateClient();

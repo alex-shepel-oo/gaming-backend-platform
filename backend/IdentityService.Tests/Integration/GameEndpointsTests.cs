@@ -344,6 +344,64 @@ public sealed class GameEndpointsTests(IdentityApiFactory factory) : IClassFixtu
     }
 
     [Fact]
+    public async Task DeleteGame_WhenInactive_Returns204AndRemovesIt()
+    {
+        var platformAdmin = await SeedUserAsync(gameId: null, PlatformRole.Admin);
+        await SeedRolePermissionsAsync(PlatformRole.Admin, gameId: null, Permissions.PlatformGamesManage);
+        var game = await SeedGameAsync(isActive: false);
+        var (client, accessToken) = await LoginAsync(platformAdmin.Id, gameId: null);
+
+        var response = await DeleteAuthorizedAsync(client, $"/api/identity/games/{game.Id}", accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var listResponse = await GetAuthorizedAsync(client, "/api/identity/games", accessToken);
+        var games = await listResponse.Content.ReadFromJsonAsync<GameDto[]>(JsonOptions, TestContext.Current.CancellationToken);
+        games.Should().NotContain(g => g.Id == game.Id);
+    }
+
+    [Fact]
+    public async Task DeleteGame_WhenStillActive_Returns409AndLeavesItInPlace()
+    {
+        var platformAdmin = await SeedUserAsync(gameId: null, PlatformRole.Admin);
+        await SeedRolePermissionsAsync(PlatformRole.Admin, gameId: null, Permissions.PlatformGamesManage);
+        var game = await SeedGameAsync();
+        var (client, accessToken) = await LoginAsync(platformAdmin.Id, gameId: null);
+
+        var response = await DeleteAuthorizedAsync(client, $"/api/identity/games/{game.Id}", accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        var listResponse = await GetAuthorizedAsync(client, "/api/identity/games", accessToken);
+        var games = await listResponse.Content.ReadFromJsonAsync<GameDto[]>(JsonOptions, TestContext.Current.CancellationToken);
+        games.Should().Contain(g => g.Id == game.Id);
+    }
+
+    [Fact]
+    public async Task DeleteGame_WithoutPlatformGamesManage_Returns403()
+    {
+        var user = await SeedUserAsync(gameId: null, PlatformRole.Admin);
+        var game = await SeedGameAsync(isActive: false);
+        var (client, accessToken) = await LoginAsync(user.Id, gameId: null);
+
+        var response = await DeleteAuthorizedAsync(client, $"/api/identity/games/{game.Id}", accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task DeleteGame_NotFound_Returns404()
+    {
+        var platformAdmin = await SeedUserAsync(gameId: null, PlatformRole.Admin);
+        await SeedRolePermissionsAsync(PlatformRole.Admin, gameId: null, Permissions.PlatformGamesManage);
+        var (client, accessToken) = await LoginAsync(platformAdmin.Id, gameId: null);
+
+        var response = await DeleteAuthorizedAsync(client, $"/api/identity/games/{Guid.CreateVersion7()}", accessToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task ListPublicGames_StillReturnsOnlyActiveGamesRegardlessOfPermissions()
     {
         var game = await SeedGameAsync();
@@ -385,6 +443,14 @@ public sealed class GameEndpointsTests(IdentityApiFactory factory) : IClassFixtu
         return await client.SendAsync(request, TestContext.Current.CancellationToken);
     }
 
+    private static Task<HttpResponseMessage> DeleteAuthorizedAsync(HttpClient client, string url, string accessToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Delete, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        return client.SendAsync(request, TestContext.Current.CancellationToken);
+    }
+
     private async Task<(HttpClient Client, string AccessToken)> LoginAsync(Guid userId, Guid? gameId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
@@ -405,7 +471,7 @@ public sealed class GameEndpointsTests(IdentityApiFactory factory) : IClassFixtu
         return (client, tokens!.AccessToken);
     }
 
-    private async Task<Game> SeedGameAsync(string? description = null, string? iconUrl = null)
+    private async Task<Game> SeedGameAsync(string? description = null, string? iconUrl = null, bool isActive = true)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
@@ -416,7 +482,7 @@ public sealed class GameEndpointsTests(IdentityApiFactory factory) : IClassFixtu
             Id = Guid.CreateVersion7(),
             Slug = $"game-{Guid.NewGuid():N}",
             Name = "Test Game",
-            IsActive = true,
+            IsActive = isActive,
             CreatedAt = now,
             Description = description,
             IconUrl = iconUrl,

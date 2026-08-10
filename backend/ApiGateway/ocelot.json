@@ -125,7 +125,7 @@
     {
       "DownstreamPathTemplate": "/api/identity/games/{id}",
       "UpstreamPathTemplate": "/api/admin/identity/games/{id}",
-      "UpstreamHttpMethod": [ "PATCH" ],
+      "UpstreamHttpMethod": [ "PATCH", "DELETE" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKeys": [ "Bearer" ],
         "AllowedScopes": []
