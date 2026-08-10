@@ -322,6 +322,52 @@ public sealed class TransactionEndpointsTests : IAsyncDisposable
     }
 
     [Test]
+    public async Task GetMyHistory_FilterByTypes_ReturnsOnlyMatchingTypesAndIncludesIdempotencyKey()
+    {
+        var currency = await SeedCurrencyAsync();
+        var userId = Guid.NewGuid();
+        var adminToken = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), perms: [Permissions.PlatformBalanceAdjust]);
+
+        await PostAsync("/transactions/grant", new GrantRequest(userId, currency.Id, 10m, "grant"), adminToken, "types-key-grant");
+
+        var playerToken = TestTokenFactory.IssueAccessToken(userId, role: "Player");
+        await PostAsync("/transactions/spend", new SpendRequest(currency.Id, 5m, null), playerToken, "types-key-spend");
+
+        var response = await GetAsync(
+            $"/transactions/me?types={(int)TransactionType.Grant}", playerToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<PagedResult<TransactionHistoryEntryDto>>(
+            JsonOptions, TestContext.CurrentContext.CancellationToken);
+
+        body!.Items.Should().ContainSingle();
+        body.Items[0].TransactionType.Should().Be(TransactionType.Grant);
+        body.Items[0].IdempotencyKey.Should().Be("types-key-grant");
+    }
+
+    [Test]
+    public async Task GetMyHistory_FilterByMultipleTypes_UnionsBothTypes()
+    {
+        var currency = await SeedCurrencyAsync();
+        var userId = Guid.NewGuid();
+        var adminToken = TestTokenFactory.IssueAccessToken(Guid.NewGuid(), perms: [Permissions.PlatformBalanceAdjust]);
+
+        await PostAsync("/transactions/grant", new GrantRequest(userId, currency.Id, 10m, "grant"), adminToken, "union-key-grant");
+
+        var playerToken = TestTokenFactory.IssueAccessToken(userId, role: "Player");
+        await PostAsync("/transactions/spend", new SpendRequest(currency.Id, 5m, null), playerToken, "union-key-spend");
+
+        var response = await GetAsync(
+            $"/transactions/me?types={(int)TransactionType.Grant}&types={(int)TransactionType.Spend}", playerToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<PagedResult<TransactionHistoryEntryDto>>(
+            JsonOptions, TestContext.CurrentContext.CancellationToken);
+
+        body!.Items.Should().HaveCount(2);
+    }
+
+    [Test]
     public async Task GetMyHistory_NoAuthorizationHeader_Returns401()
     {
         using var client = _factory.CreateClient();
