@@ -11,7 +11,7 @@ export interface PublicGame {
   iconUrl: string | null;
 }
 
-// The platform-admin shape (GameDto on the backend) -- distinct from
+// The platform-admin shape (GameDto on the backend), distinct from
 // PublicGame, which is the narrower, public-facing shape returned by
 // /games/public. Don't conflate the two: PublicGame is what a player picks
 // from, Game is what platform.games.manage lets an admin CRUD.
@@ -31,7 +31,7 @@ export interface CreateGameRequest {
 }
 
 // Empty string clears the field back to null; omitting a field leaves it
-// unchanged -- same PATCH convention as UpdateProfileRequest on the backend.
+// unchanged, same PATCH convention as UpdateProfileRequest on the backend.
 export interface UpdateGameRequest {
   name?: string;
   isActive?: boolean;
@@ -61,5 +61,11 @@ export class GamesService {
 
   updateGame(id: string, request: UpdateGameRequest): Observable<Game> {
     return this.http.patch<Game>(IdentityGameEndpoints.game(id), request);
+  }
+
+  // Backend requires the game to already be inactive: deactivate via
+  // updateGame first if it isn't.
+  deleteGame(id: string): Observable<void> {
+    return this.http.delete<void>(IdentityGameEndpoints.game(id));
   }
 }

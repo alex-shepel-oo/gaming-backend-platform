@@ -14,9 +14,11 @@ export interface UserProfile {
   lastLoginAt: string | null;
 }
 
+// avatarUrl is deliberately absent: the backend no longer accepts it from
+// players (see IdentityService's UpdateProfileRequest for why). displayName
+// is the only field this screen can still change.
 export interface UpdateProfileRequest {
   displayName?: string;
-  avatarUrl?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -25,7 +27,7 @@ export class ProfileService {
 
   // Cross-screen snapshot (shell toolbar, Profile) so the avatar/displayName
   // shown in the toolbar and the profile screen stay in sync without each
-  // independently re-fetching -- same posture as WalletService's balances.
+  // independently re-fetching, same posture as WalletService's balances.
   private readonly profileSignal = signal<UserProfile | null>(null);
   readonly profile = this.profileSignal.asReadonly();
 

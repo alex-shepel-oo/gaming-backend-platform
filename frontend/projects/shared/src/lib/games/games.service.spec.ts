@@ -97,4 +97,15 @@ describe('GamesService', () => {
 
     expect(result).toEqual(updated);
   });
+
+  it('deleteGame sends a DELETE for the game by id', () => {
+    let completed = false;
+    service.deleteGame('game-1').subscribe(() => (completed = true));
+
+    const request = httpMock.expectOne(IdentityGameEndpoints.game('game-1'));
+    expect(request.request.method).toBe('DELETE');
+    request.flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(completed).toBe(true);
+  });
 });

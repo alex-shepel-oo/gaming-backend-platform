@@ -17,6 +17,6 @@ export const permissionGuard: CanActivateFn = (route) => {
 
   return (
     (required !== undefined && (tokenStore.claims()?.permissions.includes(required) ?? false)) ||
-    router.createUrlTree(['/dashboard'])
+    router.createUrlTree(['/users'])
   );
 };

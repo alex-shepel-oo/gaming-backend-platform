@@ -4,14 +4,16 @@ import { roleGuard } from './role.guard';
 import { TokenStore } from './token-store';
 
 function fakeAccessToken(role: string): string {
-  return `header.${btoa(JSON.stringify({ role }))}.signature`;
+  const payload = { sub: 'user-1', email: 'user@example.com', name: 'User One', scope: 'platform', role };
+
+  return `header.${btoa(JSON.stringify(payload))}.signature`;
 }
 
 function routeRequiring(...roles: string[]): ActivatedRouteSnapshot {
   return { data: { roles } } as unknown as ActivatedRouteSnapshot;
 }
 
-// roleGuard only decides what to render -- it is UX, not the security
+// roleGuard only decides what to render, it is UX, not the security
 // boundary. The backend rejects an unauthorized request on its own
 // regardless of what this guard decides (ADR-0012).
 describe('roleGuard', () => {

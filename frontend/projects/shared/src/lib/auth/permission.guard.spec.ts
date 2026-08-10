@@ -13,7 +13,7 @@ function routeRequiring(permission: string): ActivatedRouteSnapshot {
   return { data: { permission } } as unknown as ActivatedRouteSnapshot;
 }
 
-// permissionGuard only decides what admin-client renders -- it is UX, not
+// permissionGuard only decides what admin-client renders, it is UX, not
 // the security boundary. The backend rejects an unauthorized request on its
 // own regardless of what this guard decides (ADR-0012).
 describe('permissionGuard', () => {
@@ -31,18 +31,18 @@ describe('permissionGuard', () => {
     return TestBed.runInInjectionContext(() => permissionGuard(route, {} as RouterStateSnapshot));
   }
 
-  it('redirects to /dashboard when the caller lacks the required permission', () => {
+  it('redirects to /users when the caller lacks the required permission', () => {
     tokenStore.set(fakeAccessToken(['platform.roles.manage']));
 
     const result = run(routeRequiring('platform.games.manage'));
 
-    expect(result).toEqual(router.createUrlTree(['/dashboard']));
+    expect(result).toEqual(router.createUrlTree(['/users']));
   });
 
-  it('redirects to /dashboard when there is no session at all', () => {
+  it('redirects to /users when there is no session at all', () => {
     const result = run(routeRequiring('platform.games.manage'));
 
-    expect(result).toEqual(router.createUrlTree(['/dashboard']));
+    expect(result).toEqual(router.createUrlTree(['/users']));
   });
 
   it('allows navigation when the permissions claim includes the required permission', () => {
