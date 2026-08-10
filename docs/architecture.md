@@ -81,23 +81,10 @@ Ingress routing, and the observability stack's deployment state — lives in
   (as with `User` itself) it deliberately isn't on the entity directly. See ADR 0005.
 - **Event bus**: RabbitMQ, choreography-based saga — planned for the
   Economy/Inventory/Marketplace slice, not yet implemented.
-- **Observability**: `BuildingBlocks.Telemetry`'s `AddPlatformTelemetry` wires OpenTelemetry
-  (ASP.NET Core, HttpClient and EF Core instrumentation) across every backend service, exporting
-  traces and metrics via OTLP to a single `otel-collector`, which fans out to Tempo (traces) and a
-  Prometheus-scrapeable endpoint (metrics). Serilog keeps its correlation-ID-enriched Console sink
-  and gains a Loki sink alongside it. A trace now spans the async outbox → RabbitMQ → inbox →
-  SignalR path too, not just the originating HTTP request: `OutboxMessage.trace_parent` persists
-  the writing request's trace across the dispatcher's poll cycle, re-parented and propagated onward
-  through standard W3C AMQP headers. Every authenticated request and messaging span carrying a
-  known user id is tagged `enduser.id`, so one player's activity is filterable across every
-  service's traces and logs. See ADR-0019. Retention on Loki/Tempo/Prometheus is configurable via
-  `.env` (`LOKI_RETENTION_PERIOD`/`TEMPO_RETENTION_PERIOD`/`PROMETHEUS_RETENTION_PERIOD`, all
-  defaulting to roughly six months) rather than left unbounded. The trace no longer stops at the
-  gateway's edge either: both frontend apps export tracing spans via Grafana Faro straight to the
-  same `otel-collector`, tagged with the same `enduser.id`, so a single trace now runs from an
-  actual browser click through the gateway into whichever backend service (and, where relevant, the
-  outbox/RabbitMQ/SignalR path above) handled it. Faro's error/session/Web-Vitals capture is
-  deliberately not wired up — see ADR-0020.
+- **Observability**: OpenTelemetry across every backend service plus both frontend apps (Grafana
+  Faro), one connected trace spanning synchronous requests and the async outbox → RabbitMQ path,
+  tagged with a shared `enduser.id` for player-level filtering. Full architecture, retention
+  settings, and a real end-to-end trace walkthrough: [Observability overview](observability/overview.md).
 
 ## Path-filtered CI
 
@@ -114,6 +101,8 @@ they land on.
 - [Frontend architecture](architecture/frontend.md)
 - [Data ownership](architecture/data.md)
 - [Business/technical flows](architecture/flows.md)
+- [Security overview](security/overview.md)
+- [Observability overview](observability/overview.md)
 - [Architecture decisions](adr/README.md)
 
 ## Cleanup jobs (Platform.Worker)
