@@ -1,0 +1,226 @@
+// Split out of user-management.scss purely to stay under Angular's
+// per-file component style budget (angular.json, 4kB/8kB) -- this is the
+// detail sidenav's own styling, no different in kind from the rest.
+
+.detail-sidenav {
+  width: 100%;
+  max-width: 400px;
+  padding: var(--app-space-lg);
+  box-sizing: border-box;
+
+  // Material's own inner scroll wrapper defaults to auto in both axes --
+  // this only ever needs to scroll vertically, and a stray wide child (the
+  // user-id chip, before it grew a max-width) previously turned that into
+  // an unwanted sideways scrollbar too. Belt-and-suspenders now that the
+  // actual overflow source below is fixed.
+  ::ng-deep .mat-drawer-inner-container {
+    overflow-x: hidden;
+  }
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--app-space-md);
+
+  h2 {
+    font: var(--mat-sys-title-medium);
+    margin: 0;
+  }
+}
+
+.detail-profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--app-space-xs);
+  margin-bottom: var(--app-space-lg);
+
+  h3 {
+    margin: var(--app-space-xs) 0 0;
+    font: var(--mat-sys-title-medium);
+  }
+}
+
+.detail-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  color: #fff;
+  font: var(--mat-sys-headline-small);
+  font-weight: 700;
+}
+
+.detail-email {
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-label-medium);
+}
+
+.detail-divider {
+  height: 1px;
+  background: var(--mat-sys-outline-variant);
+  margin-bottom: var(--app-space-lg);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--app-space-md);
+  margin-bottom: var(--app-space-lg);
+}
+
+.detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-xs);
+  min-width: 0;
+}
+
+.detail-field-label {
+  font: var(--mat-sys-label-small);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.detail-field-value {
+  font: var(--mat-sys-body-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-field-id-row {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-xs);
+  min-width: 0;
+}
+
+.detail-field-mono {
+  flex: 1;
+  min-width: 0;
+  font-family: monospace;
+  font-size: 12px;
+  background: var(--mat-sys-surface-container-lowest);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 4px;
+  padding: 2px var(--app-space-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-copy-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--mat-sys-on-surface-variant);
+  cursor: pointer;
+  transition: background-color 150ms ease;
+
+  &:hover {
+    background: var(--mat-sys-surface-container-high);
+    color: var(--app-color-admin-primary);
+  }
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.detail-section {
+  margin-bottom: var(--app-space-lg);
+
+  h4 {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-xs);
+    margin: 0 0 var(--app-space-xs);
+    font: var(--mat-sys-label-large);
+
+    mat-icon {
+      color: var(--app-color-admin-primary);
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+    }
+  }
+}
+
+.detail-section-hint {
+  margin: 0 0 var(--app-space-md);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-label-small);
+}
+
+.assign-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--app-space-sm);
+  flex-wrap: wrap;
+}
+
+.detail-danger-zone {
+  padding: var(--app-space-md);
+  border: 1px solid color-mix(in srgb, var(--mat-sys-error) 30%, transparent);
+  border-radius: var(--app-space-sm);
+  background: color-mix(in srgb, var(--mat-sys-error-container) 20%, transparent);
+}
+
+.detail-danger-title {
+  color: var(--mat-sys-error);
+
+  mat-icon {
+    color: var(--mat-sys-error) !important;
+  }
+}
+
+// Plain button, not mat-stroked-button -- Material's MDC label wrapper
+// doesn't reliably flex-center an icon+text pair from outside CSS (same
+// issue hit on player-client's reset-password submit button).
+.revoke-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--app-space-sm);
+  width: 100%;
+  padding: var(--app-space-sm) var(--app-space-md);
+  border: 1px solid var(--mat-sys-error);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--mat-sys-error);
+  font: var(--mat-sys-label-large);
+  cursor: pointer;
+  transition: background-color 150ms ease;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--mat-sys-error) 10%, transparent);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+}
