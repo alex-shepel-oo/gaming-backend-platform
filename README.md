@@ -23,11 +23,9 @@ on `localhost`.
 - [Tech stack](#tech-stack)
 - [Live demo](#live-demo)
 - [Architecture](#architecture)
-- [CD](#cd)
-- [CI](#ci)
+- [GitOps & CI/CD](#gitops--cicd)
 - [Running locally](#running-locally)
 - [Running on Kubernetes](#running-on-kubernetes)
-- [Local automation](#local-automation)
 - [Identity API](#identity-api)
 - [Economy API](#economy-api)
 - [NotificationService](#notificationservice)
@@ -58,7 +56,7 @@ Running on a real VPS behind Cloudflare, not just locally.
 | [gbplatform.shepel.dev](https://gbplatform.shepel.dev) | Player-facing app — register a real account (email confirmation goes through a real SMTP relay) or explore as a guest: `xosime2935@copawoke.com` / `GuestUser123` |
 | [gbgrafana.shepel.dev](https://gbgrafana.shepel.dev) | Observability — dashboards, traces, logs, including [live node/pod resource usage](infra/grafana/dashboards/node-resources.json) and, on the main dashboard, a query that finds real cross-service traces crossing RabbitMQ. Guest login: `viewer` / `GbpDemo2026Viewer!` (read-only) |
 
-`gbargocd.shepel.dev` runs the real GitOps deployment behind this demo (see [CD](#cd) below) but
+`gbargocd.shepel.dev` runs the real GitOps deployment behind this demo (see [GitOps & CI/CD](#gitops--cicd) below) but
 isn't linked with a shared login: Argo CD only enforces RBAC on write actions for
 cluster/repository-level resources, so any read-only role — anonymous or a named viewer account
 alike — ends up able to see cluster endpoints, repo URLs and SSH known-hosts fingerprints
@@ -292,59 +290,18 @@ flowchart LR
 ```
 
 Every service also pushes OTLP traces and metrics to an otel-collector (not drawn above, to keep
-the request-flow diagram readable) — see [CD](#cd) below for how a change actually reaches this
-diagram in production, and [docs/architecture.md](docs/architecture.md) for the full breakdown,
-including local-vs-Kubernetes differences and every implemented-vs-planned distinction.
+the request-flow diagram readable) — see [GitOps & CI/CD](#gitops--cicd) below for how a change
+actually reaches this diagram in production, and [docs/architecture.md](docs/architecture.md) for
+the full breakdown, including local-vs-Kubernetes differences and every implemented-vs-planned
+distinction.
 
-## CD
+## GitOps & CI/CD
 
-Argo CD watches `main` and auto-syncs the Helm chart from
-[`infra/helm/gaming-backend-platform/`](infra/helm/gaming-backend-platform/) — see
-[`scripts/k8s/argocd-application-production.yaml`](scripts/k8s/argocd-application-production.yaml)
-for the `Application` itself. It only reacts to `main`, never `develop` or an open PR, and only to
-an actual git commit — a fresh image landing in GHCR under the same tag changes nothing about the
-rendered manifest on its own.
+CI is per-service and path-filtered (nine workflows, each building/testing/scanning only the service
+its trigger paths cover); a passing build ends with that service's own workflow bumping its
+`imageTag` file, the commit Argo CD's `main`-watching sync actually reacts to.
 
-Each service's own CI workflow ends by pointing that service's `imageTag` — in its own file under
-[`image-tags/`](infra/helm/gaming-backend-platform/image-tags/), since CI is path-filtered and a
-shared tag would have every service pull an image that was never rebuilt for it — at the commit
-SHA it just built, then pushes that change back to `main`, the commit Argo CD's sync actually
-reacts to. A push touching only `EconomyService` therefore redeploys exactly `economy-service`
-(and `economy-migrator`), not the other seven images sitting untouched. Full reasoning, including
-two real RBAC incidents this setup uncovered, in [ADR 0023](docs/adr/0023-gitops-argocd.md).
-
-## CI
-
-| Workflow | Triggers on | Checks |
-|---|---|---|
-| [identity-ci](.github/workflows/identity-ci.yml) | `backend/IdentityService/**`, `backend/IdentityService.Tests/**`, `backend/Directory.*.props`, `global.json` | `dotnet build` + `dotnet test`, then pushes `identity-service` to GHCR |
-| [gateway-ci](.github/workflows/gateway-ci.yml) | `backend/ApiGateway/**`, `backend/ApiGateway.Tests/**`, `backend/Directory.*.props`, `global.json` | `dotnet build` + `dotnet test`, then pushes `api-gateway` to GHCR |
-| [economy-ci](.github/workflows/economy-ci.yml) | `backend/EconomyService/**`, `backend/EconomyService.Tests/**`, `backend/Directory.*.props`, `global.json` | `dotnet build` + `dotnet test`, Trivy filesystem scan, pushes `economy-service` to GHCR, then Trivy image scan |
-| [platform-worker-ci](.github/workflows/platform-worker-ci.yml) | `backend/Platform.Worker/**`, `backend/Platform.Worker.Tests/**`, `backend/Directory.*.props`, `global.json` | same shape as `economy-ci`, scoped to `platform-worker` |
-| [notification-ci](.github/workflows/notification-ci.yml) | `backend/NotificationService/**`, `backend/NotificationService.Tests/**`, `backend/BuildingBlocks.Messaging/**`, `backend/Directory.*.props`, `global.json` | same shape as `economy-ci`, scoped to `notification-service` |
-| [email-service-ci](.github/workflows/email-service-ci.yml) | `backend/EmailService/**`, `backend/EmailService.Tests/**`, `backend/Directory.*.props`, `global.json` | same shape as `economy-ci`, scoped to `email-service` |
-| [player-client-ci](.github/workflows/player-client-ci.yml) | `frontend/**` | Node 22, `npm ci` + `npm run build` + `npm run test` (Vitest), Trivy filesystem scan, pushes `player-client` to GHCR, then Trivy image scan |
-| [admin-client-ci](.github/workflows/admin-client-ci.yml) | `frontend/**` | Same shape as `player-client-ci`, scoped to `admin-client` |
-| [k8s-validate](.github/workflows/k8s-validate.yml) | `infra/helm/**` | renders the Helm chart and validates it with `kubeconform` |
-| [gitleaks](.github/workflows/gitleaks.yml) | every push/PR to `main`/`develop`, whole repository | scans the full git history (not just the diff) for committed secrets |
-
-Path filters mean touching `backend/EconomyService/` doesn't trigger
-`identity-ci`, and vice versa — each service only rebuilds and retests on the
-changes that could actually affect it.
-
-**Gitleaks results don't go to the Security tab.** It's a job-summary/PR-comment
-report instead, on purpose: gitleaks scans the whole git history, so a hit
-means the secret is sitting in some past commit, not just the working tree. A
-Security tab alert reads as "fix the code, dismiss the alert" — the actual fix
-here is rotating the leaked credential, which no code change accomplishes, so
-routing it through the same UI as a code-scanning finding would be misleading.
-
-**Trivy results do go to the Security tab** — both the dependency scan and the
-image scan upload SARIF via `github/codeql-action/upload-sarif`. There's no
-standalone `trivy` badge above because Trivy isn't its own workflow: it runs
-as a step inside `economy-ci`, `platform-worker-ci` and `player-client-ci`
-(`.github/actions/trivy-scan`), right after each one pushes its image, so
-what gets scanned is the image that would actually reach the cluster.
+[Read GitOps and CI/CD →](docs/operations/gitops.md)
 
 ## Running locally
 
@@ -352,230 +309,18 @@ what gets scanned is the image that would actually reach the cluster.
 scripts/all/deploy.sh
 ```
 
-One command: `scripts/all/setup-env.sh` creates `infra/.env` from the example first (generating a
-real local JWT signing key if it's still the placeholder), then brings up the whole stack — both
-Postgres instances, Consul, RabbitMQ, Mailpit, IdentityService, EconomyService, Platform.Worker,
-ApiGateway, player-client and admin-client. See [Local automation](#local-automation) below for
-the rest of `scripts/` — this is one entry point among several, not the only thing in there.
+Brings up the whole compose stack — both databases, Consul, RabbitMQ, Mailpit, every backend
+service, and both frontend apps — from a fresh `.env` generated on first run.
 
-Or the same result spelled out manually, without the script:
-
-```
-cp infra/.env.example infra/.env
-cd infra
-docker compose up
-```
-
-The player browser client is at `http://localhost:8080`, the admin one at
-`http://localhost:8081`; anything hitting the API directly goes through the
-gateway at `http://localhost:5100`. Mailpit's UI (for reading verification
-emails without a real mailbox) is at `http://localhost:8025`.
-
-Almost every value in `infra/.env.example` is committed on purpose and isn't a
-production secret: the stack only binds to `localhost`, so nothing in it is
-reachable from outside the machine it runs on, and every clone gets its own
-`.env` by copying the example rather than sharing one committed file. The one
-exception is `Jwt__PrivateKeyPem` (the RSA key IdentityService signs tokens with,
-[ADR 0017](docs/adr/0017-rs256-and-jwks.md)) — that one is deliberately left as
-a placeholder, not a working key, since real RSA key material is worth
-committing even less than an arbitrary dummy string. Generate your own before
-the first `docker compose up`; the comment above that line in `.env.example`
-has the one-liner.
+[Read local development →](docs/operations/local-development.md)
 
 ## Running on Kubernetes
 
-The chart lives under `infra/helm/gaming-backend-platform/` — one Helm
-release, one namespace (`gaming-platform`), the same services as the compose
-stack above. `values.yaml` and `values-production.yaml` each carry only the
-shape genuinely shared across every service (image defaults, ingress
-structure, and so on); the per-service settings live one file per service
-under `values/` and `values-production/`, plus one file per CI workflow
-under `image-tags/` for the tag each deploy actually pins. See
-[ADR 0021](docs/adr/0021-kubernetes-helm-migration.md) for why it's split
-this way. `values-local.yaml` layers the knobs specific to the local `kind`
-cluster / sandbox namespace this is actually validated against; production
-is the real, currently-live deployment behind [the demo links above](#live-demo),
-not a placeholder. See
-[docs/architecture.md](docs/architecture.md#local-vs-kubernetes) for the full
-local-vs-cluster breakdown, including why the environment is pinned to
-`Development` here.
+One Helm chart, one namespace, deployed the same way locally (`kind`) and in production. Secrets are
+either applied directly (disposable local values) or SOPS/`age`-encrypted and committed
+(production-shaped values meant to survive a rebuild).
 
-This path pulls published images by the tag each service's own CI workflow last
-wrote to its `image-tags/*.yaml` file — it never builds from whatever is on disk.
-Uncommitted local changes (or anything on a branch CI hasn't run for yet) won't
-show up here even after `scripts/k8s/up.sh`/`apply.sh`, and `pullPolicy: IfNotPresent`
-means a `kind` node that already pulled a tag once won't re-pull it either. For
-iterating on local source — frontend or backend — use
-[`scripts/all/deploy.sh`](#running-locally) instead: it rebuilds every image from
-the current working tree on every run.
-
-A local `kind` cluster needs Traefik as its ingress controller and a couple
-of host port mappings to actually front it — `kind`'s own node image ships
-neither:
-
-```
-kind create cluster --config scripts/k8s/kind-config.yaml
-scripts/k8s/install-traefik.sh
-```
-
-Secrets are never committed as plaintext, but which mechanism applies depends
-on whether the values are throwaway or meant to persist:
-
-For a disposable local cluster, each service still ships a plain template
-under `infra/helm/gaming-backend-platform/secrets.example/` — copy, fill in
-local values, apply directly, and never check the filled-in copy in:
-
-```
-cp infra/helm/gaming-backend-platform/secrets.example/identity.yaml /tmp/identity-secrets.yaml
-cp infra/helm/gaming-backend-platform/secrets.example/economy.yaml /tmp/economy-secrets.yaml
-cp infra/helm/gaming-backend-platform/secrets.example/rabbitmq.yaml /tmp/rabbitmq-secrets.yaml
-# edit each of the three with real values, then:
-kubectl create namespace gaming-platform
-kubectl apply -f /tmp/identity-secrets.yaml -f /tmp/economy-secrets.yaml -f /tmp/rabbitmq-secrets.yaml
-scripts/k8s/apply.sh
-```
-
-(`scripts/k8s/up.sh` already automates exactly this for the local `kind`
-cluster, generating fresh values into a scratch directory on first run —
-nothing above is needed if you're just running the stack locally.)
-
-For values meant to survive a rebuild and actually be reviewable in git —
-the real deployment this eventually targets — secrets are encrypted with
-[SOPS](https://github.com/getsops/sops) using `age` as the encryption
-backend, not left as an unencrypted file someone has to remember to keep out
-of version control. `.sops.yaml` at the repo root scopes which paths get
-encrypted and with which recipient key:
-
-```yaml
-creation_rules:
-  - path_regex: infra[\\/]helm[\\/]gaming-backend-platform[\\/]secrets\.enc[\\/].*\.enc\.yaml$
-    encrypted_regex: ^(stringData|data)$
-    age: age1kl06atlam4ngyp0x8h6d4hv58p7m6qv8xa6gnpewsa64srem9c2q65pvjc
-```
-
-`encrypted_regex` keeps only `stringData`'s values ciphertext — `apiVersion`,
-`kind`, `metadata` and the `stringData` keys themselves stay legible, so a
-`git diff` on one of these files still shows which secret changed even
-though the value itself doesn't. The matching private key never lives in the
-repo; it sits wherever `sops` looks for it by default
-(`$XDG_CONFIG_HOME/sops/age/keys.txt` on Linux/macOS,
-`%AppData%\sops\age\keys.txt` on Windows), generated once per operator with
-`age-keygen`. Production's own keypair is generated and held the same way,
-outside git — the mechanism above is exactly what the live deployment uses,
-not a separate one built only to demonstrate it.
-
-`infra/helm/gaming-backend-platform/secrets.enc/` holds the encrypted,
-real-value counterparts of the five `secrets.example/` templates, committed
-alongside them rather than replacing them — the plain templates remain the
-"here's the shape" reference for anyone who hasn't set up an age key yet.
-Encrypting a filled-in template and applying it looks like:
-
-```
-sops -e -i infra/helm/gaming-backend-platform/secrets.enc/identity.enc.yaml
-
-sops -d infra/helm/gaming-backend-platform/secrets.enc/identity.enc.yaml      | kubectl apply -f -
-sops -d infra/helm/gaming-backend-platform/secrets.enc/economy.enc.yaml       | kubectl apply -f -
-sops -d infra/helm/gaming-backend-platform/secrets.enc/email-service.enc.yaml | kubectl apply -f -
-sops -d infra/helm/gaming-backend-platform/secrets.enc/rabbitmq.enc.yaml      | kubectl apply -f -
-sops -d infra/helm/gaming-backend-platform/secrets.enc/grafana.enc.yaml       | kubectl apply -f -
-scripts/k8s/apply.sh
-```
-
-Piping `sops -d` straight into `kubectl apply -f -` means the decrypted YAML
-never touches disk at all; if it does for any reason (debugging a template,
-say), delete it once the apply succeeds rather than leaving it next to its
-encrypted counterpart.
-
-`gateway`, `economy-service` and `notification-service` validate tokens
-against Identity's published JWKS rather than holding any signing secret of
-their own — only `identity-secrets` carries the private key
-([ADR 0017](docs/adr/0017-rs256-and-jwks.md)). Consul is not deployed at all
-here — Kubernetes Services and kube-DNS already provide discovery (ADR 0002).
-
-`scripts/k8s/apply.sh` is a thin `helm upgrade --install` wrapper now, not a
-hand-rolled apply order: the two database StatefulSets and the
-`identity-migrator`/`economy-migrator` Jobs are `pre-install`/`pre-upgrade`
-Helm hooks (see `templates/statefulset.yaml` and `templates/migration-job.yaml`
-in the chart), so Helm itself finishes them before any app Deployment —
-including `mailpit`, `player-client` and `admin-client` — gets created. A
-`Job` still has no `depends_on: condition: service_completed_successfully`
-equivalent, but this is Helm's own mechanism for exactly that problem rather
-than a wrapper script re-implementing `kubectl wait` by hand. The chart's
-`gateway-config` ConfigMap is generated the same way the old Kustomize tree's
-was: straight from `backend/ApiGateway/ocelot.Kubernetes.json`, which lives
-outside the chart, so `apply.sh` passes it in with `--set-file` rather than
-keeping a second copy that could drift.
-
-Reach the stack through the Ingress, fronted by Traefik: every web-facing
-service gets its own single-level `*.localhost` hostname, which every major
-browser/OS resolves to `127.0.0.1` with zero setup (RFC 6761) — no
-`/etc/hosts` entry needed, unlike the old path-plus-one-host layout.
-
-| Host | Routes to |
-|---|---|
-| `player-client.localhost` | `player-client` (itself proxying `/api` onward to the gateway) |
-| `admin-client.localhost` | `admin-client` |
-| `mailpit.localhost` | Mailpit's UI (kind/sandbox only) |
-| `gateway.localhost` | `api-gateway` directly — convenient for Postman/curl against the API, not something the web clients themselves need |
-| `traefik.localhost` | Traefik's own dashboard (`/dashboard/`, trailing slash required) — routers, services and middleware, live |
-
-Seeded demo accounts, all sharing the password `DemoPassword123!` (`DevelopmentSeeder`, this
-password only exists on a local/sandbox cluster — never a real deployment):
-
-| Email | Role |
-|---|---|
-| `admin@demo-shooter.dev` | Platform admin |
-| `player.one@demo-shooter.dev`, `player.two@demo-shooter.dev` | Players, `demo-shooter` |
-| `gameadmin@demo-racer.dev` | Game admin, `demo-racer` |
-| `player.three@demo-racer.dev` | Player, `demo-racer` |
-
-See [docs/architecture.md](docs/architecture.md#local-vs-kubernetes) for why
-player-client's own Nginx does the `/api` proxying rather than a second
-Ingress rule. Or port-forward directly:
-
-```
-kubectl -n gaming-platform port-forward svc/player-client 8080:8080
-kubectl -n gaming-platform port-forward svc/admin-client 8081:8081
-kubectl -n gaming-platform port-forward svc/api-gateway 5100:5100
-kubectl -n gaming-platform port-forward svc/mailpit 8025:8025   # kind/sandbox only
-```
-
-## Local automation
-
-`scripts/` mirrors the CI steps above for local use — each script calls the
-same commands its corresponding workflow does, rather than a parallel set of
-commands that could quietly drift from what CI actually checks.
-
-```
-scripts/
-├── backend/
-│   ├── build.sh    # dotnet build backend/GamingBackendPlatform.slnx
-│   ├── test.sh     # dotnet test backend/GamingBackendPlatform.slnx
-│   └── deploy.sh   # docker compose up -d, every backend service, no player-client
-├── frontend/
-│   ├── build.sh    # npm ci && npm run build (shared, then player-client)
-│   ├── test.sh     # npm run test (Vitest, both projects)
-│   └── deploy.sh   # docker compose up -d player-client
-├── all/
-│   ├── setup-env.sh # idempotent: creates infra/.env from the example and fills in
-│   │                 # a real local signing key if it's still the placeholder --
-│   │                 # every deploy.sh below calls this first
-│   ├── verify.sh   # backend build+test, then frontend build+test, no deploy
-│   ├── deploy.sh   # docker compose up -d, the whole stack
-│   ├── ci.sh       # verify.sh, then deploy.sh
-│   └── stop.sh     # docker compose down (--clean also drops volumes and prunes images)
-└── k8s/
-    ├── kind-config.yaml           # kind cluster config: host port mappings for Traefik
-    ├── install-traefik.sh         # one-time cluster addon install (see above)
-    ├── traefik-values-local.yaml  # values for the official Traefik chart on kind
-    ├── apply.sh                   # helm upgrade --install the chart (see above)
-    └── teardown.sh                # kind delete cluster --name gbp
-```
-
-**`verify.sh` vs `ci.sh`:** `verify.sh` is the quick local gate — build and
-test both sides and stop there, nothing gets deployed afterward. `ci.sh` is
-`verify.sh` plus a full-stack deploy at the end, for when the goal is a
-running stack, not just confirmation that everything builds and passes.
+[Read deployment →](docs/operations/deployment.md)
 
 ## Identity API
 
