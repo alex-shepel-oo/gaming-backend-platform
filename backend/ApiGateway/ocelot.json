@@ -8,7 +8,7 @@
     {
       "DownstreamPathTemplate": "/api/identity/users/me",
       "UpstreamPathTemplate": "/api/identity/users/me",
-      "UpstreamHttpMethod": [ "GET" ],
+      "UpstreamHttpMethod": [ "GET", "PATCH" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKeys": [ "Bearer" ],
         "AllowedScopes": []

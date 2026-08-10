@@ -87,6 +87,21 @@ public sealed class IdentityRoutingTests : IDisposable
     }
 
     [Fact]
+    public async Task Patch_UsersMe_UnderPlayerFacingPrefix_StillResolves()
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Patch, "/api/identity/users/me");
+        request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: null));
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        // The users/me route's UpstreamHttpMethod used to list GET only, so
+        // a real PATCH from Profile's edit form 404'd at the gateway before
+        // ever reaching IdentityService's own PATCH /me handler.
+        response.StatusCode.Should().NotBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task Get_UsersList_UnderPlayerFacingPrefix_IsGone()
     {
         using var client = _factory.CreateClient();
