@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Argo CD is a cluster addon, not something this project's own Helm chart
-# deploys -- same relationship install-traefik.sh has to the Traefik
+# deploys, the same relationship install-traefik.sh has to the Traefik
 # release, just pointed at Argo CD's own official chart instead. Run this
 # after install-traefik.sh (argocd-values-local.yaml routes the UI through
 # it at argocd.localhost, the same *.localhost convention every other local

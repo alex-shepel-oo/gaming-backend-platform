@@ -1,5 +1,5 @@
 using AwesomeAssertions;
-using EconomyService.Options;
+using BuildingBlocks.Auth;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;

@@ -4,8 +4,8 @@ set -euo pipefail
 # One command from nothing to a working local Kubernetes deployment: create
 # the kind cluster if it doesn't exist yet, install Traefik as its ingress
 # controller, generate and apply real (but local-only) secrets the first
-# time this runs -- never overwriting ones already applied, same idempotent
-# philosophy as scripts/all/setup-env.sh -- and then hand off to apply.sh for
+# time this runs, never overwriting ones already applied, the same idempotent
+# philosophy as scripts/all/setup-env.sh, and then hand off to apply.sh for
 # the actual Helm release. Safe to re-run any time; every step here is a
 # no-op if its own precondition already holds.
 
@@ -32,7 +32,7 @@ else
   mkdir -p "$SECRETS_DIR"
 
   # Matches the RSA-2048/PKCS8 shape ADR-0017 and setup-env.sh already use for
-  # the docker-compose .env -- same key format, different delivery mechanism
+  # the docker-compose .env: same key format, different delivery mechanism
   # (a Secret's stringData, not an escaped single .env line), so it's
   # generated directly as the real multi-line PEM a Secret can hold as-is.
   JWT_PRIVATE_KEY_PEM=$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -outform PEM)
@@ -45,9 +45,9 @@ else
     "$REPO_ROOT/infra/helm/gaming-backend-platform/secrets.example/identity.yaml" \
     > "$SECRETS_DIR/identity-secrets.yaml.tmp"
   # The private key is multi-line and can't go through the same sed
-  # substitution as the single-line values above -- replace its placeholder
+  # substitution as the single-line values above; replace its placeholder
   # *key line* (anchored to the start of the line, not a bare substring
-  # match -- the file's own comment a few lines up also mentions
+  # match, since the file's own comment a few lines up also mentions
   # "Jwt__PrivateKeyPem:" in passing, which a substring match would catch
   # too) with a proper YAML block scalar instead. awk, not python3, since
   # the latter isn't reliably present on every machine this script runs on.
@@ -114,4 +114,4 @@ echo "Deploying the Helm release..."
 bash "$REPO_ROOT/scripts/k8s/apply.sh"
 
 echo ""
-echo "Stack up. See README.md's Kubernetes section for the *.localhost hosts and seeded demo accounts."
+echo "Stack up. See docs/operations/deployment.md for the *.localhost hosts and seeded demo accounts."

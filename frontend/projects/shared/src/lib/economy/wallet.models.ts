@@ -1,4 +1,4 @@
-// Numeric values mirror the C# enums (EconomyService.Domain.Enums) -- the
+// Numeric values mirror the C# enums (EconomyService.Domain.Enums). The
 // service has no JsonStringEnumConverter configured, so these come over the
 // wire as plain numbers, not names.
 
@@ -24,7 +24,7 @@ export interface Balance {
   iconUrl: string | null;
 }
 
-// Mirrors EconomyService.Contracts.Responses.CurrencyDto -- the read-only
+// Mirrors EconomyService.Contracts.Responses.CurrencyDto, the read-only
 // currency catalog (every currency across every game, plus platform), not a
 // per-user balance. Same numeric-enum-over-the-wire caveat as CurrencyScope
 // above: scope comes through as a number, not a name.
@@ -45,6 +45,7 @@ export interface TransactionHistoryEntry {
   transactionType: TransactionType;
   reason: string | null;
   createdAt: string;
+  idempotencyKey: string | null;
 }
 
 export interface PagedResult<T> {

@@ -1,7 +1,7 @@
 using System.Net;
-using ApiGateway.Auth;
 using ApiGateway.Tests.Fixtures;
 using AwesomeAssertions;
+using BuildingBlocks.Auth;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -34,7 +34,7 @@ public sealed class IdentityRoutingTests : IDisposable
             }));
 
         // The app's startup path does one blocking JWKS refresh before it accepts any
-        // requests -- give it a real, matching key pair so the tokens this test issues
+        // requests; give it a real, matching key pair so the tokens this test issues
         // below actually resolve.
         builder.ConfigureServices(services => services
             .AddHttpClient<IJwksKeyCache, JwksKeyCache>()
@@ -87,6 +87,21 @@ public sealed class IdentityRoutingTests : IDisposable
     }
 
     [Fact]
+    public async Task Patch_UsersMe_UnderPlayerFacingPrefix_StillResolves()
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Patch, "/api/identity/users/me");
+        request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: null));
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        // The users/me route's UpstreamHttpMethod used to list GET only, so
+        // a real PATCH from Profile's edit form 404'd at the gateway before
+        // ever reaching IdentityService's own PATCH /me handler.
+        response.StatusCode.Should().NotBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task Get_UsersList_UnderPlayerFacingPrefix_IsGone()
     {
         using var client = _factory.CreateClient();
@@ -118,6 +133,19 @@ public sealed class IdentityRoutingTests : IDisposable
     {
         using var client = _factory.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/identity/games");
+        request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: "Game", audience: "gbp-admin"));
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Delete_Game_WithGameScopeToken_IsRejectedAtGatewayBeforeReachingService()
+    {
+        using var client = _factory.CreateClient();
+        var gameId = Guid.NewGuid();
+        using var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/admin/identity/games/{gameId}");
         request.Headers.Authorization = new("Bearer", IssueAccessToken(scope: "Game", audience: "gbp-admin"));
 
         var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
@@ -183,7 +211,7 @@ public sealed class IdentityRoutingTests : IDisposable
         response.StatusCode.Should().NotBe(HttpStatusCode.Forbidden);
     }
 
-    // Specifically the admin-prefixed upstream path -- a separate,
+    // Specifically the admin-prefixed upstream path: a separate,
     // player-accepting route to the same downstream endpoint exists at
     // /api/identity/users/me/games (see Get_MyGamesUnderPlayerPrefix_
     // WithPlayerAudienceToken_IsNotBlockedAtGateway below). This route stays

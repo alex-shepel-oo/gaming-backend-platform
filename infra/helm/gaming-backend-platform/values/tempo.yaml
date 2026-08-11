@@ -1,0 +1,56 @@
+deployments:
+  tempo:
+    image: grafana/tempo:2.7.1
+    internal: false
+    namespace: observability
+    replicas: 1
+    args: ["-config.file=/etc/tempo.yaml", "-config.expand-env=true"]
+    env:
+      - name: TEMPO_RETENTION_PERIOD
+        value: "4380h"
+    ports:
+      - {name: otlp-grpc, containerPort: 4317}
+      - {name: otlp-http, containerPort: 4318}
+      - {name: http, containerPort: 3200}
+    service:
+      enabled: true
+      ports:
+        - {name: otlp-grpc, port: 4317, targetPort: 4317}
+        - {name: otlp-http, port: 4318, targetPort: 4318}
+        - {name: http, port: 3200, targetPort: 3200}
+    configMapName: tempo-config
+    volumeMounts:
+      - name: config
+        mountPath: /etc/tempo.yaml
+        subPath: tempo-config.yaml
+      - name: data
+        mountPath: /var/tempo
+    volumes:
+      - name: config
+        configMap:
+          name: tempo-config
+          items:
+            - {key: tempo-config.yaml, path: tempo-config.yaml}
+      - name: data
+        persistentVolumeClaim: {claimName: tempo-data}
+    readinessProbe:
+      httpGet: {path: /ready, port: 3200}
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    resources:
+      requests: {cpu: 100m, memory: 256Mi}
+      limits: {cpu: 500m, memory: 512Mi}
+# Standalone PVC (see templates/pvc.yaml): single-replica, same as its
+# docker-compose counterpart, so a plain PVC rather than a StatefulSet's
+# volumeClaimTemplate.
+persistentVolumeClaims:
+  tempo-data:
+    namespace: observability
+    storage: 1Gi
+ingress:
+  hosts:
+    tempo:
+      host: tempo.localhost
+      service: tempo
+      port: 3200
+      namespace: observability

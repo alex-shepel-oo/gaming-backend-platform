@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { EconomyEndpoints } from './economy-endpoints';
-import { CurrencyScope } from './wallet.models';
+import { CurrencyScope, TransactionType } from './wallet.models';
 import { WalletService } from './wallet.service';
 
 describe('WalletService balances snapshot', () => {
@@ -71,12 +71,58 @@ describe('WalletService balances snapshot', () => {
     ]);
   });
 
+  it('applyBalanceChange refetches instead of no-oping when the currency is not yet cached', () => {
+    service.refreshBalances().subscribe();
+    httpMock.expectOne((req) => req.url === EconomyEndpoints.balances).flush(balances);
+
+    service.applyBalanceChange('game-1', 10);
+
+    httpMock.expectOne((req) => req.url === EconomyEndpoints.balances).flush([
+      ...balances,
+      { currencyId: 'game-1', currencyCode: 'GEMS', scope: CurrencyScope.Game, gameId: 'game-a', amount: 10, iconUrl: null },
+    ]);
+
+    expect(service.balances()).toEqual([
+      ...balances,
+      { currencyId: 'game-1', currencyCode: 'GEMS', scope: CurrencyScope.Game, gameId: 'game-a', amount: 10, iconUrl: null },
+    ]);
+  });
+
+  it('applyBalanceChange refetches instead of no-oping when nothing has been cached yet', () => {
+    service.applyBalanceChange('platform-1', 500);
+
+    httpMock.expectOne((req) => req.url === EconomyEndpoints.balances).flush(balances);
+
+    expect(service.balances()).toEqual(balances);
+  });
+
   it('getBalances requests the balances endpoint with no game-scoping params', () => {
     service.getBalances().subscribe();
 
     const request = httpMock.expectOne((req) => req.url === EconomyEndpoints.balances);
     expect(request.request.params.keys().length).toBe(0);
     request.flush(balances);
+  });
+
+  it('getTransactionHistory sends one repeated types param per selected type', () => {
+    service
+      .getTransactionHistory({ page: 1, pageSize: 20, types: [TransactionType.ConversionOut, TransactionType.ConversionIn] })
+      .subscribe();
+
+    const request = httpMock.expectOne((req) => req.url === EconomyEndpoints.transactions);
+    expect(request.request.params.getAll('types')).toEqual([
+      `${TransactionType.ConversionOut}`,
+      `${TransactionType.ConversionIn}`,
+    ]);
+    request.flush({ items: [], page: 1, pageSize: 20, totalCount: 0 });
+  });
+
+  it('getTransactionHistory omits the types param entirely when none are given', () => {
+    service.getTransactionHistory({ page: 1, pageSize: 20 }).subscribe();
+
+    const request = httpMock.expectOne((req) => req.url === EconomyEndpoints.transactions);
+    expect(request.request.params.has('types')).toBe(false);
+    request.flush({ items: [], page: 1, pageSize: 20, totalCount: 0 });
   });
 
   it('getCurrencies fetches the full currency catalog', () => {

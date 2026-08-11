@@ -5,6 +5,10 @@
   padding: var(--app-space-lg);
 }
 
+.game-picker-title {
+  margin: 0 0 var(--app-space-lg);
+}
+
 .games-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -13,6 +17,36 @@
 
 .game-card {
   cursor: pointer;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  transition: border-color 0.15s ease;
+
+  &:hover,
+  &:focus-visible {
+    border-color: var(--app-color-admin-primary);
+  }
+}
+
+.game-card-content {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-md);
+}
+
+.game-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  background: var(--mat-sys-surface-container-high);
+  border: 1px solid var(--mat-sys-outline-variant);
+
+  mat-icon {
+    color: var(--app-color-admin-primary);
+  }
 }
 
 .state-panel {

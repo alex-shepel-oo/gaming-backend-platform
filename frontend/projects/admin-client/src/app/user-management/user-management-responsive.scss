@@ -1,0 +1,31 @@
+@use 'mixins';
+
+.users-table {
+  @include mixins.responsive-table-cards;
+
+  // The identity cell is a whole avatar+name+email block, not a label:value
+  // pair -- it reads as the card's own heading, so it skips the ::before
+  // label and stacking that every other cell gets from the mixin.
+  @media (max-width: 767px) {
+    td:first-child {
+      display: block;
+      border-bottom: 1px solid var(--mat-sys-outline-variant);
+      margin-bottom: var(--app-space-xs);
+      padding-bottom: var(--app-space-sm);
+
+      &::before {
+        content: none;
+      }
+    }
+  }
+}
+
+// The detail panel's own width already shrinks with the viewport (see
+// user-management.scss's `.detail-sidenav { width: 100%; max-width: 400px }`)
+// -- on a narrow phone that leaves too little room per column for the info
+// grid's UUID/date values to stay readable, so it collapses to one column.
+@media (max-width: 420px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+}

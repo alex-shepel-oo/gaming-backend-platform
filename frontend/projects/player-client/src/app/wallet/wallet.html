@@ -1,74 +1,113 @@
-<h1>Wallet</h1>
+<lib-page-background />
 
-<section class="wallet-section">
-  <h2>Balances</h2>
+<div class="wallet-header">
+  <h1 class="wallet-title">Your Wallet</h1>
+  <p class="wallet-subtitle">Manage your platform balance and game currencies.</p>
+</div>
 
-  @if (balancesLoading()) {
-    <div class="state-panel">
-      <mat-spinner diameter="32" />
-      <p>Loading balances…</p>
+@if (balancesLoading()) {
+  <div class="state-panel">
+    <mat-spinner diameter="32" />
+    <p>Loading balances…</p>
+  </div>
+} @else if (balancesError()) {
+  <div class="state-panel">
+    <p class="state-error" role="alert">We couldn't load your balances. Please try again later.</p>
+  </div>
+} @else if (balances().length === 0) {
+  <div class="state-panel">
+    <p>No balances yet.</p>
+  </div>
+} @else {
+  <section class="wallet-grid">
+    <div class="platform-card">
+      <div class="platform-card__header">
+        <span class="platform-card__badge">
+          <mat-icon aria-hidden="true">monetization_on</mat-icon>
+          Platform Balance
+        </span>
+      </div>
+
+      <div class="platform-card__amounts">
+        @for (balance of platformBalances(); track balance.currencyId) {
+          <div class="platform-card__amount">
+            @if (balance.iconUrl && !failedIcons().has(balance.currencyId)) {
+              <img
+                class="currency-icon"
+                [src]="balance.iconUrl"
+                [alt]="balance.currencyCode"
+                (error)="onIconError(balance.currencyId)"
+              />
+            } @else {
+              <span class="currency-icon currency-icon--fallback">
+                <mat-icon aria-hidden="true">monetization_on</mat-icon>
+              </span>
+            }
+            {{ balance.amount }}
+            <span class="platform-card__code">{{ balance.currencyCode }}</span>
+          </div>
+        }
+      </div>
+
+      <a class="platform-card__cta" routerLink="/convert">
+        <mat-icon aria-hidden="true">swap_horiz</mat-icon>
+        Convert
+      </a>
     </div>
-  } @else if (balancesError()) {
-    <div class="state-panel">
-      <p class="state-error" role="alert">We couldn't load your balances. Please try again later.</p>
-    </div>
-  } @else if (balances().length === 0) {
-    <div class="state-panel">
-      <p>No balances yet.</p>
-    </div>
-  } @else {
-    <div class="balances-grid">
-      @if (platformBalances().length > 0) {
-        <mat-card class="balance-group">
-          <mat-card-header>
-            <mat-card-title>Platform</mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <ul class="balance-list">
-              @for (balance of platformBalances(); track balance.currencyId) {
-                <li>
-                  <span class="balance-label">
-                    @if (balance.iconUrl) {
-                      <img class="currency-icon" [src]="balance.iconUrl" [alt]="balance.currencyCode" />
-                    }
-                    <span class="balance-code">{{ balance.currencyCode }}</span>
-                  </span>
-                  <span class="balance-amount">{{ balance.amount }}</span>
-                </li>
-              }
-            </ul>
-          </mat-card-content>
-        </mat-card>
-      }
+
+    <div class="game-assets">
+      <h2 class="game-assets__title">Game Assets</h2>
 
       @for (group of gameBalanceGroups(); track group.gameId) {
-        <mat-card class="balance-group">
-          <mat-card-header>
-            <mat-card-title>{{ group.gameName }}</mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <ul class="balance-list">
+        <div class="game-asset-card">
+          <div class="game-asset-card__icon">
+            <mat-icon aria-hidden="true">sports_esports</mat-icon>
+          </div>
+          <div class="game-asset-card__info">
+            <span class="game-asset-card__name">{{ group.gameName }}</span>
+            <ul class="game-asset-card__balances">
               @for (balance of group.balances; track balance.currencyId) {
                 <li>
-                  <span class="balance-label">
-                    @if (balance.iconUrl) {
-                      <img class="currency-icon" [src]="balance.iconUrl" [alt]="balance.currencyCode" />
-                    }
-                    <span class="balance-code">{{ balance.currencyCode }}</span>
-                  </span>
-                  <span class="balance-amount">{{ balance.amount }}</span>
+                  @if (balance.iconUrl && !failedIcons().has(balance.currencyId)) {
+                    <img
+                      class="currency-icon"
+                      [src]="balance.iconUrl"
+                      [alt]="balance.currencyCode"
+                      (error)="onIconError(balance.currencyId)"
+                    />
+                  } @else {
+                    <span class="currency-icon currency-icon--fallback">
+                      <mat-icon aria-hidden="true">monetization_on</mat-icon>
+                    </span>
+                  }
+                  {{ balance.amount }} {{ balance.currencyCode }}
                 </li>
               }
             </ul>
-          </mat-card-content>
-        </mat-card>
+          </div>
+        </div>
       }
     </div>
-  }
-</section>
+  </section>
+}
 
-<section class="wallet-section">
-  <h2>Transaction history</h2>
+<section class="wallet-history">
+  <div class="wallet-history__header">
+    <h2 class="wallet-history__title">History</h2>
+
+    <div class="wallet-history__filters">
+      @for (filter of historyFilters; track filter) {
+        <button
+          type="button"
+          class="wallet-history__filter"
+          [class.wallet-history__filter--active]="filter === historyFilter()"
+          (click)="setFilter(filter)"
+        >
+          {{ filterLabel(filter) }}
+        </button>
+      }
+    </div>
+  </div>
 
   @if (historyLoading()) {
     <div class="state-panel">
@@ -81,36 +120,86 @@
     </div>
   } @else if (totalCount() === 0) {
     <div class="state-panel">
-      <p>No transactions yet.</p>
+      @if (historyFilter() === 'all') {
+        <p>No transactions yet.</p>
+      } @else {
+        <p>No {{ filterLabel(historyFilter()) | lowercase }} yet.</p>
+      }
     </div>
   } @else {
-    <div class="history-table-scroll">
-      <table class="history-table">
-        <thead>
-          <tr>
-            <th scope="col">Date</th>
-            <th scope="col">Type</th>
-            <th scope="col">Currency</th>
-            <th scope="col">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (transaction of transactions(); track transaction.id) {
-            <tr>
-              <td>{{ transaction.createdAt }}</td>
-              <td>{{ transactionLabel(transaction) }}</td>
-              <td>{{ transactionCurrencyCode(transaction) }}</td>
-              <td>{{ transaction.amount }}</td>
-            </tr>
-          }
-        </tbody>
-      </table>
+    <div class="transaction-list">
+      @for (row of historyRows(); track row.id) {
+        @if (row.kind === 'conversion') {
+          <div class="transaction-row">
+            <div class="transaction-row__lead">
+              <div class="transaction-row__icon transaction-row__icon--neutral">
+                <mat-icon aria-hidden="true">swap_horiz</mat-icon>
+              </div>
+              <div class="transaction-row__meta">
+                <span class="transaction-row__label">Converted to {{ transactionCurrencyCode(row.toEntry) }}</span>
+                <span class="transaction-row__sub">{{ row.createdAt | date: 'medium' }}</span>
+              </div>
+            </div>
+            <div class="transaction-row__conversion">
+              <span class="transaction-row__amount">
+                {{ row.fromEntry.amount }} {{ transactionCurrencyCode(row.fromEntry) }}
+              </span>
+              <span class="transaction-row__amount transaction-row__amount--success">
+                +{{ row.toEntry.amount }} {{ transactionCurrencyCode(row.toEntry) }}
+              </span>
+            </div>
+          </div>
+        } @else {
+          <div class="transaction-row">
+            <div class="transaction-row__lead">
+              <div
+                class="transaction-row__icon"
+                [class]="'transaction-row__icon--' + transactionIconVariant(row.entry)"
+              >
+                <mat-icon aria-hidden="true">{{ transactionIcon(row.entry) }}</mat-icon>
+              </div>
+              <div class="transaction-row__meta">
+                <span class="transaction-row__label">{{ transactionLabel(row.entry) }}</span>
+                <span class="transaction-row__sub">
+                  {{ row.entry.createdAt | date: 'medium' }}
+                  @if (row.entry.reason) {
+                    &middot; {{ row.entry.reason }}
+                  }
+                </span>
+              </div>
+            </div>
+            <div
+              class="transaction-row__amount"
+              [class]="'transaction-row__amount--' + transactionAmountVariant(row.entry)"
+            >
+              {{ row.entry.amount > 0 ? '+' : '' }}{{ row.entry.amount }} {{ transactionCurrencyCode(row.entry) }}
+            </div>
+          </div>
+        }
+      }
     </div>
 
-    <div class="history-pagination">
-      <button type="button" mat-button (click)="previousPage()" [disabled]="!hasPreviousPage()">Previous</button>
-      <span>Page {{ page() }} of {{ totalPages() }}</span>
-      <button type="button" mat-button (click)="nextPage()" [disabled]="!hasNextPage()">Next page</button>
+    <div class="wallet-pagination">
+      <button type="button" class="wallet-pagination__nav" (click)="previousPage()" [disabled]="!hasPreviousPage()">
+        <mat-icon aria-hidden="true">chevron_left</mat-icon>
+        Previous
+      </button>
+
+      @for (pageNumber of pageWindow(); track pageNumber) {
+        <button
+          type="button"
+          class="wallet-pagination__page"
+          [class.wallet-pagination__page--active]="pageNumber === page()"
+          (click)="goToPage(pageNumber)"
+        >
+          {{ pageNumber }}
+        </button>
+      }
+
+      <button type="button" class="wallet-pagination__nav" (click)="nextPage()" [disabled]="!hasNextPage()">
+        Next page
+        <mat-icon aria-hidden="true">chevron_right</mat-icon>
+      </button>
     </div>
   }
 </section>

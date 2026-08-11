@@ -58,9 +58,8 @@ public static class ConversionEndpoints
             : TypedResults.Ok(ToDto(request));
     }
 
-    // The Idempotency-Key doubles as the conversion's id (§D#2), so it must
-    // parse as a GUID - missing and malformed both fall into the same 400
-    // bucket the plan groups them under (F9).
+    // The Idempotency-Key doubles as the conversion's id, so it must
+    // parse as a GUID - missing and malformed both fall into the same 400 bucket.
     private static Guid RequireConversionId(string? idempotencyKey)
     {
         if (string.IsNullOrWhiteSpace(idempotencyKey) || !Guid.TryParse(idempotencyKey, out var conversionId))

@@ -1,0 +1,61 @@
+deployments:
+  prometheus:
+    image: prom/prometheus:v3.9.1
+    internal: false
+    namespace: observability
+    replicas: 1
+    # Runs as the image's own non-root user (uid 65534); fsGroup makes the
+    # local-path-provisioner PVC actually writable by it, unlike the
+    # postgres image elsewhere in this chart, whose entrypoint chowns its
+    # own data directory itself before dropping privileges.
+    securityContext:
+      fsGroup: 65534
+    # Only Deployment in the chart that needs one: the cadvisor scrape job
+    # in prometheus.yml proxies through the API server's node subresource,
+    # which needs the RBAC grant templates/prometheus-rbac.yaml ties to this
+    # ServiceAccount specifically, not the namespace's default one.
+    serviceAccountName: prometheus
+    args:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--storage.tsdb.retention.time=180d"
+    ports:
+      - {name: http, containerPort: 9090}
+    service:
+      enabled: true
+      port: 9090
+    configMapName: prometheus-config
+    volumeMounts:
+      - name: config
+        mountPath: /etc/prometheus/prometheus.yml
+        subPath: prometheus.yml
+      - name: data
+        mountPath: /prometheus
+    volumes:
+      - name: config
+        configMap:
+          name: prometheus-config
+          items:
+            - {key: prometheus.yml, path: prometheus.yml}
+      - name: data
+        persistentVolumeClaim: {claimName: prometheus-data}
+    readinessProbe:
+      httpGet: {path: /-/healthy, port: 9090}
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    resources:
+      requests: {cpu: 100m, memory: 256Mi}
+      limits: {cpu: 500m, memory: 512Mi}
+persistentVolumeClaims:
+  prometheus-data:
+    namespace: observability
+    storage: 1Gi
+ingress:
+  hosts:
+    prometheus:
+      host: prometheus.localhost
+      service: prometheus
+      port: 9090
+      namespace: observability

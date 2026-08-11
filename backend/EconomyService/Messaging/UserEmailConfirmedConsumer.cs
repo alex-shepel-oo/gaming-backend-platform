@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using BuildingBlocks.Messaging;
 using BuildingBlocks.Messaging.Inbox;
+using BuildingBlocks.Telemetry;
 using EconomyService.Messaging.Events;
 using EconomyService.Persistence;
 using EconomyService.Services;
@@ -47,7 +48,7 @@ public sealed class UserEmailConfirmedConsumer(
 
         // Already parsed above for the grant itself - tagging the consumer activity (started in
         // InboxConsumerBase.HandleDeliveryAsync, ambient here as Activity.Current) with it is free.
-        Activity.Current?.SetTag("enduser.id", payload.UserId);
+        Activity.Current?.SetTag(OtelConventions.EnduserId, payload.UserId);
 
         // WelcomeGrantService (-> ILedgerService) is resolved from a fresh
         // scope rather than the scope owning the dbContext parameter above:

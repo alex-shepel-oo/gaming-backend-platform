@@ -73,17 +73,17 @@ services:
       - .env
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ASPNETCORE_URLS: "http://+:5000"
+      ASPNETCORE_URLS: "http://+:${IDENTITY_SERVICE_PORT:-5000}"
       ConnectionStrings__IdentityDb: "Host=identity_db;Port=5432;Database=${POSTGRES_DB:?POSTGRES_DB is required, set it in infra/.env};Username=${POSTGRES_USER:?POSTGRES_USER is required, set it in infra/.env};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required, set it in infra/.env}"
       RabbitMq__Host: rabbitmq
-      RabbitMq__Port: "5672"
+      RabbitMq__Port: "${RABBITMQ_PORT:-5672}"
       RabbitMq__Username: "${RABBITMQ_USER:?RABBITMQ_USER is required, set it in infra/.env}"
       RabbitMq__Password: "${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required, set it in infra/.env}"
       RabbitMq__ExchangeName: gbp.identity
       Telemetry__OtlpEndpoint: "http://otel-collector:4317"
       Telemetry__LokiEndpoint: "http://loki:3100"
     ports:
-      - "${IDENTITY_SERVICE_PORT:-5000}:5000"
+      - "${IDENTITY_SERVICE_PORT:-5000}:${IDENTITY_SERVICE_PORT:-5000}"
     depends_on:
       identity_db:
         condition: service_healthy
@@ -92,7 +92,7 @@ services:
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:5000/health/ready || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:${IDENTITY_SERVICE_PORT:-5000}/health/ready || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -138,16 +138,17 @@ services:
       - .env
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ASPNETCORE_URLS: "http://+:5001"
+      ASPNETCORE_URLS: "http://+:${ECONOMY_SERVICE_PORT:-5001}"
       ConnectionStrings__EconomyDb: "Host=economy_db;Port=5432;Database=${ECONOMY_POSTGRES_DB:?ECONOMY_POSTGRES_DB is required, set it in infra/.env};Username=${ECONOMY_POSTGRES_USER:?ECONOMY_POSTGRES_USER is required, set it in infra/.env};Password=${ECONOMY_POSTGRES_PASSWORD:?ECONOMY_POSTGRES_PASSWORD is required, set it in infra/.env}"
       RabbitMq__Host: rabbitmq
-      RabbitMq__Port: "5672"
+      RabbitMq__Port: "${RABBITMQ_PORT:-5672}"
       RabbitMq__Username: "${RABBITMQ_USER:?RABBITMQ_USER is required, set it in infra/.env}"
       RabbitMq__Password: "${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required, set it in infra/.env}"
+      Jwt__JwksUri: "http://identity-service:${IDENTITY_SERVICE_PORT:-5000}/.well-known/jwks.json"
       Telemetry__OtlpEndpoint: "http://otel-collector:4317"
       Telemetry__LokiEndpoint: "http://loki:3100"
     ports:
-      - "${ECONOMY_SERVICE_PORT:-5001}:5001"
+      - "${ECONOMY_SERVICE_PORT:-5001}:${ECONOMY_SERVICE_PORT:-5001}"
     depends_on:
       economy_db:
         condition: service_healthy
@@ -163,7 +164,7 @@ services:
       identity-service:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:5001/health/ready || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:${ECONOMY_SERVICE_PORT:-5001}/health/ready || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -178,15 +179,16 @@ services:
       - .env
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ASPNETCORE_URLS: "http://+:5003"
+      ASPNETCORE_URLS: "http://+:${NOTIFICATION_SERVICE_PORT:-5003}"
       RabbitMq__Host: rabbitmq
-      RabbitMq__Port: "5672"
+      RabbitMq__Port: "${RABBITMQ_PORT:-5672}"
       RabbitMq__Username: "${RABBITMQ_USER:?RABBITMQ_USER is required, set it in infra/.env}"
       RabbitMq__Password: "${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required, set it in infra/.env}"
+      Jwt__JwksUri: "http://identity-service:${IDENTITY_SERVICE_PORT:-5000}/.well-known/jwks.json"
       Telemetry__OtlpEndpoint: "http://otel-collector:4317"
       Telemetry__LokiEndpoint: "http://loki:3100"
     ports:
-      - "${NOTIFICATION_SERVICE_PORT:-5003}:5003"
+      - "${NOTIFICATION_SERVICE_PORT:-5003}:${NOTIFICATION_SERVICE_PORT:-5003}"
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -198,10 +200,39 @@ services:
       economy-service:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:5003/health/ready || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:${NOTIFICATION_SERVICE_PORT:-5003}/health/ready || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - platform-network
+
+  email-service:
+    build:
+      context: ../backend
+      dockerfile: EmailService/Dockerfile
+    env_file:
+      - .env
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: "${RABBITMQ_PORT:-5672}"
+      RabbitMq__Username: "${RABBITMQ_USER:?RABBITMQ_USER is required, set it in infra/.env}"
+      RabbitMq__Password: "${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required, set it in infra/.env}"
+      RabbitMq__ExchangeName: gbp.identity
+      Telemetry__OtlpEndpoint: "http://otel-collector:4317"
+      Telemetry__LokiEndpoint: "http://loki:3100"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      # EmailVerificationRequestedConsumer/PasswordResetRequestedConsumer/
+      # DuplicateRegistrationNoticeRequestedConsumer all bind their queues to
+      # gbp.identity at startup and the whole host goes down if that exchange
+      # doesn't exist yet; only identity-service's own topology initializer
+      # declares it. Same wait-for-identity gate notification-service uses
+      # for gbp.economy/economy-service.
+      identity-service:
+        condition: service_healthy
     networks:
       - platform-network
 
@@ -235,18 +266,19 @@ services:
       - .env
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ASPNETCORE_URLS: "http://+:5100"
+      ASPNETCORE_URLS: "http://+:${API_GATEWAY_PORT:-5100}"
+      Jwt__JwksUri: "http://identity-service:${IDENTITY_SERVICE_PORT:-5000}/.well-known/jwks.json"
       Telemetry__OtlpEndpoint: "http://otel-collector:4317"
       Telemetry__LokiEndpoint: "http://loki:3100"
     ports:
-      - "${API_GATEWAY_PORT:-5100}:5100"
+      - "${API_GATEWAY_PORT:-5100}:${API_GATEWAY_PORT:-5100}"
     depends_on:
       consul:
         condition: service_healthy
       identity-service:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:5100/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:${API_GATEWAY_PORT:-5100}/health || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 10

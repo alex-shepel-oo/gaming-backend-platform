@@ -1,0 +1,8 @@
+# Same reasoning as values-production/identity-service.yaml.
+deployments:
+  economy-service:
+    configMap:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      Seeding__Enabled: "false"
+    hpa:
+      maxReplicas: 3

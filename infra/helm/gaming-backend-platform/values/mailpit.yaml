@@ -1,0 +1,29 @@
+deployments:
+  mailpit:
+    image: axllent/mailpit
+    internal: false
+    replicas: 1
+    service:
+      enabled: true
+      ports:
+        - {name: smtp, port: 1025}
+        - {name: ui, port: 8025}
+    ports:
+      - {name: smtp, containerPort: 1025}
+      - {name: ui, containerPort: 8025}
+    env:
+      - name: MP_MAX_MESSAGES
+        value: "500"
+    readinessProbe:
+      exec: {command: ["/mailpit", "readyz"]}
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    resources:
+      requests: {cpu: 50m, memory: 64Mi}
+      limits: {cpu: 200m, memory: 128Mi}
+ingress:
+  hosts:
+    mailpit:
+      host: mailpit.localhost
+      service: mailpit
+      port: 8025

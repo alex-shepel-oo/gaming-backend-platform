@@ -7,7 +7,7 @@ namespace ApiGateway.Tests.Fixtures;
 // A single RSA key pair, generated once per test run and shared by every fixture that needs to
 // look like Identity's real RS256/JWKS pipeline: the token-issuing helpers sign with it, and
 // the fake JWKS responses handed to JwksKeyCache during tests describe its public half.
-// Test-only key material generated at runtime -- nothing here is a production secret.
+// Test-only key material generated at runtime; nothing here is a production secret.
 public static class TestJwks
 {
     private const string KeyId = "gateway-tests-key-1";
@@ -18,7 +18,7 @@ public static class TestJwks
 
     public static readonly string JwksJson = BuildJwksJson();
 
-    // The RS256-to-HS256 downgrade attack doesn't need a different JWKS response -- the
+    // The RS256-to-HS256 downgrade attack doesn't need a different JWKS response: the
     // legitimate public key published above is exactly what the attacker is assumed to already
     // have. What makes it an attack is the forged token treating those same public key bytes as
     // an HMAC secret instead of an RSA key.

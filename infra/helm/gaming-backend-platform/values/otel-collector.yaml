@@ -1,0 +1,39 @@
+# Runs its own upstream image straight from Docker Hub, not something built
+# from this repo, hence internal: false, same as mailpit. No ingress.hosts entry:
+# it's an ingestion target other in-cluster workloads reach via Service DNS,
+# not something a human browses to.
+deployments:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.116.1
+    internal: false
+    namespace: observability
+    replicas: 1
+    args: ["--config=/etc/otel-collector-config.yaml"]
+    ports:
+      - {name: otlp-grpc, containerPort: 4317}
+      - {name: otlp-http, containerPort: 4318}
+      - {name: metrics, containerPort: 8889}
+    service:
+      enabled: true
+      ports:
+        - {name: otlp-grpc, port: 4317, targetPort: 4317}
+        - {name: otlp-http, port: 4318, targetPort: 4318}
+        - {name: metrics, port: 8889, targetPort: 8889}
+    configMapName: otel-collector-config
+    volumeMounts:
+      - name: config
+        mountPath: /etc/otel-collector-config.yaml
+        subPath: otel-collector-config.yaml
+    volumes:
+      - name: config
+        configMap:
+          name: otel-collector-config
+          items:
+            - {key: otel-collector-config.yaml, path: otel-collector-config.yaml}
+    readinessProbe:
+      tcpSocket: {port: 4317}
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}

@@ -51,4 +51,37 @@ describe('Avatar', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('img')).toBeNull();
     expect((fixture.nativeElement as HTMLElement).textContent?.trim()).toBe('PO');
   });
+
+  it('falls back to initials when the avatar image fails to load', () => {
+    const fixture = TestBed.createComponent(Avatar);
+    fixture.componentRef.setInput('name', 'Player One');
+    fixture.componentRef.setInput('avatarUrl', 'https://example.com/broken.png');
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    element.querySelector('img')!.dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+
+    expect(element.querySelector('img')).toBeNull();
+    expect(element.textContent?.trim()).toBe('PO');
+  });
+
+  it('retries a new avatarUrl even after a previous one failed to load', () => {
+    const fixture = TestBed.createComponent(Avatar);
+    fixture.componentRef.setInput('name', 'Player One');
+    fixture.componentRef.setInput('avatarUrl', 'https://example.com/broken.png');
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    element.querySelector('img')!.dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+    expect(element.querySelector('img')).toBeNull();
+
+    fixture.componentRef.setInput('avatarUrl', 'https://example.com/new.png');
+    fixture.detectChanges();
+
+    const img = element.querySelector('img');
+    expect(img).toBeTruthy();
+    expect(img!.getAttribute('src')).toBe('https://example.com/new.png');
+  });
 });

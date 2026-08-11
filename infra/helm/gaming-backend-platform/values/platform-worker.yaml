@@ -1,0 +1,19 @@
+deployments:
+  platform-worker:
+    image: platform-worker
+    replicas: 1
+    configMapName: platform-worker-config
+    configMap:
+      Telemetry__OtlpEndpoint: "http://otel-collector.observability.svc.cluster.local:4317"
+      Telemetry__LokiEndpoint: "http://loki.observability.svc.cluster.local:3100"
+    envFrom:
+      - configMapRef: {name: platform-worker-config}
+      - secretRef: {name: identity-secrets}
+      - secretRef: {name: economy-secrets}
+    livenessProbe:
+      exec: {command: ["sh", "-c", "grep -q dotnet /proc/1/cmdline"]}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}

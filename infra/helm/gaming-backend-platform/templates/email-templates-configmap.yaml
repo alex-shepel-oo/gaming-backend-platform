@@ -1,10 +1,10 @@
 # Separate from email-service-config on purpose. That ConfigMap feeds envFrom and gets a
-# checksum/config annotation on the Deployment (templates/deployment.yaml) -- a value change there
+# checksum/config annotation on the Deployment (templates/deployment.yaml): a value change there
 # rolls the pod, same as every other service's config. This one is a plain volume mount instead
 # (see the email-service entry's volumeMounts/volumes in values.yaml): editing this ConfigMap and
 # re-applying it (`kubectl apply` or `helm upgrade`) reaches the running pod's mounted files through
 # kubelet's own ConfigMap-volume sync, without the pod template changing at all, so no restart
-# happens. Do not add a checksum annotation for this ConfigMap to the Deployment -- that would
+# happens. Do not add a checksum annotation for this ConfigMap to the Deployment: that would
 # silently defeat the entire reason it exists as its own object instead of living inside
 # email-service-config.
 apiVersion: v1
@@ -18,7 +18,13 @@ metadata:
 data:
   EmailVerification.html: |
     {{- .Values.emailService.templates.emailVerificationHtml | nindent 4 }}
+  EmailVerification.txt: |
+    {{- .Values.emailService.templates.emailVerificationText | nindent 4 }}
   PasswordReset.html: |
     {{- .Values.emailService.templates.passwordResetHtml | nindent 4 }}
+  PasswordReset.txt: |
+    {{- .Values.emailService.templates.passwordResetText | nindent 4 }}
   DuplicateRegistrationNotice.html: |
     {{- .Values.emailService.templates.duplicateRegistrationNoticeHtml | nindent 4 }}
+  DuplicateRegistrationNotice.txt: |
+    {{- .Values.emailService.templates.duplicateRegistrationNoticeText | nindent 4 }}

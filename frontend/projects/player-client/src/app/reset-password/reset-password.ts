@@ -1,5 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -21,6 +22,7 @@ function classifyResetError(error: unknown): ResetError {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-reset-password',
   imports: [
     ReactiveFormsModule,
@@ -65,6 +67,12 @@ export class ResetPassword {
   protected readonly resetSucceeded = signal(false);
   protected readonly resetError = signal<ResetError | null>(null);
 
+  // Only meaningful while token is set. Starts true so the page shows a
+  // spinner instead of the form for the instant it takes to find out the
+  // link is already dead, rather than only discovering that after the
+  // player has typed a new password and hit submit.
+  protected readonly tokenChecking = signal(true);
+
   protected readonly hideNewPassword = signal(true);
   protected readonly hideConfirmPassword = signal(true);
 
@@ -77,9 +85,28 @@ export class ResetPassword {
   }
 
   constructor() {
-    this.resetForm.controls.newPassword.valueChanges.subscribe(() =>
+    const destroyRef = inject(DestroyRef);
+
+    this.resetForm.controls.newPassword.valueChanges.pipe(takeUntilDestroyed(destroyRef)).subscribe(() =>
       this.resetForm.controls.confirmPassword.updateValueAndValidity(),
     );
+
+    if (this.token) {
+      this.authService.validateResetToken(this.token).subscribe({
+        next: () => this.tokenChecking.set(false),
+        error: (error: unknown) => {
+          this.tokenChecking.set(false);
+
+          // A non-400 failure here (network blip, 5xx) doesn't necessarily
+          // mean the token itself is bad. Fail open into the form rather
+          // than telling the player their link is dead over a transient
+          // error; the real reset attempt is still the source of truth.
+          if (classifyResetError(error) === 'invalid-token') {
+            this.resetError.set('invalid-token');
+          }
+        },
+      });
+    }
   }
 
   protected submitRequest(): void {

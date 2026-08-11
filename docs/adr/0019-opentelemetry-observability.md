@@ -99,10 +99,11 @@ export configuration, or log enrichment per service. Retention is a `.env` value
 to `BuildingBlocks.Telemetry` touches every consuming service, not just one. Kept small and
 infrastructural for the same reason — instrumentation wiring only, never anything domain-specific.
 
-**The collector, Tempo, Prometheus, Loki and Grafana currently exist only in `infra/docker-compose.yml`.**
-None of this has been added to the Kubernetes manifests yet, and those manifests are still a flat,
-single-environment set with no `base`/`overlays` split — real work for the still-pending VPS/staging-
-vs-production phase, deliberately not attempted here before that topology is decided.
+**The collector, Tempo, Prometheus, Loki and Grafana were, at the time of this decision, only running in
+`infra/docker-compose.yml`.** That gap closed once the platform moved onto Kubernetes — see
+[ADR-0021](0021-kubernetes-helm-migration.md) for the chart migration and
+[ADR-0022](0022-observability-stack.md) for how this exact stack maps onto it (RBAC for
+node-exporter/kube-state-metrics/cadvisor, a real Grafana Viewer account, and the rest).
 
 **Frontend instrumentation is not part of this decision.** Browser-side OpenTelemetry (propagating
 trace context from the client through the gateway) is a deliberate follow-up, not bundled here,
@@ -112,8 +113,6 @@ since there is nothing for it to join into until the backend half of the trace e
 
 If a service needs a materially different export destination (a managed tracing backend instead of
 self-hosted Tempo, say), the collector is exactly the layer that absorbs that change without
-touching any service's own code. If Kubernetes deployment of this stack becomes concrete, this ADR's
-docker-compose-only scope should be revisited alongside whatever ADR ends up covering the
-staging/production manifest split. If a sixth service or a materially different messaging shape
+touching any service's own code. If a sixth service or a materially different messaging shape
 (ordered delivery, a dead-letter queue) needs trace propagation this mechanism doesn't already cover,
 extend `MessagingTracePropagation` rather than hand-rolling a parallel path.

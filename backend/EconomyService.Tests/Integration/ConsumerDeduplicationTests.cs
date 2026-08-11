@@ -3,6 +3,7 @@ using System.Diagnostics;
 using AwesomeAssertions;
 using BuildingBlocks.Messaging;
 using BuildingBlocks.Messaging.Inbox;
+using BuildingBlocks.Testing;
 using EconomyService.Messaging;
 using EconomyService.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -28,10 +29,10 @@ public sealed class ConsumerDeduplicationTests : IAsyncDisposable
     // A second exchange, entirely separate from _rabbitMqOptions.ExchangeName
     // (gbp.economy) - exists only to prove a consumer can bind to an
     // exchange it was handed explicitly rather than the one on its own
-    // publish-side options (A.3).
+    // publish-side options.
     private const string OtherExchangeName = "gbp.test-other";
 
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17-alpine")
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder(TestContainerImages.Postgres)
         .WithDatabase("economy_db")
         .WithUsername("economy")
         .WithPassword("economy_test_password")

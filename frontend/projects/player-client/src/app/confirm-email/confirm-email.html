@@ -1,22 +1,29 @@
 <div class="confirm-email">
-  <p>
-    We sent a 6-digit verification code to <strong>{{ email() }}</strong>. Enter it below to confirm your
-    account.
-  </p>
+  <div class="confirm-email__header">
+    <h2 class="confirm-email__title">Confirm your email</h2>
+    <p class="confirm-email__subtitle">
+      Enter the 6-digit code we sent to<br />
+      <strong>{{ email() }}</strong>
+    </p>
+  </div>
 
-  <form class="auth-form" [formGroup]="form" (ngSubmit)="submit()">
-    <mat-form-field appearance="outline">
-      <mat-label>Verification code</mat-label>
-      <input
-        matInput
-        type="text"
-        inputmode="numeric"
-        maxlength="6"
-        formControlName="code"
-        autocomplete="one-time-code"
-        required
-      />
-    </mat-form-field>
+  <form class="confirm-email-form" [formGroup]="form" (ngSubmit)="submit()">
+    <div class="code-input-group">
+      @for (control of digits.controls; track $index) {
+        <input
+          #digitInput
+          type="text"
+          inputmode="numeric"
+          maxlength="1"
+          class="code-digit"
+          [formControl]="control"
+          (input)="onDigitInput($event, $index)"
+          (keydown)="onDigitKeydown($event, $index)"
+          (paste)="onPaste($event)"
+          [attr.aria-label]="'Digit ' + ($index + 1)"
+        />
+      }
+    </div>
 
     @if (error() === 'invalid-code') {
       <p class="auth-error" role="alert">That code is incorrect or has expired.</p>
@@ -26,27 +33,33 @@
       <p class="auth-error" role="alert">Something went wrong. Please try again.</p>
     }
 
-    <button type="submit" mat-flat-button color="primary" [disabled]="form.invalid || submitting()">
+    <div class="confirm-email-actions">
+      <button type="button" mat-button (click)="resend()" [disabled]="resending()">
+        @if (resending() && secondsRemaining() > 0) {
+          Resend in {{ secondsRemaining() }}s
+        } @else {
+          Resend code
+        }
+      </button>
+      @if (resent()) {
+        <span class="confirm-email-resent">A new code was sent if one was needed.</span>
+      }
+    </div>
+
+    <button type="submit" class="auth-submit" [disabled]="digits.invalid || submitting()">
       @if (submitting()) {
         <mat-spinner diameter="20" />
       } @else {
-        Confirm email
+        <ng-container>
+          Confirm
+          <mat-icon aria-hidden="true">arrow_forward</mat-icon>
+        </ng-container>
       }
     </button>
   </form>
 
-  <div class="confirm-email-actions">
-    <button type="button" mat-button (click)="resend()" [disabled]="resending()">
-      @if (resending() && secondsRemaining() > 0) {
-        Resend in {{ secondsRemaining() }}s
-      } @else {
-        Resend code
-      }
-    </button>
-    @if (resent()) {
-      <span class="confirm-email-resent">A new code was sent if one was needed.</span>
-    }
-  </div>
-
-  <button type="button" mat-button (click)="backToLogin.emit()">Back to log in</button>
+  <button type="button" mat-button (click)="backToLogin.emit()">
+    <mat-icon aria-hidden="true">arrow_back</mat-icon>
+    Back to log in
+  </button>
 </div>

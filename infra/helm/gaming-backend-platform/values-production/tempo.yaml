@@ -1,0 +1,4 @@
+# Same reasoning as values-production/prometheus.yaml.
+ingress:
+  hosts:
+    tempo: null

@@ -1,0 +1,70 @@
+// Shared "admin management screen" chrome -- the sidenav+table+detail-panel
+// layout repeats near-identically across every admin-client management
+// screen (user-management, games-management, ...). `@use`-ing this from a
+// component stylesheet still compiles into that component's own
+// encapsulated CSS (Angular gives each component its own style bundle,
+// same as every `@include` from mixins.scss already does) -- the win here
+// is one authored definition instead of hand-copied duplicates drifting
+// apart, not a smaller compiled bundle.
+
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.page-container {
+  flex: 1;
+  min-height: 0;
+  background: transparent;
+  // admin-shell wraps every routed screen in a padded content area
+  // (var(--app-space-lg) on all sides). The detail/edit mat-sidenav below
+  // is position="end" and anchors to THIS container's own edge, so without
+  // this it stops var(--app-space-lg) short of the real screen edge instead
+  // of reaching it. The negative margin bleeds the container back out to
+  // admin-shell's own edges; mat-sidenav-content's padding below restores
+  // the visual inset for the page's own content.
+  margin: calc(-1 * var(--app-space-lg));
+
+  // .shell-content (admin-shell.scss) switches to var(--app-space-md)
+  // padding below 767px -- match it or the bleed over/under-shoots.
+  @media (max-width: 767px) {
+    margin: calc(-1 * var(--app-space-md));
+  }
+}
+
+mat-sidenav-content {
+  max-width: var(--app-shell-max-width);
+  margin: 0 auto;
+  padding: var(--app-space-lg);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.page-header {
+  margin-bottom: var(--app-space-lg);
+
+  h1 {
+    font: var(--mat-sys-headline-medium);
+    margin: 0 0 var(--app-space-xs);
+  }
+}
+
+.page-subtitle {
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-label-small);
+}
+
+.state-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--app-space-sm);
+  padding: var(--app-space-lg) 0;
+}
+
+.state-error {
+  color: var(--mat-sys-error);
+}

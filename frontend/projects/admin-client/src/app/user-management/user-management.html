@@ -9,7 +9,7 @@
   >
     @if (selectedUserId()) {
       <div class="detail-header">
-        <h2>User detail</h2>
+        <h2>User details</h2>
         <button type="button" mat-icon-button aria-label="Close" (click)="closeDetail()">
           <mat-icon aria-hidden="true">close</mat-icon>
         </button>
@@ -22,59 +22,117 @@
       } @else if (detailError()) {
         <p class="state-error" role="alert">We couldn't load that user's detail.</p>
       } @else if (selectedUser(); as user) {
-        <p><strong>{{ user.email }}</strong> — {{ user.displayName }}</p>
-        <p>Current role: {{ user.role ?? 'none' }}</p>
-        <p>Game: {{ user.gameSlug ?? 'platform-wide' }}</p>
-
-        <div class="assign-row">
-          <mat-form-field appearance="outline">
-            <mat-label>Role</mat-label>
-            <mat-select [value]="selectedRole()" (selectionChange)="onRoleChange($event)">
-              @for (role of roles; track role) {
-                <mat-option [value]="role" [disabled]="isRoleDisabled(role)">{{ role }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-
-          <button type="button" mat-flat-button color="primary" [disabled]="assigning()" (click)="assignRole()">
-            @if (assigning()) {
-              <mat-spinner diameter="20" />
-            } @else {
-              Assign role
-            }
-          </button>
+        <div class="detail-profile">
+          <span class="detail-avatar" [style.background-color]="avatarColor(user.displayName)">{{
+            avatarInitials(user.displayName)
+          }}</span>
+          <h3>{{ user.displayName }}</h3>
+          <p class="detail-email">{{ user.email }}</p>
         </div>
 
-        @if (assignError()) {
-          <p class="state-error" role="alert">We couldn't assign that role.</p>
-        }
+        <div class="detail-divider"></div>
+
+        <div class="detail-grid">
+          <div class="detail-field">
+            <span class="detail-field-label">User ID</span>
+            <div class="detail-field-id-row">
+              <span class="detail-field-value detail-field-mono" [title]="user.id">{{ user.id }}</span>
+              <button
+                type="button"
+                class="detail-copy-button"
+                aria-label="Copy user ID"
+                (click)="copyUserId(user.id)"
+              >
+                <mat-icon aria-hidden="true">{{ copiedUserId() === user.id ? 'check' : 'content_copy' }}</mat-icon>
+              </button>
+            </div>
+          </div>
+          <div class="detail-field">
+            <span class="detail-field-label">Game</span>
+            <span class="detail-field-value">{{ user.gameSlug ?? 'Platform-wide' }}</span>
+          </div>
+          <div class="detail-field">
+            <span class="detail-field-label">Joined</span>
+            <span class="detail-field-value">{{ user.createdAt | date }}</span>
+          </div>
+          <div class="detail-field">
+            <span class="detail-field-label">Current role</span>
+            <span class="detail-field-value">{{ user.role ?? 'none' }}</span>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h4>
+            <mat-icon aria-hidden="true">shield_person</mat-icon>
+            Access role
+          </h4>
+          <p class="detail-section-hint">Defines permissions across the admin console.</p>
+
+          <div class="assign-row">
+            <mat-form-field appearance="outline">
+              <mat-label>Role</mat-label>
+              <mat-select [value]="selectedRole()" (selectionChange)="onRoleChange($event)">
+                @for (role of roles; track role) {
+                  <mat-option [value]="role" [disabled]="isRoleDisabled(role)">{{ role }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <button type="button" mat-flat-button color="primary" [disabled]="assigning()" (click)="assignRole()">
+              @if (assigning()) {
+                <mat-spinner diameter="20" />
+              } @else {
+                Assign role
+              }
+            </button>
+          </div>
+
+          @if (assignError()) {
+            <p class="state-error" role="alert">We couldn't assign that role.</p>
+          }
+        </div>
 
         @if (canRevokeSessions()) {
-          <button type="button" mat-stroked-button color="warn" [disabled]="revoking()" (click)="revokeSessions()">
-            @if (revoking()) {
-              <mat-spinner diameter="20" />
-            } @else {
-              Revoke sessions
+          <div class="detail-section detail-danger-zone">
+            <h4 class="detail-danger-title">
+              <mat-icon aria-hidden="true">warning</mat-icon>
+              Security actions
+            </h4>
+            <p class="detail-section-hint">Force immediate logout across all devices for this account.</p>
+
+            <button type="button" class="revoke-button" [disabled]="revoking()" (click)="revokeSessions()">
+              @if (revoking()) {
+                <mat-spinner diameter="20" />
+              } @else {
+                <mat-icon aria-hidden="true">block</mat-icon>
+                Revoke sessions
+              }
+            </button>
+
+            @if (revoked()) {
+              <p class="state-success">Sessions revoked.</p>
             }
-          </button>
 
-          @if (revoked()) {
-            <p class="state-success">Sessions revoked.</p>
-          }
-
-          @if (revokeError()) {
-            <p class="state-error" role="alert">We couldn't revoke that user's sessions.</p>
-          }
+            @if (revokeError()) {
+              <p class="state-error" role="alert">We couldn't revoke that user's sessions.</p>
+            }
+          </div>
         }
       }
     }
   </mat-sidenav>
 
   <mat-sidenav-content>
-    <h1>Users in {{ scopeLabel() }}</h1>
+    <div class="page-header">
+      <div>
+        <h1>Users</h1>
+        <p class="page-subtitle">Manage accounts and roles across {{ scopeLabel() }}.</p>
+      </div>
+    </div>
 
     <mat-form-field appearance="outline" class="search-field">
       <mat-label>Search</mat-label>
+      <mat-icon matPrefix aria-hidden="true">search</mat-icon>
       <input
         matInput
         [value]="search()"
@@ -92,54 +150,76 @@
       <div class="state-panel">
         <p class="state-error" role="alert">We couldn't load the users list. Please try again later.</p>
       </div>
+    } @else if (users().length === 0) {
+      <lib-empty-state icon="group" message="No users found." />
     } @else {
-      <table mat-table [dataSource]="users()" class="users-table">
-        <ng-container matColumnDef="email">
-          <th mat-header-cell *matHeaderCellDef>Email</th>
-          <td mat-cell *matCellDef="let user">
-            <button type="button" mat-button (click)="selectUser(user)">{{ user.email }}</button>
-          </td>
-        </ng-container>
+      <div class="users-card">
+        <div class="users-table-scroll">
+          <table class="users-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Role</th>
+                <th>Game</th>
+                <th>Joined</th>
+                <th>Last login</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (user of users(); track user.id + '|' + (user.gameId ?? '')) {
+                <tr (click)="selectUser(user)" [class.users-row-active]="user.id === selectedUserId()">
+                  <td data-label="User">
+                    <div class="user-cell">
+                      <span class="user-avatar" [style.background-color]="avatarColor(user.displayName)">{{
+                        avatarInitials(user.displayName)
+                      }}</span>
+                      <div class="user-cell-text">
+                        <span class="user-name">{{ user.displayName }}</span>
+                        <span class="user-email">{{ user.email }}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td data-label="Role">
+                    <lib-status-pill [variant]="roleVariant(user.role)" [label]="user.role" />
+                  </td>
+                  <td class="users-table-muted" data-label="Game">{{ user.gameSlug ?? 'Platform-wide' }}</td>
+                  <td class="users-table-muted" data-label="Joined">{{ user.createdAt | date }}</td>
+                  <td class="users-table-muted" data-label="Last login">
+                    @if (user.lastLoginAt) {
+                      {{ user.lastLoginAt | date }}
+                    } @else {
+                      Never
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
 
-        <ng-container matColumnDef="displayName">
-          <th mat-header-cell *matHeaderCellDef>Display name</th>
-          <td mat-cell *matCellDef="let user">{{ user.displayName }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="role">
-          <th mat-header-cell *matHeaderCellDef>Role</th>
-          <td mat-cell *matCellDef="let user">{{ user.role }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="game">
-          <th mat-header-cell *matHeaderCellDef>Game</th>
-          <td mat-cell *matCellDef="let user">{{ user.gameSlug ?? 'platform-wide' }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="createdAt">
-          <th mat-header-cell *matHeaderCellDef>Created</th>
-          <td mat-cell *matCellDef="let user">{{ user.createdAt }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="lastLoginAt">
-          <th mat-header-cell *matHeaderCellDef>Last login</th>
-          <td mat-cell *matCellDef="let user">
-            @if (user.lastLoginAt) {
-              {{ user.lastLoginAt | date }}
-            } @else {
-              Never
-            }
-          </td>
-        </ng-container>
-
-        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
-      </table>
-
-      <div class="pagination">
-        <button type="button" mat-button [disabled]="page() === 1" (click)="previousPage()">Previous</button>
-        <span>Page {{ page() }}</span>
-        <button type="button" mat-button [disabled]="page() * pageSize >= totalCount()" (click)="nextPage()">Next</button>
+        <div class="pagination">
+          <span class="pagination-summary">Page {{ page() }} of {{ pageCount() }} — {{ totalCount() }} users</span>
+          <div class="pagination-controls">
+            <button
+              type="button"
+              mat-icon-button
+              aria-label="Previous page"
+              [disabled]="page() === 1"
+              (click)="previousPage()"
+            >
+              <mat-icon aria-hidden="true">chevron_left</mat-icon>
+            </button>
+            <button
+              type="button"
+              mat-icon-button
+              aria-label="Next page"
+              [disabled]="page() * pageSize >= totalCount()"
+              (click)="nextPage()"
+            >
+              <mat-icon aria-hidden="true">chevron_right</mat-icon>
+            </button>
+          </div>
+        </div>
       </div>
     }
   </mat-sidenav-content>

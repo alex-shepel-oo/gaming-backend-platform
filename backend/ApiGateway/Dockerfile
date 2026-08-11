@@ -9,10 +9,12 @@ WORKDIR /src
 
 COPY Directory.Build.props Directory.Packages.props ./
 COPY ApiGateway/ApiGateway.csproj ApiGateway/
+COPY BuildingBlocks.Auth/BuildingBlocks.Auth.csproj BuildingBlocks.Auth/
 COPY BuildingBlocks.Telemetry/BuildingBlocks.Telemetry.csproj BuildingBlocks.Telemetry/
 RUN dotnet restore ApiGateway/ApiGateway.csproj
 
 COPY ApiGateway/ ApiGateway/
+COPY BuildingBlocks.Auth/ BuildingBlocks.Auth/
 COPY BuildingBlocks.Telemetry/ BuildingBlocks.Telemetry/
 RUN dotnet publish ApiGateway/ApiGateway.csproj -c Release -o /app --no-restore
 

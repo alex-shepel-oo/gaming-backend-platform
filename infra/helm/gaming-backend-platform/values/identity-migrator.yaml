@@ -1,0 +1,12 @@
+# Runs as a pre-install/pre-upgrade hook (see templates/migration-job.yaml)
+# at a later weight than identity-db's StatefulSet, so the StatefulSet's
+# object exists first. Still polls the DB with pg_isready before running the
+# migrator: Helm applies a hook StatefulSet without waiting for it to
+# become Ready, only Job hooks are actually waited on.
+migrationJobs:
+  identity-migrator:
+    image: identity-migrator
+    dbHost: identity-db
+    secretName: identity-secrets
+    connectionStringKey: ConnectionStrings__IdentityDb
+    hookWeight: "-10"

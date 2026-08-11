@@ -1,79 +1,107 @@
-<h1>Profile</h1>
+<lib-page-background />
 
-@if (loading()) {
-  <div class="state-panel">
-    <mat-spinner diameter="32" />
-    <p>Loading profile…</p>
-  </div>
-} @else if (loadError() || !profileService.profile()) {
-  <p class="profile-error" role="alert">We couldn't read your account details. Try logging in again.</p>
-} @else if (profileService.profile(); as profile) {
-  <mat-card class="profile-card">
-    <mat-card-content class="profile-identity">
-      <app-avatar [name]="profile.displayName" [avatarUrl]="profile.avatarUrl" style="--avatar-size: 72px" />
-      <div>
-        <h2 class="profile-name">{{ profile.displayName }}</h2>
-        <p class="profile-role">{{ profile.role }}</p>
+<div class="profile-page">
+  <h1 class="profile-title">Profile</h1>
+
+  @if (loading()) {
+    <div class="state-panel">
+      <mat-spinner diameter="32" />
+      <p>Loading profile…</p>
+    </div>
+  } @else if (loadError() || !profileService.profile()) {
+    <p class="profile-error" role="alert">We couldn't read your account details. Try logging in again.</p>
+  } @else if (profileService.profile(); as profile) {
+    <div class="profile-grid">
+      <div class="profile-grid__side">
+        <div class="profile-card profile-identity">
+          <app-avatar [name]="profile.displayName" [avatarUrl]="profile.avatarUrl" style="--avatar-size: 96px" />
+          <h2 class="profile-identity__name">{{ profile.displayName }}</h2>
+          <p class="profile-identity__role">{{ profile.role }}</p>
+
+          <dl class="profile-identity__meta">
+            <div class="profile-identity__meta-row">
+              <dt>Member since</dt>
+              <dd>{{ profile.createdAt | date }}</dd>
+            </div>
+            <div class="profile-identity__meta-row">
+              <dt>Last login</dt>
+              <dd>
+                @if (profile.lastLoginAt) {
+                  {{ profile.lastLoginAt | date }}
+                } @else {
+                  <lib-not-available message="No login recorded yet" />
+                }
+              </dd>
+            </div>
+            <div class="profile-identity__meta-row">
+              <dt>Email</dt>
+              <dd>{{ profile.email }}</dd>
+            </div>
+          </dl>
+
+          <button type="button" class="profile-logout" (click)="logout()">
+            <mat-icon aria-hidden="true">logout</mat-icon>
+            Log out
+          </button>
+        </div>
+
+        <div class="profile-card profile-wallet-card">
+          <div class="profile-wallet-card__header">
+            <span class="profile-wallet-card__label">Wallet Balance</span>
+            <mat-icon aria-hidden="true">account_balance_wallet</mat-icon>
+          </div>
+
+          @for (balance of platformBalances(); track balance.currencyId) {
+            <div class="profile-wallet-card__amount">
+              {{ balance.amount }} <span class="profile-wallet-card__unit">{{ balance.currencyCode }}</span>
+            </div>
+          } @empty {
+            <lib-not-available message="No platform balance yet" />
+          }
+        </div>
       </div>
-    </mat-card-content>
-  </mat-card>
 
-  <mat-card class="profile-card">
-    <mat-card-header>
-      <mat-card-title>Account</mat-card-title>
-    </mat-card-header>
-    <mat-card-content>
-      <dl class="profile-fields">
-        <dt>Email</dt>
-        <dd>{{ profile.email }}</dd>
+      <div class="profile-card profile-edit-card">
+        <div class="profile-card__heading">
+          <mat-icon aria-hidden="true">person_edit</mat-icon>
+          <h3 class="profile-card__title">Profile Settings</h3>
+        </div>
 
-        <dt>Member since</dt>
-        <dd>{{ profile.createdAt | date }}</dd>
+        <form class="profile-edit-form" [formGroup]="editForm" (ngSubmit)="submitEdit()">
+          <div class="profile-field">
+            <label class="profile-field__label" for="profile-display-name">Display Name</label>
+            <div class="profile-field__input-wrap">
+              <input id="profile-display-name" formControlName="displayName" required />
+            </div>
+            <p class="profile-field__hint">This is how other players will see you.</p>
+          </div>
 
-        <dt>Last login</dt>
-        <dd>
-          @if (profile.lastLoginAt) {
-            {{ profile.lastLoginAt | date }}
-          } @else {
-            <app-not-available message="No login recorded yet" />
+          @if (saveError()) {
+            <p class="profile-status profile-status--error" role="alert">
+              <mat-icon aria-hidden="true">error</mat-icon>
+              Something went wrong. Please try again.
+            </p>
           }
-        </dd>
-      </dl>
-    </mat-card-content>
-  </mat-card>
 
-  <mat-card class="profile-card">
-    <mat-card-header>
-      <mat-card-title>Edit profile</mat-card-title>
-    </mat-card-header>
-    <mat-card-content>
-      <form class="profile-edit-form" [formGroup]="editForm" (ngSubmit)="submitEdit()">
-        <mat-form-field appearance="outline">
-          <mat-label>Display name</mat-label>
-          <input matInput formControlName="displayName" required />
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>Avatar URL</mat-label>
-          <input matInput formControlName="avatarUrl" placeholder="https://…" />
-        </mat-form-field>
-
-        @if (saveError()) {
-          <p class="profile-error" role="alert">Something went wrong. Please try again.</p>
-        }
-
-        @if (saved()) {
-          <p class="profile-saved">Profile updated.</p>
-        }
-
-        <button type="submit" mat-flat-button color="primary" [disabled]="editForm.invalid || saving()">
-          @if (saving()) {
-            <mat-spinner diameter="20" />
-          } @else {
-            Save changes
+          @if (saved()) {
+            <p class="profile-status profile-status--success">
+              <mat-icon aria-hidden="true">check_circle</mat-icon>
+              Profile updated.
+            </p>
           }
-        </button>
-      </form>
-    </mat-card-content>
-  </mat-card>
-}
+
+          <div class="profile-edit-form__actions">
+            <button type="button" class="profile-cancel" (click)="cancelEdit()">Cancel</button>
+            <button type="submit" class="profile-submit" [disabled]="editForm.invalid || saving()">
+              @if (saving()) {
+                <mat-spinner diameter="20" />
+              } @else {
+                Save Changes
+              }
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  }
+</div>

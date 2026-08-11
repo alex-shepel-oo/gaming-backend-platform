@@ -17,7 +17,7 @@ public sealed class EmailOptions
     [Required]
     public string FromDisplayName { get; set; } = string.Empty;
 
-    // Directory EmailTemplateRenderer reads the three templates from, fresh, on every render -- no
+    // Directory EmailTemplateRenderer reads the three templates from, fresh, on every render: no
     // caching, so a change here reaches a running pod without a restart. Resolved relative to the
     // process's current directory: that's the project folder for a local `dotnet run` (where the
     // real Templates/ folder already lives in source) and /app for the published Docker image

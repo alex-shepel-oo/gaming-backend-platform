@@ -64,24 +64,30 @@ describe('AuthShell', () => {
     fixture.detectChanges();
   }
 
+  function fillConfirmCode(code: string): void {
+    const element = fixture.nativeElement as HTMLElement;
+    const digitInputs = Array.from(element.querySelectorAll('.code-digit')) as HTMLInputElement[];
+    code.split('').forEach((digit, index) => {
+      digitInputs[index].value = digit;
+      digitInputs[index].dispatchEvent(new Event('input'));
+    });
+    fixture.detectChanges();
+  }
+
   it('switches to the code-entry step after a registration that needs verification', () => {
     registerAndFlush(true);
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('newplayer@example.com');
-    expect(text).toContain('Verification code');
+    expect(text).toContain('Confirm your email');
   });
 
   it('logs the user straight in and redirects to /games after confirming the code', () => {
     const navigateSpy = vi.spyOn(router, 'navigateByUrl');
     registerAndFlush(true);
+    fillConfirmCode('123456');
 
     const element = fixture.nativeElement as HTMLElement;
-    const codeInput = element.querySelector('input[inputmode="numeric"]') as HTMLInputElement;
-    codeInput.value = '123456';
-    codeInput.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-
     element.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
     httpMock.expectOne(IdentityAuthEndpoints.confirmEmail).flush(null);
 
@@ -94,13 +100,9 @@ describe('AuthShell', () => {
 
   it('falls back to the Login tab with a success notice if the auto-login fails', () => {
     registerAndFlush(true);
+    fillConfirmCode('123456');
 
     const element = fixture.nativeElement as HTMLElement;
-    const codeInput = element.querySelector('input[inputmode="numeric"]') as HTMLInputElement;
-    codeInput.value = '123456';
-    codeInput.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-
     element.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
     httpMock.expectOne(IdentityAuthEndpoints.confirmEmail).flush(null);
     httpMock
@@ -118,6 +120,6 @@ describe('AuthShell', () => {
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Registration complete');
-    expect(text).not.toContain('Verification code');
+    expect(text).not.toContain('Confirm your email');
   });
 });

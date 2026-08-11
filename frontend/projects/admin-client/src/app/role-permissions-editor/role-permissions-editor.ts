@@ -1,29 +1,33 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule, MatCheckboxChange } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule, MatSelectChange } from '@angular/material/select';
-import { Game, GamesService, RolePermissionsService, TokenStore } from 'shared';
+import { Game, GamesService, Loadable, RolePermissionsService, TokenStore } from 'shared';
+import { groupPermissionsByCategory } from './permission-catalog-display';
 
-// The PlatformRole enum names, case-sensitive -- sent as-is in the roles/{role}/permissions URL.
+// The PlatformRole enum names, case-sensitive, sent as-is in the roles/{role}/permissions URL.
 const ROLES = ['Player', 'Moderator', 'Admin'] as const;
 type Role = (typeof ROLES)[number];
 
 // "Platform-wide" is modeled as gameId: null, mirroring how the backend
-// itself treats RolePermission.GameId (null == the platform-wide template,
-// a game id == that game's own template) -- not a separate concept from the
+// itself treats RolePermission.GameId (null is the platform-wide template,
+// a game id is that game's own template): not a separate concept from the
 // per-game rows, just the same field with no game selected.
 const PLATFORM_WIDE = 'platform-wide';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'admin-role-permissions-editor',
   imports: [
     MatButtonModule,
     MatCardModule,
     MatCheckboxModule,
     MatFormFieldModule,
+    MatIconModule,
     MatProgressSpinnerModule,
     MatSelectModule,
   ],
@@ -45,8 +49,13 @@ export class RolePermissionsEditor {
   protected readonly catalog = signal<string[]>([]);
   protected readonly granted = signal<Set<string>>(new Set());
 
-  protected readonly loading = signal(true);
-  protected readonly loadError = signal(false);
+  // Grants (loadGrants) share this same error flag rather than getting their
+  // own: a failure loading the grants is just as fatal to this screen as the
+  // catalog itself failing. Only grantsLoading is tracked separately, since
+  // re-selecting a role/scope should re-trigger just that inner spinner.
+  private readonly catalogResource = new Loadable();
+  protected readonly loading = this.catalogResource.loading;
+  protected readonly loadError = this.catalogResource.error;
   protected readonly grantsLoading = signal(true);
   protected readonly saving = signal(false);
   protected readonly saveError = signal(false);
@@ -55,8 +64,10 @@ export class RolePermissionsEditor {
   // boundary and rejects a save that grants a permission the caller doesn't
   // hold themselves regardless of this. Disabling (not hiding) these
   // checkboxes just means the caller isn't shown a control that would fail
-  // anyway -- they still see what the role currently has.
+  // anyway; they still see what the role currently has.
   protected readonly callerPermissions = computed(() => new Set(this.tokenStore.claims()?.permissions ?? []));
+
+  protected readonly groupedCatalog = computed(() => groupPermissionsByCategory(this.catalog()));
 
   private get selectedGameId(): string | undefined {
     const option = this.selectedGameOption();
@@ -65,16 +76,9 @@ export class RolePermissionsEditor {
   }
 
   constructor() {
-    this.rolePermissionsService.getPermissionCatalog().subscribe({
-      next: (catalog) => {
-        this.catalog.set(catalog);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.loading.set(false);
-        this.loadError.set(true);
-      },
-    });
+    this.catalogResource.load(this.rolePermissionsService.getPermissionCatalog(), (catalog) =>
+      this.catalog.set(catalog),
+    );
 
     this.gamesService.listAllGames().subscribe((games) => this.games.set(games));
 
@@ -97,6 +101,23 @@ export class RolePermissionsEditor {
 
   protected isDisabled(permission: string): boolean {
     return !this.callerPermissions().has(permission);
+  }
+
+  // "Select all" only ever adds grants the caller is actually allowed to make --
+  // permissions the caller doesn't hold themselves stay untouched, same
+  // anti-escalation UX rule as the individual checkboxes (isDisabled()).
+  protected selectAllInCategory(permissions: readonly string[]): void {
+    this.granted.update((current) => {
+      const next = new Set(current);
+
+      for (const permission of permissions) {
+        if (!this.isDisabled(permission)) {
+          next.add(permission);
+        }
+      }
+
+      return next;
+    });
   }
 
   protected onToggle(permission: string, change: MatCheckboxChange): void {

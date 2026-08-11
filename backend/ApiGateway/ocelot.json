@@ -2,220 +2,120 @@
   "Routes": [
     {
       "DownstreamPathTemplate": "/api/identity/auth/{everything}",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/identity/auth/{everything}",
-      "UpstreamHttpMethod": [ "POST" ],
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
-      }
+      "UpstreamHttpMethod": [ "POST" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/identity/auth/reset-password/validate",
+      "UpstreamPathTemplate": "/api/identity/auth/reset-password/validate",
+      "UpstreamHttpMethod": [ "GET" ]
     },
     {
       "DownstreamPathTemplate": "/api/identity/users/me",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/identity/users/me",
-      "UpstreamHttpMethod": [ "GET" ],
+      "UpstreamHttpMethod": [ "GET", "PATCH" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKeys": [ "Bearer" ],
         "AllowedScopes": []
-      },
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
       }
     },
     {
       "DownstreamPathTemplate": "/api/identity/users/me/games",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/identity/users/me/games",
       "UpstreamHttpMethod": [ "GET" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKeys": [ "Bearer" ],
         "AllowedScopes": []
-      },
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
       }
     },
     {
       "DownstreamPathTemplate": "/api/identity/games/public",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/identity/games/public",
       "UpstreamHttpMethod": [ "GET" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKeys": [ "Bearer" ],
         "AllowedScopes": []
-      },
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
       }
     },
     {
       "DownstreamPathTemplate": "/openapi/v1.json",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/openapi/identity/v1.json",
-      "UpstreamHttpMethod": [ "GET" ],
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
-      }
+      "UpstreamHttpMethod": [ "GET" ]
     },
     {
       "DownstreamPathTemplate": "/balances/me",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/economy/balances/me",
       "UpstreamHttpMethod": [ "GET" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKeys": [ "Bearer" ],
         "AllowedScopes": []
-      },
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
       }
     },
     {
       "DownstreamPathTemplate": "/transactions/me",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/economy/transactions/me",
       "UpstreamHttpMethod": [ "GET" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKeys": [ "Bearer" ],
         "AllowedScopes": []
-      },
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
       }
     },
     {
       "DownstreamPathTemplate": "/conversions",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/economy/conversions",
       "UpstreamHttpMethod": [ "POST" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKeys": [ "Bearer" ],
         "AllowedScopes": []
-      },
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
       }
     },
     {
       "DownstreamPathTemplate": "/conversions/{id}",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/economy/conversions/{id}",
       "UpstreamHttpMethod": [ "GET" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKeys": [ "Bearer" ],
         "AllowedScopes": []
-      },
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
       }
     },
     {
       "DownstreamPathTemplate": "/currencies",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/economy/currencies",
       "UpstreamHttpMethod": [ "GET" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKeys": [ "Bearer" ],
         "AllowedScopes": []
-      },
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
       }
     },
     {
       "DownstreamPathTemplate": "/transactions/grant",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/economy/transactions/grant",
       "UpstreamHttpMethod": [ "POST" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKeys": [ "Bearer" ],
         "AllowedScopes": []
-      },
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
       }
     },
     {
       "DownstreamPathTemplate": "/transactions/spend",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/economy/transactions/spend",
       "UpstreamHttpMethod": [ "POST" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKeys": [ "Bearer" ],
         "AllowedScopes": []
-      },
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
       }
     },
     {
       "DownstreamPathTemplate": "/balances/{userId}/adjust",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/economy/balances/{userId}/adjust",
       "UpstreamHttpMethod": [ "POST" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKeys": [ "Bearer" ],
         "AllowedScopes": []
-      },
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
       }
     },
     {
       "DownstreamPathTemplate": "/api/identity/games",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/admin/identity/games",
       "UpstreamHttpMethod": [ "GET", "POST" ],
       "AuthenticationOptions": {
@@ -225,20 +125,12 @@
       "RouteClaimsRequirement": {
         "scope": "Platform",
         "aud": "gbp-admin"
-      },
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
       }
     },
     {
       "DownstreamPathTemplate": "/api/identity/games/{id}",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/admin/identity/games/{id}",
-      "UpstreamHttpMethod": [ "PATCH" ],
+      "UpstreamHttpMethod": [ "PATCH", "DELETE" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKeys": [ "Bearer" ],
         "AllowedScopes": []
@@ -246,18 +138,10 @@
       "RouteClaimsRequirement": {
         "scope": "Platform",
         "aud": "gbp-admin"
-      },
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
       }
     },
     {
       "DownstreamPathTemplate": "/api/identity/permissions",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/admin/identity/permissions",
       "UpstreamHttpMethod": [ "GET" ],
       "AuthenticationOptions": {
@@ -266,18 +150,10 @@
       },
       "RouteClaimsRequirement": {
         "aud": "gbp-admin"
-      },
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
       }
     },
     {
       "DownstreamPathTemplate": "/api/identity/roles/{role}/permissions",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/admin/identity/roles/{role}/permissions",
       "UpstreamHttpMethod": [ "GET", "PUT" ],
       "AuthenticationOptions": {
@@ -286,18 +162,10 @@
       },
       "RouteClaimsRequirement": {
         "aud": "gbp-admin"
-      },
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
       }
     },
     {
       "DownstreamPathTemplate": "/api/identity/users",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/admin/identity/users",
       "UpstreamHttpMethod": [ "GET" ],
       "AuthenticationOptions": {
@@ -306,18 +174,10 @@
       },
       "RouteClaimsRequirement": {
         "aud": "gbp-admin"
-      },
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
       }
     },
     {
       "DownstreamPathTemplate": "/api/identity/users/{userId}",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/admin/identity/users/{userId}",
       "UpstreamHttpMethod": [ "GET" ],
       "AuthenticationOptions": {
@@ -326,18 +186,10 @@
       },
       "RouteClaimsRequirement": {
         "aud": "gbp-admin"
-      },
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
       }
     },
     {
       "DownstreamPathTemplate": "/api/identity/users/{userId}/roles",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/admin/identity/users/{userId}/roles",
       "UpstreamHttpMethod": [ "GET", "PATCH" ],
       "AuthenticationOptions": {
@@ -346,18 +198,10 @@
       },
       "RouteClaimsRequirement": {
         "aud": "gbp-admin"
-      },
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
       }
     },
     {
       "DownstreamPathTemplate": "/api/identity/users/{userId}/revoke-sessions",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/admin/identity/users/{userId}/revoke-sessions",
       "UpstreamHttpMethod": [ "POST" ],
       "AuthenticationOptions": {
@@ -366,18 +210,10 @@
       },
       "RouteClaimsRequirement": {
         "aud": "gbp-admin"
-      },
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
       }
     },
     {
       "DownstreamPathTemplate": "/api/identity/users/me/games",
-      "DownstreamScheme": "http",
       "UpstreamPathTemplate": "/api/admin/identity/users/me/games",
       "UpstreamHttpMethod": [ "GET" ],
       "AuthenticationOptions": {
@@ -386,15 +222,17 @@
       },
       "RouteClaimsRequirement": {
         "aud": "gbp-admin"
-      },
-      "QoSOptions": {
-        "Timeout": 5000,
-        "FailureRatio": 0.5,
-        "SamplingDuration": 10000,
-        "MinimumThroughput": 5,
-        "BreakDuration": 30000
       }
     }
   ],
-  "GlobalConfiguration": {}
+  "GlobalConfiguration": {
+    "DownstreamScheme": "http",
+    "QoSOptions": {
+      "Timeout": 5000,
+      "FailureRatio": 0.5,
+      "SamplingDuration": 10000,
+      "MinimumThroughput": 5,
+      "BreakDuration": 30000
+    }
+  }
 }

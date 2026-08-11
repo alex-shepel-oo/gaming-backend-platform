@@ -9,11 +9,13 @@ WORKDIR /src
 
 COPY Directory.Build.props Directory.Packages.props ./
 COPY EconomyService/EconomyService.csproj EconomyService/
+COPY BuildingBlocks.Auth/BuildingBlocks.Auth.csproj BuildingBlocks.Auth/
 COPY BuildingBlocks.Messaging/BuildingBlocks.Messaging.csproj BuildingBlocks.Messaging/
 COPY BuildingBlocks.Telemetry/BuildingBlocks.Telemetry.csproj BuildingBlocks.Telemetry/
 RUN dotnet restore EconomyService/EconomyService.csproj
 
 COPY EconomyService/ EconomyService/
+COPY BuildingBlocks.Auth/ BuildingBlocks.Auth/
 COPY BuildingBlocks.Messaging/ BuildingBlocks.Messaging/
 COPY BuildingBlocks.Telemetry/ BuildingBlocks.Telemetry/
 RUN dotnet publish EconomyService/EconomyService.csproj -c Release -o /app --no-restore

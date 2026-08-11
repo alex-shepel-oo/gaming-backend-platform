@@ -1,0 +1,135 @@
+<div class="landing">
+  <div class="landing__orb landing__orb--primary"></div>
+  <div class="landing__orb landing__orb--container"></div>
+
+  <div class="landing__hero">
+    <div class="landing__badge">
+      <mat-icon aria-hidden="true">sports_esports</mat-icon>
+      <span>The GBP Network</span>
+    </div>
+
+    <h1 class="landing__title">One backend for every game's economy</h1>
+    <p class="landing__subtitle">
+      GBP is a shared backend that multiple games plug into: one player identity, one wallet, and
+      currencies that convert between games through a common platform currency.
+    </p>
+    <p class="landing__disclaimer">
+      It's a solo-built portfolio project, not a production service — put together to show how I
+      design and operate a real distributed system end to end.
+    </p>
+
+    <div class="landing__actions">
+      <a mat-flat-button color="primary" class="landing__cta" routerLink="/login">
+        Try the demo
+        <mat-icon aria-hidden="true">arrow_forward</mat-icon>
+      </a>
+      <a mat-stroked-button href="https://shepel.dev" target="_blank" rel="noopener noreferrer">
+        <mat-icon aria-hidden="true">open_in_new</mat-icon>
+        View my portfolio
+      </a>
+    </div>
+  </div>
+
+  <div class="landing__section">
+    <h2 class="landing__section-title">What's under the hood</h2>
+
+    <div class="landing__features">
+      <div class="landing__feature">
+        <div class="landing__feature-icon">
+          <mat-icon aria-hidden="true">account_tree</mat-icon>
+        </div>
+        <h3>Saga-orchestrated transactions</h3>
+        <p>
+          Currency conversion runs as an orchestrated saga across services, with automatic
+          compensation if any step fails — no partial money movement.
+        </p>
+      </div>
+
+      <div class="landing__feature">
+        <div class="landing__feature-icon landing__feature-icon--gold">
+          <mat-icon aria-hidden="true">monitoring</mat-icon>
+        </div>
+        <h3>End-to-end observability</h3>
+        <p>
+          Every request is traced from the browser through the gateway into each service,
+          correlated by user, and visualized in Grafana, Tempo, and Loki.
+        </p>
+      </div>
+
+      <div class="landing__feature">
+        <div class="landing__feature-icon landing__feature-icon--secondary">
+          <mat-icon aria-hidden="true">hub</mat-icon>
+        </div>
+        <h3>Event-driven services</h3>
+        <p>
+          Services communicate over RabbitMQ with a transactional outbox, so events are never
+          lost or double-published even if a service restarts mid-write.
+        </p>
+      </div>
+
+      <div class="landing__feature">
+        <div class="landing__feature-icon">
+          <mat-icon aria-hidden="true">cloud_sync</mat-icon>
+        </div>
+        <h3>GitOps on Kubernetes</h3>
+        <p>Every service ships independently through Helm and Argo CD — a commit is the only way anything reaches production.</p>
+      </div>
+
+      <div class="landing__feature landing__feature--wide">
+        <div class="landing__feature-icon landing__feature-icon--gold">
+          <mat-icon aria-hidden="true">security</mat-icon>
+        </div>
+        <div>
+          <h3>Defense-in-depth auth</h3>
+          <p>
+            Short-lived access tokens, rotating refresh-token families with reuse detection, and
+            instant admin-triggered revocation keep sessions honest.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="landing__section">
+    <h2 class="landing__section-title">On the roadmap</h2>
+    <p class="landing__section-subtitle">Planned next, not built yet.</p>
+
+    <div class="landing__roadmap">
+      <div class="landing__roadmap-item">
+        <div class="landing__roadmap-header">
+          <mat-icon aria-hidden="true">cloud</mat-icon>
+          <span class="landing__roadmap-tag">Planned</span>
+        </div>
+        <h3>Self-hosted object storage</h3>
+        <p>Game and item assets served from Garage, an S3-compatible store running on my own VPS.</p>
+      </div>
+
+      <div class="landing__roadmap-item">
+        <div class="landing__roadmap-header">
+          <mat-icon aria-hidden="true">inventory_2</mat-icon>
+          <span class="landing__roadmap-tag">Planned</span>
+        </div>
+        <h3>Inventory &amp; items</h3>
+        <p>A per-player item ledger shared across games, so the platform isn't just currency.</p>
+      </div>
+
+      <div class="landing__roadmap-item">
+        <div class="landing__roadmap-header">
+          <mat-icon aria-hidden="true">storefront</mat-icon>
+          <span class="landing__roadmap-tag">Planned</span>
+        </div>
+        <h3>Marketplace</h3>
+        <p>Player-to-player trading, backed by the same saga-based safety currency conversion already has.</p>
+      </div>
+
+      <div class="landing__roadmap-item">
+        <div class="landing__roadmap-header">
+          <mat-icon aria-hidden="true">api</mat-icon>
+          <span class="landing__roadmap-tag">Planned</span>
+        </div>
+        <h3>Integration API</h3>
+        <p>A public API so other game studios could plug their own titles into the same wallet and economy.</p>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using BuildingBlocks.Testing;
 using IdentityService.Auth;
 using IdentityService.Domain;
 using IdentityService.Domain.Enums;
@@ -15,7 +16,7 @@ namespace IdentityService.Tests.Integration;
 // tests, which would wipe that seed data before these assertions ever ran.
 public sealed class RolePermissionsSchemaFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17-alpine")
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder(TestContainerImages.Postgres)
         .WithDatabase("identity_db")
         .WithUsername("identity")
         .WithPassword("identity_test_password")

@@ -27,6 +27,7 @@
     <ProjectReference Include="..\Platform.Worker\Platform.Worker.csproj" />
     <ProjectReference Include="..\IdentityService\IdentityService.csproj" />
     <ProjectReference Include="..\EconomyService\EconomyService.csproj" />
+    <ProjectReference Include="..\BuildingBlocks.Testing\BuildingBlocks.Testing.csproj" />
   </ItemGroup>
 
 </Project>

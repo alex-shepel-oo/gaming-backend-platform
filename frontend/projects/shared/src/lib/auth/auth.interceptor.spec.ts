@@ -58,6 +58,31 @@ describe('authInterceptor', () => {
     expect(tokenStore.read()).toBe('new-access-token');
   });
 
+  it('collapses two concurrent 401s into a single refresh call', () => {
+    const otherProtectedUrl = '/api/economy/transactions/me';
+    tokenStore.set('expired-token');
+
+    let resultA: unknown;
+    let resultB: unknown;
+    http.get(protectedUrl).subscribe({ next: (value) => (resultA = value) });
+    http.get(otherProtectedUrl).subscribe({ next: (value) => (resultB = value) });
+
+    httpMock.expectOne(protectedUrl).flush(null, { status: 401, statusText: 'Unauthorized' });
+    httpMock.expectOne(otherProtectedUrl).flush(null, { status: 401, statusText: 'Unauthorized' });
+
+    // httpMock.expectOne throws if more than one refresh request went out --
+    // this is the actual regression check: two concurrent 401s must share
+    // one refresh call, not race two against the same refresh cookie.
+    const refreshRequest = httpMock.expectOne(IdentityAuthEndpoints.refresh);
+    refreshRequest.flush({ accessToken: 'new-access-token' });
+
+    httpMock.expectOne(protectedUrl).flush({ from: 'a' });
+    httpMock.expectOne(otherProtectedUrl).flush({ from: 'b' });
+
+    expect(resultA).toEqual({ from: 'a' });
+    expect(resultB).toEqual({ from: 'b' });
+  });
+
   it('does not loop when the refresh itself also fails, and clears the session', () => {
     tokenStore.set('expired-token');
 
@@ -66,7 +91,7 @@ describe('authInterceptor', () => {
 
     httpMock.expectOne(protectedUrl).flush(null, { status: 401, statusText: 'Unauthorized' });
 
-    // Refresh fails too (expired/reused cookie) -- must not trigger another refresh attempt.
+    // Refresh fails too (expired/reused cookie): must not trigger another refresh attempt.
     httpMock.expectOne(IdentityAuthEndpoints.refresh).flush(null, { status: 401, statusText: 'Unauthorized' });
 
     expect(error).toBeInstanceOf(HttpErrorResponse);

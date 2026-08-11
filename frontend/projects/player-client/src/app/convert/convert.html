@@ -1,93 +1,174 @@
-<h1>Convert</h1>
+<div class="convert-page">
+  <lib-page-background />
 
-@if (currenciesLoading()) {
-  <div class="state-panel">
-    <mat-spinner diameter="32" />
-    <p>Loading your currencies…</p>
-  </div>
-} @else if (currenciesError()) {
-  <div class="state-panel">
-    <p class="state-error" role="alert">We couldn't load your currencies. Please try again later.</p>
-  </div>
-} @else if (currencies().length === 0) {
-  <div class="state-panel">
-    <p>You don't have any currencies to convert yet.</p>
-  </div>
-} @else {
-  <form class="convert-form" [formGroup]="form" (ngSubmit)="submit()">
-    <mat-form-field appearance="outline">
-      <mat-label>From currency</mat-label>
-      <select matNativeControl formControlName="fromCurrencyId" required>
-        <option value="" disabled>Select a currency</option>
-        @for (currency of currencies(); track currency.currencyId) {
-          <option [value]="currency.currencyId">{{ currency.currencyCode }} &mdash; {{ currency.amount }} available</option>
-        }
-      </select>
-    </mat-form-field>
+  @if (currenciesLoading()) {
+    <div class="state-panel">
+      <mat-spinner diameter="32" />
+      <p>Loading your currencies…</p>
+    </div>
+  } @else if (currenciesError()) {
+    <div class="state-panel">
+      <p class="state-error" role="alert">We couldn't load your currencies. Please try again later.</p>
+    </div>
+  } @else if (currencies().length === 0) {
+    <div class="state-panel">
+      <p>You don't have any currencies to convert yet.</p>
+    </div>
+  } @else {
+    <div class="convert-card">
+      <h1 class="convert-card__title">Convert Currency</h1>
 
-    @if (showGamePicker()) {
-      <mat-form-field appearance="outline">
-        <mat-label>Convert into game</mat-label>
-        <select matNativeControl formControlName="targetGameId">
-          <option value="" disabled>Select a game</option>
-          @for (game of toGameOptions(); track game.id) {
-            <option [value]="game.id">{{ game.name }}</option>
+      <form class="convert-form" [formGroup]="form" (ngSubmit)="submit()">
+        <div class="convert-field">
+          <label class="convert-field__label-row">
+            <span>From</span>
+            @if (selectedFromBalance(); as fromBalance) {
+              <span>Balance: {{ fromBalance.amount }} available</span>
+            }
+          </label>
+          <div class="convert-field__row">
+            <div class="convert-select-wrap convert-select-wrap--grow">
+              <app-select-dropdown formControlName="fromCurrencyId" [options]="fromCurrencyDropdownOptions()" />
+            </div>
+            <div class="convert-input-wrap">
+              <input
+                type="number"
+                formControlName="fromAmount"
+                step="1"
+                min="1"
+                [attr.max]="selectedFromBalance()?.amount ?? null"
+                placeholder="0"
+                required
+                (input)="clampAmountToBalance($event)"
+              />
+            </div>
+          </div>
+          @if (form.controls.fromAmount.hasError('insufficientBalance')) {
+            <p class="convert-error">Amount exceeds your available balance.</p>
           }
-        </select>
-      </mat-form-field>
-    }
+          @if (form.controls.fromAmount.hasError('integerAmount') && !form.controls.fromAmount.hasError('insufficientBalance')) {
+            <p class="convert-error">Amount must be a whole number.</p>
+          }
+        </div>
 
-    <mat-form-field appearance="outline">
-      <mat-label>To currency</mat-label>
-      <select matNativeControl formControlName="toCurrencyId" required>
-        <option value="" disabled>Select a currency</option>
-        @for (currency of toCurrencyOptions(); track currency.id) {
-          <option [value]="currency.id">{{ currency.code }}</option>
+        @if (showGamePicker()) {
+          <div class="convert-field">
+            <label class="convert-field__label-row">
+              <span>Convert into game</span>
+            </label>
+            <div class="convert-select-wrap">
+              <app-select-dropdown formControlName="targetGameId" [options]="targetGameDropdownOptions()" />
+            </div>
+          </div>
         }
-      </select>
-    </mat-form-field>
 
-    <mat-form-field appearance="outline">
-      <mat-label>Amount to send</mat-label>
-      <input matInput type="number" formControlName="fromAmount" step="0.01" required />
-      @if (form.controls.fromAmount.hasError('insufficientBalance')) {
-        <mat-error>Amount exceeds your available balance.</mat-error>
-      }
-    </mat-form-field>
+        <div class="convert-divider" aria-hidden="true">
+          <mat-icon>swap_vert</mat-icon>
+        </div>
 
-    <p class="convert-receive-preview">
-      You'll receive:
-      @if (preview(); as currentPreview) {
-        <strong>{{ currentPreview.amount }} {{ currentPreview.code }}</strong>
-      } @else {
-        <app-not-available message="shown after you confirm the conversion" />
-      }
-    </p>
+        <div class="convert-to-card">
+          <label class="convert-to-card__label-row">
+            <span>To (Estimated)</span>
+            @if (selectedToBalance(); as toBalance) {
+              <span>Balance: {{ toBalance.amount }} {{ toBalance.currencyCode }}</span>
+            }
+          </label>
 
-    @if (error() === 'insufficient-funds') {
-      <p class="convert-error" role="alert">Insufficient funds for this conversion.</p>
-    }
+          <!--
+            The select stays in the DOM at all times (only its visibility
+            toggles) rather than being added/removed with @if, keeping a
+            stable element for anything holding a reference to it (form
+            state, focus, tests).
+          -->
+          <div class="convert-to-card__placeholder" [class.convert-to-card__placeholder--hidden]="!!toCurrencyIdValue()">
+            <mat-icon aria-hidden="true">swap_horiz</mat-icon>
+            Select currencies above to preview the conversion.
+          </div>
 
-    @if (error() === 'conflict') {
-      <p class="convert-error" role="alert">This conversion could not be started. Please try again.</p>
-    }
+          <div class="convert-to-card__row" [class.convert-to-card__row--hidden]="!toCurrencyIdValue()">
+            <div class="convert-to-card__ticker" [class.convert-to-card__ticker--static]="!toCurrencyIsChoice()">
+              <mat-icon aria-hidden="true">monetization_on</mat-icon>
+              <app-select-dropdown
+                formControlName="toCurrencyId"
+                [options]="toCurrencyDropdownOptions()"
+                [readonlyMode]="!toCurrencyIsChoice()"
+              />
+            </div>
 
-    <button type="submit" mat-flat-button color="primary" [disabled]="form.invalid || submitting()">
-      @if (submitting()) {
-        <mat-spinner diameter="20" />
-      } @else {
-        Convert
-      }
-    </button>
-  </form>
-}
+            @if (preview(); as currentPreview) {
+              <span class="convert-to-card__amount">~ {{ currentPreview.amount }} {{ currentPreview.code }}</span>
+            } @else {
+              <lib-not-available message="Preview unavailable" />
+            }
+          </div>
 
-@if (conversion(); as currentConversion) {
-  <div class="conversion-status" [class]="statusStyleClass(currentConversion.status)">
-    <p>Status: <strong>{{ statusLabel(currentConversion.status) }}</strong></p>
+          @if (toCurrencyIdValue() && preview(); as currentPreview) {
+            <p class="convert-to-card__rate">
+              1 {{ selectedFromBalance()?.currencyCode }} = {{ currentPreview.rate }} {{ currentPreview.code }}
+            </p>
+          }
+        </div>
 
-    @if (currentConversion.status === ConversionStatus.Failed && currentConversion.failureReason) {
-      <p role="alert">{{ currentConversion.failureReason }}</p>
-    }
-  </div>
-}
+        @if (error() === 'insufficient-funds') {
+          <p class="convert-error" role="alert">Insufficient funds for this conversion.</p>
+        }
+
+        @if (error() === 'conflict') {
+          <p class="convert-error" role="alert">This conversion could not be started. Please try again.</p>
+        }
+
+        <button type="submit" class="convert-submit" [disabled]="form.invalid || submitting()">
+          @if (submitting()) {
+            <mat-spinner diameter="20" />
+          } @else {
+            Confirm Conversion
+          }
+        </button>
+
+        @if (conversion(); as currentConversion) {
+          <div class="conversion-status">
+            <div class="conversion-status__header">
+              <span class="conversion-status__title">Transaction Status</span>
+              <span class="conversion-status-line">
+                Status:
+                <lib-status-pill
+                  [variant]="statusVariant(currentConversion.status)"
+                  [label]="statusLabel(currentConversion.status)"
+                />
+                @if (isInProgress(currentConversion.status)) {
+                  <mat-icon class="conversion-status-line__spinner" aria-hidden="true">sync</mat-icon>
+                }
+              </span>
+            </div>
+
+            @if (isOnStepperPath(currentConversion.status)) {
+              <div class="convert-stepper">
+                <div class="convert-stepper__track">
+                  <div
+                    class="convert-stepper__progress"
+                    [style.width.%]="stepperProgressPercent(currentConversion.status)"
+                  ></div>
+                </div>
+                <div class="convert-stepper__steps">
+                  @for (step of stepperStatuses(); track step) {
+                    <div
+                      class="convert-stepper__step"
+                      [class.convert-stepper__step--active]="stepperIndex(currentConversion.status) >= stepperIndex(step)"
+                    >
+                      <span class="convert-stepper__dot"></span>
+                      <span class="convert-stepper__label">{{ statusLabel(step) }}</span>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+
+            @if (currentConversion.status === ConversionStatus.Failed && currentConversion.failureReason) {
+              <p class="convert-error" role="alert">{{ currentConversion.failureReason }}</p>
+            }
+          </div>
+        }
+      </form>
+    </div>
+  }
+</div>

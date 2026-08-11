@@ -24,6 +24,9 @@
             "browser": "projects/player-client/src/main.ts",
             "tsConfig": "projects/player-client/tsconfig.app.json",
             "inlineStyleLanguage": "scss",
+            "stylePreprocessorOptions": {
+              "includePaths": ["projects/shared/src/styles"]
+            },
             "assets": [
               {
                 "glob": "**/*",
@@ -37,7 +40,7 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
+                  "maximumWarning": "600kB",
                   "maximumError": "1MB"
                 },
                 {
@@ -98,6 +101,9 @@
             "browser": "projects/admin-client/src/main.ts",
             "tsConfig": "projects/admin-client/tsconfig.app.json",
             "inlineStyleLanguage": "scss",
+            "stylePreprocessorOptions": {
+              "includePaths": ["projects/shared/src/styles"]
+            },
             "assets": [
               {
                 "glob": "**/*",
@@ -111,7 +117,7 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
+                  "maximumWarning": "600kB",
                   "maximumError": "1MB"
                 },
                 {

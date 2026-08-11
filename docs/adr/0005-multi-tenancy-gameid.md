@@ -100,3 +100,8 @@ reader to infer it. See ADR-0013 for the full claim set and the permission model
 new claim-reader has to already know. **Given up / accepted:** nothing changes about where `game_id`
 lives or what it means — this addendum only adds a second, explicit signal for the same distinction,
 it doesn't relocate or redefine it.
+
+See also [ADR-0021](0021-kubernetes-helm-migration.md) — this ADR is purely a data-modeling decision
+and predates the Kubernetes migration by several weeks, but nothing about it changed once the
+platform moved onto a cluster; `game_id` and the tenant registry it describes work the same way
+regardless of what's hosting the database underneath.

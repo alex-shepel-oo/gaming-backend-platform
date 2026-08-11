@@ -1,10 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, output, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
-import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService, DEFAULT_GAME_SLUG, RegistrationAcceptedResponse } from 'shared';
 
@@ -35,15 +32,9 @@ function classifyRegisterError(error: unknown): RegisterError {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-register',
-  imports: [
-    ReactiveFormsModule,
-    MatFormFieldModule,
-    MatIconModule,
-    MatInputModule,
-    MatButtonModule,
-    MatProgressSpinnerModule,
-  ],
+  imports: [ReactiveFormsModule, MatIconModule, MatProgressSpinnerModule],
   templateUrl: './register.html',
   styleUrl: './register.scss',
 })

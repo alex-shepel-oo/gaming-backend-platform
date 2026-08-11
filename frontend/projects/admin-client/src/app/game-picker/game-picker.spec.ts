@@ -24,8 +24,8 @@ describe('GamePicker', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
-        // Real route target -- see admin-login.spec.ts for why [] isn't safe here.
-        provideRouter([{ path: 'dashboard', component: RouteStub }]),
+        // Real route target, see admin-login.spec.ts for why [] isn't safe here.
+        provideRouter([{ path: 'users', component: RouteStub }]),
       ],
     });
 
@@ -58,7 +58,7 @@ describe('GamePicker', () => {
     expect(text).toContain("don't have a role in any game yet");
   });
 
-  it('selecting a game calls the existing select-game endpoint and navigates to the dashboard', () => {
+  it('selecting a game calls the existing select-game endpoint and navigates into the app', () => {
     const navigateSpy = vi.spyOn(router, 'navigateByUrl');
     const fixture = TestBed.createComponent(GamePicker);
 
@@ -75,6 +75,6 @@ describe('GamePicker', () => {
     expect(selectGameRequest.request.body).toEqual({ gameId: 'game-2' });
     selectGameRequest.flush({ accessToken: 'the-game-scoped-access-token' });
 
-    expect(navigateSpy).toHaveBeenCalledWith('/dashboard');
+    expect(navigateSpy).toHaveBeenCalledWith('/users');
   });
 });

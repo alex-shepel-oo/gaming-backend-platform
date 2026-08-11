@@ -33,9 +33,11 @@ describe('ConfirmEmail', () => {
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
-    const codeInput = element.querySelector('input') as HTMLInputElement;
-    codeInput.value = code;
-    codeInput.dispatchEvent(new Event('input'));
+    const digitInputs = Array.from(element.querySelectorAll('.code-digit')) as HTMLInputElement[];
+    code.split('').forEach((digit, index) => {
+      digitInputs[index].value = digit;
+      digitInputs[index].dispatchEvent(new Event('input'));
+    });
     fixture.detectChanges();
 
     (element.querySelector('form') as HTMLFormElement).dispatchEvent(
@@ -133,5 +135,41 @@ describe('ConfirmEmail', () => {
     fixture.detectChanges();
     expect(findResendButton().disabled).toBe(false);
     expect(findResendButton().textContent).toContain('Resend code');
+  });
+
+  it('advances focus to the next box as each digit is entered', () => {
+    const fixture = TestBed.createComponent(ConfirmEmail);
+    fixture.componentRef.setInput('email', 'newplayer@example.com');
+    fixture.componentRef.setInput('password', 'a-strong-password');
+    fixture.detectChanges();
+
+    const digitInputs = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('.code-digit'),
+    ) as HTMLInputElement[];
+
+    digitInputs[0].value = '1';
+    digitInputs[0].dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(document.activeElement).toBe(digitInputs[1]);
+  });
+
+  it('fills every box from a single pasted code', () => {
+    const fixture = TestBed.createComponent(ConfirmEmail);
+    fixture.componentRef.setInput('email', 'newplayer@example.com');
+    fixture.componentRef.setInput('password', 'a-strong-password');
+    fixture.detectChanges();
+
+    const digitInputs = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('.code-digit'),
+    ) as HTMLInputElement[];
+
+    const clipboardData = { getData: () => '123456' } as unknown as DataTransfer;
+    digitInputs[0].dispatchEvent(
+      Object.assign(new Event('paste', { cancelable: true }), { clipboardData }),
+    );
+    fixture.detectChanges();
+
+    expect(digitInputs.map((input) => input.value)).toEqual(['1', '2', '3', '4', '5', '6']);
   });
 });

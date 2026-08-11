@@ -1,17 +1,17 @@
 using System.Net;
 using System.Net.Http.Headers;
 using AwesomeAssertions;
-using EconomyService.Auth;
+using BuildingBlocks.Auth;
 using EconomyService.Tests.Integration.Fixtures;
 using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
 
 namespace EconomyService.Tests.Integration;
 
-// Session 2 of Group A9: EconomyService no longer trusts a shared HS256 secret, it resolves
-// Identity's published RSA key through JwksKeyCache instead. These tests exercise that
-// resolver end to end (real JwksKeyCache, real background refresher, only the HTTP call at
-// the bottom replaced with FakeJwksHandler) rather than unit-testing the cache in isolation.
+// EconomyService trusts Identity's published RSA key through JwksKeyCache, not a shared HS256
+// secret. These tests exercise that resolver end to end (real JwksKeyCache, real background
+// refresher, only the HTTP call at the bottom replaced with FakeJwksHandler) rather than
+// unit-testing the cache in isolation.
 [TestFixture]
 public sealed class JwksValidationTests : IAsyncDisposable
 {
@@ -69,7 +69,7 @@ public sealed class JwksValidationTests : IAsyncDisposable
         using var client = _factory.CreateClient();
 
         // CreateClient() is what actually boots the host (and so triggers Program.cs's own
-        // one-time blocking refresh) the first time it's called on this factory -- send one
+        // one-time blocking refresh) the first time it's called on this factory; send one
         // request first so that startup fetch is already accounted for, then take the baseline.
         using (var warmupRequest = new HttpRequestMessage(HttpMethod.Get, "/balances/me"))
         {
@@ -87,7 +87,7 @@ public sealed class JwksValidationTests : IAsyncDisposable
         }
 
         // The whole point of the background-refreshed cache: five more validated requests
-        // must not cause five more JWKS fetches, or any at all -- the resolver only ever
+        // must not cause five more JWKS fetches, or any at all: the resolver only ever
         // reads the already-warm in-memory snapshot.
         _factory.JwksHandler.RequestCount.Should().Be(requestCountAfterWarmup);
     }
@@ -99,7 +99,7 @@ public sealed class JwksValidationTests : IAsyncDisposable
         var jwksKeyCache = _factory.Services.GetRequiredService<IJwksKeyCache>();
 
         // The factory's startup refresh already succeeded once (or this call succeeds now if
-        // it hadn't yet) -- either way, there is a good snapshot cached before the endpoint is
+        // it hadn't yet), either way, there is a good snapshot cached before the endpoint is
         // simulated as unreachable.
         await jwksKeyCache.RefreshAsync(TestContext.CurrentContext.CancellationToken);
 

@@ -3,7 +3,7 @@
 # network into the cluster for ports 80/443 either. extraPortMappings binds
 # those two host ports onto the control-plane node container; Traefik's own
 # Helm values (see scripts/k8s/traefik-values-local.yaml) then bind its pod
-# to the matching hostPort on that same node, closing the loop -- the same
+# to the matching hostPort on that same node, closing the loop, the same
 # recipe kind documents for ingress-nginx, just pointed at Traefik instead.
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4

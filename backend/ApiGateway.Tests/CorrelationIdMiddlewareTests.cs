@@ -1,6 +1,6 @@
-using ApiGateway.Auth;
 using ApiGateway.Tests.Fixtures;
 using AwesomeAssertions;
+using BuildingBlocks.Auth;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;

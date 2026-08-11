@@ -28,6 +28,9 @@ public sealed class EmailVerificationRequestedConsumerTests(RabbitMqFixture rabb
         File.WriteAllText(
             Path.Combine(_templatesDirectory, "EmailVerification.html"),
             "<p>Code for {{GameName}}: {{Code}} (expires in {{ExpiresInMinutes}}m)</p>");
+        File.WriteAllText(
+            Path.Combine(_templatesDirectory, "EmailVerification.txt"),
+            "{{Code}} {{GameName}} {{ExpiresInMinutes}}");
 
         var emailSender = new RecordingEmailSender();
         var rabbitMqOptions = BuildRabbitMqOptions();

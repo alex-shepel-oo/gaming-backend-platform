@@ -1,23 +1,41 @@
 <h2 mat-dialog-title>{{ data.game.name }}</h2>
 
 <mat-dialog-content class="game-details-content">
-  @if (data.game.iconUrl) {
-    <img class="game-details-icon" [src]="data.game.iconUrl" [alt]="data.game.name" />
+  @if (data.game.iconUrl && !iconFailed()) {
+    <img
+      class="game-details-icon"
+      [src]="data.game.iconUrl"
+      [alt]="data.game.name"
+      (error)="iconFailed.set(true)"
+    />
+  } @else {
+    <div class="game-details-icon game-details-icon-placeholder">
+      <mat-icon aria-hidden="true">sports_esports</mat-icon>
+    </div>
   }
 
   <p class="game-details-slug">{{ data.game.slug }}</p>
+
+  @if (data.balances.length > 0) {
+    <h3>Balance in this game</h3>
+    <div class="game-details-balances">
+      @for (balance of data.balances; track balance.currencyId) {
+        <span class="game-details-balance">
+          <mat-icon aria-hidden="true">monetization_on</mat-icon>
+          {{ balance.amount }} {{ balance.currencyCode }}
+        </span>
+      }
+    </div>
+  }
 
   <h3>About this game</h3>
   @if (data.game.description) {
     <p class="game-details-description">{{ data.game.description }}</p>
   } @else {
-    <app-not-available message="Game description isn't available yet" />
+    <lib-not-available message="Game description isn't available yet" />
   }
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">
   <button type="button" mat-button mat-dialog-close>Close</button>
-  <button type="button" mat-flat-button color="primary" [disabled]="data.isSelected" (click)="select()">
-    {{ data.isSelected ? 'Selected' : 'Select this game' }}
-  </button>
 </mat-dialog-actions>

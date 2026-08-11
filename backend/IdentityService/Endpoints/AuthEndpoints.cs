@@ -18,6 +18,7 @@ public static class AuthEndpoints
         group.MapPost("/confirm-email", ConfirmEmailAsync).RequireRateLimiting(RateLimitPolicies.ConfirmEmail);
         group.MapPost("/resend-verification", ResendVerificationAsync).RequireRateLimiting(RateLimitPolicies.ResendVerification);
         group.MapPost("/request-password-reset", RequestPasswordResetAsync).RequireRateLimiting(RateLimitPolicies.RequestPasswordReset);
+        group.MapGet("/reset-password/validate", ValidateResetTokenAsync).RequireRateLimiting(RateLimitPolicies.ResetPassword);
         group.MapPost("/reset-password", ResetPasswordAsync).RequireRateLimiting(RateLimitPolicies.ResetPassword);
         group.MapPost("/login", LoginAsync).RequireRateLimiting(RateLimitPolicies.Login);
         group.MapPost("/refresh", RefreshAsync);
@@ -67,6 +68,16 @@ public static class AuthEndpoints
         await passwordResetService.RequestResetAsync(request.Email, cancellationToken);
 
         return TypedResults.Accepted((string?)null);
+    }
+
+    private static async Task<NoContent> ValidateResetTokenAsync(
+        string token,
+        IPasswordResetService passwordResetService,
+        CancellationToken cancellationToken)
+    {
+        await passwordResetService.ValidateTokenAsync(token, cancellationToken);
+
+        return TypedResults.NoContent();
     }
 
     private static async Task<Ok<ResetPasswordResponse>> ResetPasswordAsync(

@@ -1,6 +1,6 @@
 # Headless (clusterIP: None), same reasoning for each entry below: a
 # single-instance backing service gets a stable pod DNS identity rather than
-# a load-balanced one -- there is exactly one writer to talk to.
+# a load-balanced one: there is exactly one writer to talk to.
 {{- range $name, $svc := .Values.statefulsets }}
 ---
 apiVersion: v1

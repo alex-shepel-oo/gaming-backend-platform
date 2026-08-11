@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # node-exporter is a cluster addon, not something the app's own Helm chart
-# deploys -- same relationship install-traefik.sh/install-argocd.sh have to
+# deploys, the same relationship install-traefik.sh/install-argocd.sh have to
 # their own releases. Gives Prometheus (infra/prometheus/prometheus.yml's
 # node-exporter job) the host-level CPU/memory/disk numbers for the node
 # itself, which nothing else in this stack exposes. Same for both local and

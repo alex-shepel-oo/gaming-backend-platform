@@ -2,7 +2,6 @@
  * Public API Surface of shared
  */
 
-export * from './lib/shared';
 export * from './lib/auth/auth.guard';
 export * from './lib/auth/auth.interceptor';
 export * from './lib/auth/auth.service';
@@ -32,6 +31,13 @@ export * from './lib/profile/profile.service';
 export * from './lib/roles/identity-role-endpoints';
 export * from './lib/roles/role-permissions.service';
 export * from './lib/telemetry/frontend-telemetry.provider';
+export * from './lib/ui/empty-state/empty-state';
+export * from './lib/ui/not-available/not-available';
+export * from './lib/ui/not-found/not-found';
+export * from './lib/ui/page-background/page-background';
+export * from './lib/ui/status-pill/status-pill';
+export * from './lib/ui/wip-overlay/wip-overlay';
 export * from './lib/users/identity-user-endpoints';
 export * from './lib/users/user-management.service';
 export * from './lib/util/avatar';
+export * from './lib/util/loadable';

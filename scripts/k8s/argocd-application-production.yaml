@@ -1,21 +1,7 @@
-# Argo CD's own Application CR -- the piece that was actually missing before
-# this file existed: Argo CD itself was installed and reachable, but tracking
-# nothing (`kubectl get applications -n argocd` came back empty). This is
-# what turns it into real GitOps for this repo's own chart.
-#
-# syncPolicy.automated was deliberately left out until develop merged into
-# main and the first sync was verified by hand (a manual `argocd app sync`,
-# clean diff -- see the commit history here for the RBAC snag that surfaced
-# doing that: policy.default's role turned out to apply to every
-# authenticated subject, including the local admin account, not just
-# unmapped ones, so a leftover readonly policy.csv from the anonymous-access
-# incident was silently blocking admin from syncing anything at all).
-# main now carries this chart for real and a clean sync has already run, so
-# auto-sync is on: a push to main is a real deploy from here. See
-# .github/actions/bump-image-tag and values-production.yaml's own imageTag
-# comment for the other half of that loop -- Argo CD reacts to the git
-# commit the CI bump step makes, not to a registry push under a floating
-# tag, which by itself changes nothing this Application would notice.
+# Argo CD's own Application CR. See ADR 0023 for why this exists, the
+# anonymous-access and admin-RBAC incidents behind syncPolicy.automated being
+# safe to leave on, and how the image-tags/*.yaml split below ties into
+# .github/actions/bump-image-tag.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -29,11 +15,58 @@ spec:
     path: infra/helm/gaming-backend-platform
     helm:
       valueFiles:
+        # Per-service base spec (see ADR 0021): must come first, since
+        # values-production/*.yaml below overrides specific fields (hpa,
+        # ingress host) inside these same service blocks. Argo CD has no
+        # glob support for valueFiles, unlike apply.sh's local equivalent,
+        # so this list is enumerated by hand.
+        - values/identity-service.yaml
+        - values/economy-service.yaml
+        - values/email-service.yaml
+        - values/notification-service.yaml
+        - values/platform-worker.yaml
+        - values/player-client.yaml
+        - values/admin-client.yaml
+        - values/gateway.yaml
+        - values/mailpit.yaml
+        - values/otel-collector.yaml
+        - values/tempo.yaml
+        - values/prometheus.yaml
+        - values/loki.yaml
+        - values/grafana.yaml
+        - values/identity-db.yaml
+        - values/economy-db.yaml
+        - values/rabbitmq.yaml
+        - values/identity-migrator.yaml
+        - values/economy-migrator.yaml
         - values-local.yaml
         - values-production.yaml
+        # Per-service production overrides: env/hpa/ingress-host
+        # differences from the base spec above. See ADR 0023.
+        - values-production/identity-service.yaml
+        - values-production/economy-service.yaml
+        - values-production/gateway.yaml
+        - values-production/notification-service.yaml
+        - values-production/email-service.yaml
+        - values-production/grafana.yaml
+        - values-production/player-client.yaml
+        - values-production/admin-client.yaml
+        - values-production/prometheus.yaml
+        - values-production/loki.yaml
+        - values-production/tempo.yaml
+        # CI-managed image tags, one file per workflow; see ADR 0023 and
+        # image-tags/*.yaml's own comments for which workflow owns which.
+        - image-tags/identity.yaml
+        - image-tags/economy.yaml
+        - image-tags/gateway.yaml
+        - image-tags/notification.yaml
+        - image-tags/email.yaml
+        - image-tags/platform-worker.yaml
+        - image-tags/player-client.yaml
+        - image-tags/admin-client.yaml
       # --set-file's equivalent: a leading "/" is repo-root-relative rather
       # than chart-path-relative, since every one of these lives outside
-      # infra/helm/gaming-backend-platform itself -- same files
+      # infra/helm/gaming-backend-platform itself, the same files
       # scripts/k8s/apply.sh passes in for the local cluster.
       fileParameters:
         - name: gateway.ocelotConfigJson
@@ -56,10 +89,16 @@ spec:
           path: /infra/grafana/dashboards/node-resources.json
         - name: emailService.templates.emailVerificationHtml
           path: /backend/EmailService/Templates/EmailVerification.html
+        - name: emailService.templates.emailVerificationText
+          path: /backend/EmailService/Templates/EmailVerification.txt
         - name: emailService.templates.passwordResetHtml
           path: /backend/EmailService/Templates/PasswordReset.html
+        - name: emailService.templates.passwordResetText
+          path: /backend/EmailService/Templates/PasswordReset.txt
         - name: emailService.templates.duplicateRegistrationNoticeHtml
           path: /backend/EmailService/Templates/DuplicateRegistrationNotice.html
+        - name: emailService.templates.duplicateRegistrationNoticeText
+          path: /backend/EmailService/Templates/DuplicateRegistrationNotice.txt
   destination:
     server: https://kubernetes.default.svc
     namespace: gaming-platform

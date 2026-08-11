@@ -93,7 +93,7 @@ describe('UserManagement', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('one@example.com');
     expect(text).toContain('two@example.com');
-    expect(text).toContain('Users in the platform');
+    expect(text).toContain('the platform');
   });
 
   it('shows the last login date for a user who has logged in, and "Never" for one who has not', () => {
@@ -106,7 +106,9 @@ describe('UserManagement', () => {
     expect(text).toContain('Never');
   });
 
-  it('searching re-queries the users list with the search term and resets to page 1', () => {
+  it('searching re-queries the users list with the search term and resets to page 1, debounced', () => {
+    vi.useFakeTimers();
+
     tokenStore.set(fakeAccessToken({ role: 'Admin' }));
 
     const fixture = TestBed.createComponent(UserManagement);
@@ -114,8 +116,15 @@ describe('UserManagement', () => {
 
     fixture.componentInstance['onSearch']('one');
 
+    // Not fired yet, still within the debounce window.
+    httpMock.expectNone(IdentityUserEndpoints.list('one', 1, 20));
+
+    vi.advanceTimersByTime(300);
+
     const request = httpMock.expectOne(IdentityUserEndpoints.list('one', 1, 20));
     request.flush({ items: [users[0]], page: 1, pageSize: 20, totalCount: 1 });
+
+    vi.useRealTimers();
   });
 
   it('disables a role option the caller lacks the granted permission set for, and leaves an assignable one enabled', () => {
@@ -185,7 +194,7 @@ describe('UserManagement', () => {
     const assignRequest = httpMock.expectOne(IdentityUserEndpoints.role('user-1'));
     expect(assignRequest.request.method).toBe('PATCH');
     expect(assignRequest.request.body).toEqual({ gameId: null, role: 'Moderator' });
-    // UserRoleDto has no email/displayName -- if the view were patched from this
+    // UserRoleDto has no email/displayName; if the view were patched from this
     // alone those fields would go missing, which is why a refetch follows.
     assignRequest.flush({ userId: 'user-1', gameId: null, role: 'Moderator', grantedAt: '2026-01-05T00:00:00Z' });
 
@@ -195,7 +204,8 @@ describe('UserManagement', () => {
     fixture.detectChanges();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Current role: Moderator');
+    expect(text).toContain('Current role');
+    expect(text).toContain('Moderator');
     expect(text).toContain('one@example.com');
   });
 

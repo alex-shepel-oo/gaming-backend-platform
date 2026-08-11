@@ -1,0 +1,52 @@
+deployments:
+  gateway:
+    image: api-gateway
+    replicas: 2
+    port: 5100
+    service:
+      enabled: true
+      name: api-gateway
+      port: 5100
+    configMapName: gateway-config
+    configMap:
+      ASPNETCORE_ENVIRONMENT: "Kubernetes"
+      ASPNETCORE_URLS: "http://+:5100"
+      Jwt__JwksUri: "http://identity-service:5000/.well-known/jwks.json"
+      Telemetry__OtlpEndpoint: "http://otel-collector.observability.svc.cluster.local:4317"
+      Telemetry__LokiEndpoint: "http://loki.observability.svc.cluster.local:3100"
+    envFrom:
+      - configMapRef: {name: shared-config}
+      - configMapRef: {name: gateway-config}
+    volumeMounts:
+      - name: ocelot-kubernetes-config
+        mountPath: /app/ocelot.Kubernetes.json
+        subPath: ocelot.Kubernetes.json
+    volumes:
+      - name: ocelot-kubernetes-config
+        configMap:
+          name: gateway-config
+          items:
+            - key: ocelot.Kubernetes.json
+              path: ocelot.Kubernetes.json
+    livenessProbe:
+      httpGet: {path: /health, port: 5100}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    readinessProbe:
+      httpGet: {path: /health, port: 5100}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+ingress:
+  hosts:
+    gateway:
+      host: gateway.localhost
+      service: api-gateway
+      port: 5100

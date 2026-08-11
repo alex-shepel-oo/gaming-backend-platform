@@ -11,7 +11,7 @@ namespace EconomyService.Messaging;
 // The first real consumer in the system: everything before this only ever
 // published. It binds its own queue to a subset of the topic exchange's
 // routing keys - the outbox dispatcher never declared one, since a
-// producer-only exchange doesn't need a queue behind it (A.3).
+// producer-only exchange doesn't need a queue behind it.
 //
 // This is self-consumption for demonstration, not a production subscriber:
 // EconomyService both emits BalanceChanged/conversion.* events through the

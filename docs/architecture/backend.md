@@ -1,0 +1,68 @@
+# Backend deployment topology
+
+Detail behind the [Local vs Kubernetes summary](../architecture.md#local-vs-kubernetes) in the main
+architecture doc — the full compose-vs-Kubernetes comparison, one row per aspect that actually
+differs between the two.
+
+Both run the same images; only how services find each other, where configuration comes from, and
+how many replicas of each exist differs.
+
+The Kubernetes side mirrors the full compose stack: `identity-db`, `identity-service`, `economy-db`,
+`rabbitmq`, `economy-service`, `platform-worker`, `player-client`, `api-gateway`, plus `mailpit` in
+non-production namespaces. Consul is the one piece with no Kubernetes counterpart at all — see the
+service discovery row below.
+
+## Production ingress topology
+
+A single-node k3s cluster on the VPS, never exposed directly — Cloudflare sits in front of every
+public hostname:
+
+```mermaid
+flowchart LR
+    Browser -->|HTTPS, Cloudflare edge cert| CF[Cloudflare]
+    CF -->|HTTPS, Origin Certificate<br/>Full strict TLS| Traefik[Traefik Ingress]
+
+    subgraph K3s[k3s, one VPS node]
+        Traefik --> PC["player-client<br/>gbplatform.shepel.dev"]
+        Traefik --> AC["admin-client<br/>gbadmin.shepel.dev"]
+        Traefik --> GW["api-gateway<br/>gbgateway.shepel.dev"]
+        Traefik --> GF["Grafana<br/>gbgrafana.shepel.dev, observability ns"]
+        Traefik --> AR["Argo CD<br/>gbargocd.shepel.dev"]
+        PC -.->|same-origin /api proxy| GW
+        AC -.->|same-origin /api proxy| GW
+    end
+```
+
+`values-production.yaml`'s `ingress.tlsSecretName: cloudflare-origin-tls` is the concrete artifact of
+the Full Strict mode above: Traefik presents a Cloudflare Origin Certificate, not a Let's Encrypt
+one, since the origin only ever needs to be trusted by Cloudflare itself, not by a browser directly.
+That Secret (cert + key) is applied out of band in both the `gaming-platform` and `observability`
+namespaces — it's not created by this chart.
+
+| | docker-compose (`infra/docker-compose.yml`) | Kubernetes (`infra/helm/gaming-backend-platform/`) |
+|---|---|---|
+| Service discovery | Consul (`ServiceDiscoveryProvider: Consul` + `ServiceName` in `ocelot.Development.json`) | None deployed — Kubernetes Services and kube-DNS already resolve names like `identity-service.gaming-platform.svc.cluster.local`; `ocelot.Kubernetes.json` uses those directly. Running Consul here too would be a second system answering a question Kubernetes already answers. See [ADR 0002](../adr/0002-api-gateway-ocelot-consul.md) |
+| `identity_db` / `economy_db` | Single Postgres container each, no replicas | `identity-db` / `economy-db` StatefulSets, each with its own PVC via `volumeClaimTemplates` — stable pod identity and a single writer, not a Deployment. Dev/sandbox only; production points at managed instances |
+| RabbitMQ | Single container, no volume | `rabbitmq` StatefulSet + PVC (`rabbitmq:4-management-alpine`). The outbox dispatcher ([ADR 0010](../adr/0010-transactional-outbox-event-bus.md)) hands a message to the broker and then marks its own outbox row processed; a pod recreated between those two points with no volume loses exactly the message the outbox table already believes was delivered. Same dev/sandbox-only caveat as the databases above — production would use a managed broker |
+| Database migrations | `identity-migrator` / `economy-migrator` one-shot containers, ordered via `depends_on: condition: service_completed_successfully` | Kubernetes `Job`s (`identity-migrator` / `economy-migrator`), not an initContainer and not folded into the service Deployment — a Job is the object whose `backoffLimit`/completion semantics actually mean "run once to completion, then stop," which neither an initContainer (tied to one pod's lifecycle) nor a Deployment (expects a long-running process) give for free. Both Jobs are `pre-install`/`pre-upgrade` Helm hooks, at a later weight than the `identity-db`/`economy-db` StatefulSets (hooks too, for the same reason — see `templates/statefulset.yaml`'s own comment), so Helm finishes them before any app Deployment is even created — the same ordering compose gets for free from `service_completed_successfully`, expressed through Helm's own mechanism for it instead of a wrapper script re-implementing `kubectl wait` by hand |
+| Configuration | `.env` (committed as `.env.example`, localhost-only so it's not a real secret) | Non-secret values in `values.yaml`/`values-local.yaml` (rendered into a shared ConfigMap plus one per service); signing keys, connection strings and broker credentials in Secrets. Only the `secrets.example/*.yaml` templates are committed, with placeholder values — the real Secret is applied directly and never lands in git, and isn't part of the Helm release itself |
+| `ASPNETCORE_ENVIRONMENT` | `Development` | `Development` on every service's ConfigMap, not `Production` — this cluster is a local demo/sandbox target (clone the repo, stand up a kind cluster, no cloud credentials involved), and `Development` is what actually turns on the existing `DevelopmentSeeder`s for a working demo. **Known limitation:** a real production target still needs its own decision about environment and seeding once that work starts — this doesn't make that call |
+| Mailpit | Always present (`mailpit` service) | Only in local kind clusters and the sandbox namespace, gated by `mailpit.enabled` (`true` in `values-local.yaml`, `false` in `values-production.yaml`). The production release never gets this Deployment; `email-service`'s `Email__Smtp__Host` there points at the real relay instead |
+| JWT signing key | Same value in `identity-service`'s and `api-gateway`'s `Jwt__Key`, from the shared `.env` | `identity-service`, `gateway` and `economy-service` all read `Jwt__Key` from the same `identity-secrets` Secret rather than each holding a copy — one source of truth, so rotating the key can't update two of the three and silently miss the other |
+| Platform.Worker | Single container, no scaling knob | Deployment with `replicas: 1`, and **no HPA object exists for it at all** — not an HPA capped at `maxReplicas: 1` (that would still let scale events fire), the manifest is simply absent. Quartz here runs its default, non-clustered `JobStore`; a second replica would run `CleanupExpiredTokensJob` from two pods with no coordination between them, unlike the outbox dispatcher, which `SELECT ... FOR UPDATE SKIP LOCKED` protects against the same class of problem. **Known limitation:** real horizontal scaling of the worker needs a clustered `AdoJobStore`, not built here |
+| player-client / Ingress | player-client's own Nginx proxies `/api/*` to `api-gateway` over the compose network, so the browser and the API share the `:8080` origin — what lets the refresh cookie use `SameSite=Strict` ([ADR 0011](../adr/0011-web-auth-cookie-flow.md)) | The Ingress (Traefik, replacing the earlier ingress-nginx assumption) routes one single-level `*.localhost` hostname per web-facing Service: `player-client.localhost`, `admin-client.localhost`, `mailpit.localhost`, `gateway.localhost` (the last one for direct Postman/curl access, not something the web clients themselves need). There's no rule sending `/api` straight to `api-gateway` under `player-client.localhost` — that would duplicate the same-origin decision in two places (Ingress rules and `nginx.conf`) that could quietly drift apart later. player-client's Nginx does the identical `/api` proxy it does in compose, just resolving `api-gateway` through kube-DNS instead of a compose service name — one mechanism, one place, for both topologies. See [ADR 0011](../adr/0011-web-auth-cookie-flow.md) / [ADR 0012](../adr/0012-frontend-security-and-guards.md) |
+| Gateway routing config | `ocelot.Development.json`, Consul-based `ServiceName` routing | `ocelot.Kubernetes.json`, static `DownstreamHostAndPorts` pointing at `*.svc.cluster.local` names. The chart's `gateway-config` ConfigMap embeds that file's contents directly rather than a hand-copied inline block — this file drifted from a manually maintained ConfigMap twice before the switch, so generation removes that whole class of mistake. That source file lives outside `infra/helm/gaming-backend-platform/`, and Helm's `.Files.Get` can't read outside the chart's own directory any more than Kustomize could read outside a kustomization's — so `scripts/k8s/apply.sh` passes it in with `helm upgrade --install --set-file gateway.ocelotConfigJson=backend/ApiGateway/ocelot.Kubernetes.json` instead of keeping a second copy inside the chart |
+| Image pull policy | n/a — images are built locally and used directly | `imagePullPolicy: IfNotPresent` on every locally-built image (`identity-service`, `economy-service`, `api-gateway`, `platform-worker`, `player-client`, and both migrator Jobs). All of them are tagged `:latest`, which Kubernetes otherwise defaults to `imagePullPolicy: Always` for — that tries a registry pull on every pod start, which fails on a kind cluster with no registry access. Third-party images (`postgres`, `rabbitmq`, `mailpit`) are left on their own default; only the images this repo builds need the override |
+| Observability stack | `otel-collector`, `tempo`, `prometheus`, `loki`, `grafana` all present as containers ([ADR 0019](../adr/0019-opentelemetry-observability.md)) | Deployed by the same chart, but into its own `observability` namespace rather than `gaming-platform` — a deliberate split so the observability stack's lifecycle doesn't couple to the app's. `otel-collector-alias.yaml` adds an `ExternalName` Service named `otel-collector` inside `gaming-platform`, aliasing to the real Service's cross-namespace DNS name — both frontend Nginx configs hardcode a bare `otel-collector` hostname baked in at image build time, and Kubernetes only resolves an unqualified Service name within the querying pod's own namespace, so without the alias that name would never resolve from either frontend's pod |
+
+Namespace is `gaming-platform`, created via `helm upgrade --install --create-namespace` rather than a
+templated `Namespace` resource in the chart — the release itself only ever targets a namespace that
+already exists or is being created in the same command, so there's no ordering concern equivalent to
+the old Kustomize tree's numbered `base/` files.
+
+## Related documentation
+
+- [Architecture overview](../architecture.md)
+- [ADR 0021: Kubernetes/Helm migration](../adr/0021-kubernetes-helm-migration.md)
+- [ADR 0023: GitOps with Argo CD](../adr/0023-gitops-argocd.md)
+- [Operations: deployment](../operations/deployment.md)

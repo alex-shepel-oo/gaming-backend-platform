@@ -19,12 +19,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Plain content, not EmbeddedResource on purpose: EmailTemplateRenderer reads these fresh off
-         disk on every render call instead of caching them once at startup, so a ConfigMap-mounted
-         file change (infra/helm/gaming-backend-platform's email-service-templates ConfigMap) reaches
-         a running pod without a restart. CopyToOutputDirectory keeps `dotnet run`/the Docker image
-         working with a sane baked-in default before any ConfigMap volume overlays it. -->
+    <!-- Content, not EmbeddedResource: EmailTemplateRenderer re-reads these from disk on every
+         call so the ConfigMap-mounted copy in Kubernetes can change without a pod restart. -->
     <Content Include="Templates\*.html" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Templates\*.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using BuildingBlocks.Testing;
 using EconomyService.Domain;
 using EconomyService.Domain.Enums;
 using EconomyService.Persistence;
@@ -13,7 +14,7 @@ namespace EconomyService.Tests.Integration;
 [TestFixture]
 public sealed class SchemaTests : IAsyncDisposable
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17-alpine")
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder(TestContainerImages.Postgres)
         .WithDatabase("economy_db")
         .WithUsername("economy")
         .WithPassword("economy_test_password")

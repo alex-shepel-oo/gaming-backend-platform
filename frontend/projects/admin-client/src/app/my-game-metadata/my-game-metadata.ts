@@ -1,20 +1,21 @@
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { GamesService, PublicGame, TokenStore } from 'shared';
+import { GamesService, Loadable, PublicGame, TokenStore } from 'shared';
 
 // Deliberately narrower than GamesManagement: a caller here holds
 // game.metadata.edit but not platform.games.manage, and the backend rejects
-// anything beyond description/iconUrl from that caller (see UpdateGameAsync's
-// field-level check) -- so this form doesn't even offer name/isActive/create.
+// anything beyond description/iconUrl from that caller, so this form doesn't
+// even offer name/isActive/create.
 // There's no "get one game by id" endpoint to back a single-game screen;
 // listMyGames() already returns exactly the games the caller has a role on,
 // which for a game-scoped Game-Admin is a one-element array.
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'admin-my-game-metadata',
   imports: [ReactiveFormsModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule],
   templateUrl: './my-game-metadata.html',
@@ -25,8 +26,9 @@ export class MyGameMetadata {
   private readonly formBuilder = inject(FormBuilder);
   protected readonly tokenStore = inject(TokenStore);
 
-  protected readonly loading = signal(true);
-  protected readonly loadError = signal(false);
+  private readonly gameResource = new Loadable();
+  protected readonly loading = this.gameResource.loading;
+  protected readonly loadError = this.gameResource.error;
   protected readonly noGame = signal(false);
   protected readonly game = signal<PublicGame | null>(null);
 
@@ -41,7 +43,7 @@ export class MyGameMetadata {
 
   constructor() {
     if (!this.tokenStore.claims()?.gameId) {
-      this.loading.set(false);
+      this.gameResource.loading.set(false);
       this.noGame.set(true);
       return;
     }
@@ -74,31 +76,21 @@ export class MyGameMetadata {
   }
 
   private load(): void {
-    this.loading.set(true);
-    this.loadError.set(false);
     this.noGame.set(false);
 
-    this.gamesService.listMyGames().subscribe({
-      next: (games) => {
-        this.loading.set(false);
+    this.gameResource.load(this.gamesService.listMyGames(), (games) => {
+      const game = games[0];
 
-        const game = games[0];
+      if (!game) {
+        this.noGame.set(true);
+        return;
+      }
 
-        if (!game) {
-          this.noGame.set(true);
-          return;
-        }
-
-        this.game.set(game);
-        this.editForm.setValue({
-          description: game.description ?? '',
-          iconUrl: game.iconUrl ?? '',
-        });
-      },
-      error: () => {
-        this.loading.set(false);
-        this.loadError.set(true);
-      },
+      this.game.set(game);
+      this.editForm.setValue({
+        description: game.description ?? '',
+        iconUrl: game.iconUrl ?? '',
+      });
     });
   }
 }

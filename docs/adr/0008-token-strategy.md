@@ -41,7 +41,10 @@ is bounded by the access token's own short lifetime rather than by anything more
 
 **Signing is HS256 with a symmetric key shared by every validating service.** This means any
 service that can validate a token could also mint one. Accepted for this slice; RS256 with a JWKS
-endpoint is the named next step, not a silent gap.
+endpoint is the named next step, not a silent gap. That step has since shipped —
+[ADR-0017](0017-rs256-and-jwks.md) moved every validating service off this shared secret onto
+RS256 + JWKS, superseding this section specifically (the rest of this ADR — token lifetime, refresh
+rotation, the deny-list's scope — is unaffected by that change).
 
 **Known, accepted cost:** a client that loses the network response to a legitimate `/refresh` call
 will retry with the now-consumed token and get treated as a reuse — the whole family is revoked

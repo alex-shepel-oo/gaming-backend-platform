@@ -1,26 +1,96 @@
 :host {
   display: block;
+  // Without width:100%, this block's "auto" width shrink-wraps to its own
+  // content instead of filling .shell-content; max-width alone only caps
+  // a width that's already been resolved to something bigger.
+  width: 100%;
   max-width: var(--app-shell-max-width);
   margin: 0 auto;
   padding: var(--app-space-lg);
+  box-sizing: border-box;
+}
+
+.roles-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-lg);
+
+  // Mobile keeps the stacked layout above unchanged. Desktop only: role
+  // picker becomes a narrow sidebar next to the permissions area, instead
+  // of both stacked full-width wasting a 1280px shell's horizontal room.
+  @media (min-width: 768px) {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    align-items: start;
+    gap: var(--app-space-xl);
+  }
 }
 
 .selectors {
   display: flex;
   gap: var(--app-space-sm);
   flex-wrap: wrap;
-  margin-bottom: var(--app-space-md);
+
+  @media (min-width: 768px) {
+    flex-direction: column;
+    flex-wrap: nowrap;
+  }
+}
+
+.roles-layout__permissions {
+  min-width: 0;
 }
 
 .permissions-card {
   margin-bottom: var(--app-space-lg);
 }
 
-.permissions-list {
+.permissions-groups {
   display: flex;
   flex-direction: column;
-  gap: var(--app-space-sm);
+  gap: var(--app-space-lg);
   margin-bottom: var(--app-space-md);
+}
+
+.permissions-group {
+  padding-top: var(--app-space-md);
+  border-top: 1px solid var(--mat-sys-outline-variant);
+
+  &:first-child {
+    padding-top: 0;
+    border-top: none;
+  }
+}
+
+.permissions-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--app-space-sm);
+
+  h3 {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-sm);
+    margin: 0;
+    font: var(--mat-sys-label-large);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--mat-sys-on-surface-variant);
+
+    mat-icon {
+      color: var(--app-color-admin-primary);
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+    }
+  }
+}
+
+.permissions-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--app-space-sm);
 }
 
 .state-panel {

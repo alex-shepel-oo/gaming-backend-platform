@@ -1,3 +1,4 @@
+using BuildingBlocks.Testing;
 using Testcontainers.RabbitMq;
 using Xunit;
 
@@ -5,7 +6,7 @@ namespace IdentityService.Tests.Integration.Fixtures;
 
 public sealed class RabbitMqFixture : IAsyncLifetime
 {
-    private readonly RabbitMqContainer _container = new RabbitMqBuilder("rabbitmq:4-management-alpine")
+    private readonly RabbitMqContainer _container = new RabbitMqBuilder(TestContainerImages.RabbitMq)
         .WithUsername("guest")
         .WithPassword("guest")
         .Build();

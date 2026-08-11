@@ -8,7 +8,7 @@ namespace IdentityService.Tests.Integration.Fixtures;
 
 // Now that IdentityService writes email side effects to the outbox instead of calling IEmailSender
 // directly (RecordingEmailSender/Factory.EmailSender used to intercept that call, before this
-// extraction), tests assert on outbox row contents instead -- same query shape
+// extraction), tests assert on outbox row contents instead - same query shape
 // ConfirmEmailOutboxTests already established for UserEmailConfirmedEvent, factored here since five
 // other test classes need the same thing for the three new email events.
 public static class OutboxTestExtensions

@@ -27,3 +27,9 @@ See the template: [0000-template.md](0000-template.md).
 | [0018](0018-shared-messaging-building-block.md) | Shared Messaging Building Block (`BuildingBlocks.Messaging`) | Accepted | 3 |
 | [0019](0019-opentelemetry-observability.md) | OpenTelemetry Observability: Collector Hub and Grafana-Native Backends | Accepted | — |
 | [0020](0020-frontend-tracing-with-faro.md) | Frontend Distributed Tracing with Grafana Faro | Accepted | — |
+| [0021](0021-kubernetes-helm-migration.md) | Kubernetes Deployment: One Helm Chart, Map-Driven | Accepted | — |
+| [0022](0022-observability-stack.md) | Observability Stack: OpenTelemetry, Grafana, and Real Infra Visibility | Accepted | — |
+| [0023](0023-gitops-argocd.md) | GitOps with Argo CD: Sync Scope, RBAC, and Per-Service Image Tags | Accepted | — |
+| [0024](0024-email-service-extraction.md) | Email Delivery Moves Out of IdentityService into EmailService | Accepted | — |
+| [0025](0025-close-self-service-avatar-url.md) | Close Self-Service Avatar URLs | Accepted | — |
+| [0026](0026-game-hard-delete-orphaned-economy-data.md) | Game Hard-Delete, and the EconomyService Data It Can't Clean Up | Accepted | — |

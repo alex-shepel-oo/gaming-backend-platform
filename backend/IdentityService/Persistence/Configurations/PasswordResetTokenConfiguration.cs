@@ -29,7 +29,7 @@ public sealed class PasswordResetTokenConfiguration : IEntityTypeConfiguration<P
             .HasDatabaseName("ix_password_reset_tokens_token_hash");
 
         // Invariant "one live token per account" lives in the database, not the
-        // service layer -- a check-then-act in code would race across replicas.
+        // service layer: a check-then-act in code would race across replicas.
         builder.HasIndex(t => t.UserId)
             .IsUnique()
             .HasFilter("consumed_at IS NULL")

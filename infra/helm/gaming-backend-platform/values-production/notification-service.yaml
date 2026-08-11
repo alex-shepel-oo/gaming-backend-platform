@@ -1,0 +1,4 @@
+deployments:
+  notification-service:
+    configMap:
+      ASPNETCORE_ENVIRONMENT: "Production"

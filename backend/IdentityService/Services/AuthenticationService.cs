@@ -37,7 +37,7 @@ public sealed class AuthenticationService(
         var now = timeProvider.GetUtcNow();
 
         // ToLower() here is translated to SQL lower(), matching the functional unique
-        // index on lower(email) from the initial migration -- it never runs as a CLR
+        // index on lower(email) from the initial migration: it never runs as a CLR
         // string method, so the culture/StringComparison analyzers do not apply.
 #pragma warning disable CA1304, CA1311, CA1862
         var user = await dbContext.Users
@@ -71,7 +71,18 @@ public sealed class AuthenticationService(
             if (!hasRoleInGame)
             {
                 dbContext.UserGameRoles.Add(NewPlayerRole(user.Id, game.Id, now));
-                await dbContext.SaveChangesAsync(cancellationToken);
+
+                try
+                {
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                }
+                catch (DbUpdateException)
+                {
+                    // Another concurrent register/self-join call for the same (user, game)
+                    // won the race - the unique index on (user_id, game_id) already caught
+                    // it, so the role exists either way, nothing left to do here.
+                    dbContext.ChangeTracker.Clear();
+                }
             }
             else if (user.EmailConfirmed)
             {
@@ -115,7 +126,7 @@ public sealed class AuthenticationService(
         }
 
         // ToLower() here is translated to SQL lower(), matching the functional unique
-        // index on lower(email) -- it never runs as a CLR string method.
+        // index on lower(email): it never runs as a CLR string method.
 #pragma warning disable CA1304, CA1311, CA1862
         var user = await dbContext.Users
             .SingleOrDefaultAsync(u => u.Email.ToLower() == email.ToLower(), cancellationToken);
@@ -192,7 +203,19 @@ public sealed class AuthenticationService(
         {
             role = NewPlayerRole(userId, gameId, now);
             dbContext.UserGameRoles.Add(role);
-            await dbContext.SaveChangesAsync(cancellationToken);
+
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException)
+            {
+                // Another concurrent select-game call for the same (user, game) won the
+                // race; read back whatever role it created instead of assuming our own
+                // Player default.
+                dbContext.ChangeTracker.Clear();
+                role = await dbContext.UserGameRoles.SingleAsync(r => r.UserId == userId && r.GameId == gameId, cancellationToken);
+            }
         }
 
         var permissions = await permissionResolver.ResolveAsync(role.Role, gameId, cancellationToken);

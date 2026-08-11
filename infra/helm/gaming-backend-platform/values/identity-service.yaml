@@ -1,0 +1,47 @@
+deployments:
+  identity-service:
+    image: identity-service
+    replicas: 2
+    port: 5000
+    service:
+      enabled: true
+      port: 5000
+    configMapName: identity-config
+    # identity-db (a pre-install hook) reads POSTGRES_DB/POSTGRES_USER from
+    # this ConfigMap, so it has to be a hook too; see templates/configmap.yaml.
+    configMapHookWeight: "-30"
+    configMap:
+      POSTGRES_DB: "identity_db"
+      POSTGRES_USER: "identity"
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "http://+:5000"
+      RabbitMq__Host: "rabbitmq"
+      RabbitMq__Port: "5672"
+      RabbitMq__ExchangeName: "gbp.identity"
+      Telemetry__OtlpEndpoint: "http://otel-collector.observability.svc.cluster.local:4317"
+      Telemetry__LokiEndpoint: "http://loki.observability.svc.cluster.local:3100"
+    envFrom:
+      - configMapRef: {name: shared-config}
+      - configMapRef: {name: identity-config}
+      - secretRef: {name: identity-secrets}
+    env:
+      - name: RabbitMq__Username
+        valueFrom: {secretKeyRef: {name: rabbitmq-secrets, key: RABBITMQ_DEFAULT_USER}}
+      - name: RabbitMq__Password
+        valueFrom: {secretKeyRef: {name: rabbitmq-secrets, key: RABBITMQ_DEFAULT_PASS}}
+    livenessProbe:
+      httpGet: {path: /health, port: 5000}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    readinessProbe:
+      httpGet: {path: /health/ready, port: 5000}
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70

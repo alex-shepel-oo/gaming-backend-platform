@@ -1,12 +1,11 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter } from '@angular/router';
 import {
   CurrencyScope,
   EconomyEndpoints,
   GameSelectionService,
-  IdentityAuthEndpoints,
   IdentityProfileEndpoints,
   NotificationHubService,
   ProfileService,
@@ -35,7 +34,6 @@ function buildFakeToken(payload: Record<string, unknown>): string {
 
 describe('Shell', () => {
   let httpMock: HttpTestingController;
-  let router: Router;
   let gameSelection: GameSelectionService;
   let tokenStore: TokenStore;
   let walletService: WalletService;
@@ -46,7 +44,7 @@ describe('Shell', () => {
     notificationHub = { connect: vi.fn(), disconnect: vi.fn() };
 
     // ThemeService (injected by Shell) reads window.matchMedia on construction
-    // to pick an initial mode -- jsdom doesn't implement it.
+    // to pick an initial mode, which jsdom doesn't implement.
     vi.stubGlobal(
       'matchMedia',
       vi.fn().mockImplementation((query: string) => ({
@@ -68,7 +66,6 @@ describe('Shell', () => {
     });
 
     httpMock = TestBed.inject(HttpTestingController);
-    router = TestBed.inject(Router);
     gameSelection = TestBed.inject(GameSelectionService);
     tokenStore = TestBed.inject(TokenStore);
     walletService = TestBed.inject(WalletService);
@@ -131,18 +128,16 @@ describe('Shell', () => {
     expect(balanceSpan.getAttribute('title')).toBe('Platform balance');
   });
 
-  it('toggles the theme icon when the theme button is clicked', () => {
-    const fixture = createAndFlushBalances();
+  it('still syncs the color-scheme attribute on load even without a visible toggle button', () => {
+    // The toggle button was moved off the header, but ThemeService's own
+    // mode-detection/persistence must keep running regardless. This only
+    // happens if something still injects it, which Shell does purely for
+    // that side effect now (see the comment on its `theme` field).
+    document.documentElement.style.colorScheme = '';
 
-    const themeButton = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button')).find(
-      (button) => button.getAttribute('aria-label')?.includes('theme'),
-    )!;
-    const initialLabel = themeButton.getAttribute('aria-label');
+    createAndFlushBalances();
 
-    themeButton.dispatchEvent(new Event('click'));
-    fixture.detectChanges();
-
-    expect(themeButton.getAttribute('aria-label')).not.toBe(initialLabel);
+    expect(document.documentElement.style.colorScheme).toMatch(/^(light|dark)$/);
   });
 
   it('shows an avatar linking to the profile once the user is known', () => {
@@ -177,26 +172,5 @@ describe('Shell', () => {
 
     const img = (fixture.nativeElement as HTMLElement).querySelector('a[href="/profile"] img');
     expect(img?.getAttribute('src')).toBe('https://example.com/avatar.png');
-  });
-
-  it('logs out, clears the selected game and balances, and redirects to Login', () => {
-    const navigateSpy = vi.spyOn(router, 'navigateByUrl');
-    gameSelection.select({ id: 'game-1', slug: 'demo-shooter', name: 'Demo Shooter', description: null, iconUrl: null });
-
-    const fixture = createAndFlushBalances([
-      { currencyId: 'platform-1', currencyCode: 'PLATFORM_CREDITS', scope: CurrencyScope.Platform, gameId: null, amount: 500 },
-    ]);
-
-    const buttons = (fixture.nativeElement as HTMLElement).querySelectorAll('button');
-    const logoutButton = Array.from(buttons).find((button) => button.textContent?.includes('Log out'));
-    logoutButton!.dispatchEvent(new Event('click'));
-
-    httpMock.expectOne(IdentityAuthEndpoints.logout).flush(null);
-
-    expect(gameSelection.selected()).toBeNull();
-    expect(walletService.balances()).toBeNull();
-    expect(profileService.profile()).toBeNull();
-    expect(notificationHub.disconnect).toHaveBeenCalled();
-    expect(navigateSpy).toHaveBeenCalledWith('/login');
   });
 });

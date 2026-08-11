@@ -38,6 +38,10 @@ public sealed partial class CleanupExpiredTokensJob(
             .Where(c => c.ExpiresAt < now)
             .ExecuteDeleteAsync(cancellationToken);
 
+        var deletedPasswordResetTokens = await identityDbContext.PasswordResetTokens
+            .Where(t => t.ExpiresAt < now || t.ConsumedAt != null)
+            .ExecuteDeleteAsync(cancellationToken);
+
         await using var economyDbContext = await economyDbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var retentionCutoff = now - TimeSpan.FromDays(options.Value.OutboxRetentionDays);
@@ -45,11 +49,13 @@ public sealed partial class CleanupExpiredTokensJob(
             .Where(m => m.ProcessedAt != null && m.ProcessedAt < retentionCutoff)
             .ExecuteDeleteAsync(cancellationToken);
 
-        LogCleanupCompleted(deletedFamilies, deletedCodes, deletedOutboxMessages);
+        LogCleanupCompleted(deletedFamilies, deletedCodes, deletedPasswordResetTokens, deletedOutboxMessages);
     }
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "Cleanup removed {DeletedFamilies} refresh token families, {DeletedCodes} verification codes, and {DeletedOutboxMessages} outbox messages")]
-    private partial void LogCleanupCompleted(int deletedFamilies, int deletedCodes, int deletedOutboxMessages);
+        Message = "Cleanup removed {DeletedFamilies} refresh token families, {DeletedCodes} verification codes, " +
+            "{DeletedPasswordResetTokens} password reset tokens, and {DeletedOutboxMessages} outbox messages")]
+    private partial void LogCleanupCompleted(
+        int deletedFamilies, int deletedCodes, int deletedPasswordResetTokens, int deletedOutboxMessages);
 }

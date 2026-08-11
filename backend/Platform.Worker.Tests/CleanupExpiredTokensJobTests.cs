@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using BuildingBlocks.Messaging.Outbox;
+using BuildingBlocks.Testing;
 using EconomyService.Domain;
 using EconomyService.Persistence;
 using IdentityService.Domain;
@@ -24,13 +25,13 @@ namespace Platform.Worker.Tests;
 [TestFixture]
 public sealed class CleanupExpiredTokensJobTests : IAsyncDisposable
 {
-    private readonly PostgreSqlContainer _identityContainer = new PostgreSqlBuilder("postgres:17-alpine")
+    private readonly PostgreSqlContainer _identityContainer = new PostgreSqlBuilder(TestContainerImages.Postgres)
         .WithDatabase("identity_db")
         .WithUsername("identity")
         .WithPassword("identity_test_password")
         .Build();
 
-    private readonly PostgreSqlContainer _economyContainer = new PostgreSqlBuilder("postgres:17-alpine")
+    private readonly PostgreSqlContainer _economyContainer = new PostgreSqlBuilder(TestContainerImages.Postgres)
         .WithDatabase("economy_db")
         .WithUsername("economy")
         .WithPassword("economy_test_password")
@@ -113,6 +114,25 @@ public sealed class CleanupExpiredTokensJobTests : IAsyncDisposable
         await using var verifyContext = CreateIdentityDbContext();
         var remainingIds = await verifyContext.EmailVerificationCodes.Select(c => c.Id).ToListAsync(TestContext.CurrentContext.CancellationToken);
         remainingIds.Should().ContainSingle().Which.Should().Be(liveCodeId);
+    }
+
+    [Test]
+    public async Task Execute_DeletesExpiredOrConsumedPasswordResetTokensButKeepsLiveOnes()
+    {
+        var now = new DateTimeOffset(2026, 7, 19, 0, 0, 0, TimeSpan.Zero);
+        var expiredUserId = await SeedUserAsync();
+        var consumedUserId = await SeedUserAsync();
+        var liveUserId = await SeedUserAsync();
+
+        await SeedPasswordResetTokenAsync(expiredUserId, now.AddHours(-1), consumedAt: null);
+        await SeedPasswordResetTokenAsync(consumedUserId, now.AddHours(1), consumedAt: now.AddMinutes(-5));
+        var liveTokenId = await SeedPasswordResetTokenAsync(liveUserId, now.AddHours(1), consumedAt: null);
+
+        await RunJobAsync(now);
+
+        await using var verifyContext = CreateIdentityDbContext();
+        var remainingIds = await verifyContext.PasswordResetTokens.Select(t => t.Id).ToListAsync(TestContext.CurrentContext.CancellationToken);
+        remainingIds.Should().ContainSingle().Which.Should().Be(liveTokenId);
     }
 
     [Test]
@@ -222,6 +242,23 @@ public sealed class CleanupExpiredTokensJobTests : IAsyncDisposable
         dbContext.EmailVerificationCodes.Add(code);
         await dbContext.SaveChangesAsync(TestContext.CurrentContext.CancellationToken);
         return code.Id;
+    }
+
+    private async Task<Guid> SeedPasswordResetTokenAsync(Guid userId, DateTimeOffset expiresAt, DateTimeOffset? consumedAt)
+    {
+        await using var dbContext = CreateIdentityDbContext();
+        var token = new PasswordResetToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            TokenHash = Guid.NewGuid().ToByteArray(),
+            CreatedAt = DateTimeOffset.UtcNow,
+            ExpiresAt = expiresAt,
+            ConsumedAt = consumedAt,
+        };
+        dbContext.PasswordResetTokens.Add(token);
+        await dbContext.SaveChangesAsync(TestContext.CurrentContext.CancellationToken);
+        return token.Id;
     }
 
     private async Task<Guid> SeedOutboxMessageAsync(DateTimeOffset occurredAt, DateTimeOffset? processedAt)

@@ -1,57 +1,181 @@
 @use '../../styles/states';
-@use '../../styles/forms';
+@use 'mixins';
+@use 'typography';
 
 .state-panel {
   @include states.state-panel();
 }
 
-.profile-card {
-  max-width: 480px;
-  margin-bottom: var(--app-space-md);
-}
-
-.profile-identity {
-  display: flex;
-  align-items: center;
-  gap: var(--app-space-md);
-}
-
-.profile-name {
-  margin: 0;
-}
-
-.profile-role {
-  margin: 0;
-  color: var(--mat-sys-on-surface-variant);
-}
-
-.profile-fields {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: var(--app-space-sm) var(--app-space-md);
-  margin: 0;
-
-  dt {
-    color: var(--mat-sys-on-surface-variant);
-  }
-
-  dd {
-    margin: 0;
-  }
+.profile-title {
+  @include typography.text-headline-lg;
+  margin: 0 0 var(--app-space-lg);
 }
 
 .profile-error {
   @include states.error-text();
 }
 
-.profile-edit-form {
-  @include forms.stack();
-  @include forms.full-width-field();
-  max-width: 360px;
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--app-space-lg);
+  align-items: start;
+
+  // Matches the mockup's flex-col -> md:flex-row switch. Without collapsing
+  // the column count here too, the children's own span-1 fallback below
+  // only claims 1 of 12 columns instead of the full width.
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
 }
 
-.profile-saved {
+.profile-grid__side {
+  grid-column: span 4;
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-lg);
+
+  @media (max-width: 900px) {
+    grid-column: span 1;
+  }
+}
+
+.profile-card {
+  padding: var(--app-space-xl);
+  border-radius: 16px;
+  @include mixins.glass-panel;
+}
+
+.profile-edit-card {
+  grid-column: span 8;
+
+  @media (max-width: 900px) {
+    grid-column: span 1;
+  }
+}
+
+.profile-card__heading {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-sm);
+  margin: 0 0 var(--app-space-lg);
+
+  mat-icon {
+    color: var(--app-color-player-primary);
+  }
+}
+
+.profile-card__title {
+  @include typography.text-headline-md;
   margin: 0;
-  color: var(--mat-sys-primary);
-  font: var(--mat-sys-body-medium);
+}
+
+.profile-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--app-space-xs);
+  text-align: center;
+}
+
+.profile-identity__name {
+  margin: var(--app-space-sm) 0 0;
+  @include typography.text-headline-md;
+}
+
+.profile-identity__role {
+  margin: 0 0 var(--app-space-lg);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.profile-identity__meta {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-sm);
+  margin: 0;
+  padding-top: var(--app-space-md);
+  border-top: 1px solid color-mix(in srgb, var(--mat-sys-outline-variant) 60%, transparent);
+}
+
+.profile-identity__meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-sm);
+  text-align: left;
+
+  dt {
+    color: var(--mat-sys-on-surface-variant);
+    @include typography.text-label-md;
+  }
+
+  dd {
+    margin: 0;
+    text-align: right;
+  }
+}
+
+.profile-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-xs);
+  margin-top: var(--app-space-lg);
+  padding: var(--app-space-sm) var(--app-space-lg);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 8px;
+  background: none;
+  color: var(--mat-sys-on-surface-variant);
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease;
+  @include typography.text-label-md;
+
+  &:hover {
+    color: var(--mat-sys-error);
+    border-color: var(--mat-sys-error);
+    background: color-mix(in srgb, var(--mat-sys-error) 10%, transparent);
+  }
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+}
+
+.profile-wallet-card {
+  border-color: color-mix(in srgb, var(--app-color-code-gold) 40%, transparent);
+  box-shadow: 0 0 15px color-mix(in srgb, var(--app-color-code-gold) 10%, transparent);
+}
+
+.profile-wallet-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--app-space-md);
+  color: var(--mat-sys-on-surface-variant);
+
+  mat-icon {
+    color: var(--app-color-code-gold);
+  }
+}
+
+.profile-wallet-card__label {
+  @include typography.text-label-sm;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.profile-wallet-card__amount {
+  font-family: 'Sora', sans-serif;
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--app-color-code-gold);
+}
+
+.profile-wallet-card__unit {
+  font-size: 20px;
+  opacity: 0.7;
 }

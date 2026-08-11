@@ -49,7 +49,8 @@ names.**
   not shared data). Two more claims land alongside it: **`scope`** (`account` / `game` / `platform` —
   disambiguates an ecosystem-wide session, `account`, from a genuinely nonexistent value that today's
   overloaded `game_id IS NULL` conflates with platform-admin) and **`aud`** (`gbp-player` today;
-  `gbp-admin` reserved for the admin surface a later group adds).
+  `gbp-admin` reserved for the admin surface a later group adds — that reservation was filled by
+  [ADR-0016](0016-admin-surface-isolation.md), which is now the one actually issuing it).
 - **Anti-escalation is one rule, applied uniformly:** an editor may only grant permissions that are (a)
   within their own scope (a game admin only touches `game.*` rows for their own `game_id`; only
   `platform.roles.manage` reaches platform-wide rows or another game's rows) and (b) already present in
@@ -97,7 +98,8 @@ token until its next refresh; `revoke-sessions` is the escape hatch, not automat
 touches three services and two independent test fixtures that mint tokens outside `TokenService`** —
 this is a wider blast radius than a typical claim addition, and has to land as one atomic change or the
 platform is unreachable in between. **`gbp-admin` sits unused for a while** — reserved ahead of the group
-that actually issues it, rather than added when needed, to avoid touching this validation code twice.
+that actually issues it, rather than added when needed, to avoid touching this validation code twice
+(it's issued now, by [ADR-0016](0016-admin-surface-isolation.md)).
 
 ### When this gets revisited
 

@@ -13,7 +13,7 @@ metadata:
   annotations:
     # identity-config/economy-config feed identity-db/economy-db's own env
     # (POSTGRES_DB/POSTGRES_USER via configMapKeyRef), and that StatefulSet
-    # is itself a pre-install/pre-upgrade hook -- so this ConfigMap has to be
+    # is itself a pre-install/pre-upgrade hook, so this ConfigMap has to be
     # a hook too, at an earlier weight, or it simply doesn't exist yet when
     # the StatefulSet hook tries to read it (found the hard way: a fresh
     # `helm install` left identity-db/economy-db stuck in
@@ -35,7 +35,7 @@ data:
   {{- end }}
   {{- if eq $name "otel-collector" }}
   # Generated straight from infra/otel-collector/otel-collector-config.yaml
-  # (see values.yaml's observability.otelCollectorConfigYaml comment) -- the
+  # (see values.yaml's observability.otelCollectorConfigYaml comment): the
   # docker-compose bind mount becomes a --set-file value instead, same
   # one-copy reasoning as the gateway's ocelot config above.
   otel-collector-config.yaml: |

@@ -1,55 +1,120 @@
-.shell-toolbar {
+@use 'mixins';
+@use 'typography';
+
+.shell-header {
   position: sticky;
   top: 0;
   z-index: 10;
-  gap: var(--app-space-md);
+  background: color-mix(in srgb, var(--mat-sys-surface) 60%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--mat-sys-outline-variant);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--app-color-player-primary) 20%, transparent);
+}
 
-  // Below ~900px the brand + nav + balance + theme toggle + avatar + logout
-  // no longer fit on one row. Below that point, wrap onto multiple full-width
-  // rows instead of forcing horizontal page scroll -- and instead of letting
-  // .shell-nav (the only item with room to give, via its own internal wrap)
-  // silently take the hit and stack its links into an ugly vertical pile.
+.shell-header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-md);
+  height: 80px;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 var(--app-space-md);
+  box-sizing: border-box;
+
+  @media (min-width: 768px) {
+    padding: 0 var(--app-space-xl);
+  }
+
+  // Below ~900px the brand+nav+balance+actions no longer fit on one row --
+  // wrap onto full-width rows instead of forcing horizontal page scroll.
   @media (max-width: 899px) {
     flex-wrap: wrap;
     height: auto;
     padding-block: var(--app-space-sm);
   }
+
+  @media (max-width: 639px) {
+    .shell-nav {
+      display: none;
+    }
+  }
+}
+
+.shell-header__brand-group {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-xl);
+}
+
+.shell-brand-link {
+  display: inline-flex;
+  flex-shrink: 0;
 }
 
 .shell-brand {
-  font: var(--mat-sys-title-medium);
-  white-space: nowrap;
+  height: 64px;
+  width: auto;
 }
 
 .shell-nav {
   display: flex;
-  gap: var(--app-space-xs);
+  align-items: center;
+  gap: var(--app-space-lg);
   flex-wrap: wrap;
-
-  // Never let the toolbar's flexbox shrink this below its natural width to
-  // satisfy a tight row -- that's what let Games/Wallet/Convert collapse
-  // into their own internal wrap (stacked on top of each other) instead of
-  // the toolbar just wrapping the whole nav onto its own row.
   flex-shrink: 0;
 }
 
-.shell-nav-link-active {
-  background-color: rgb(from var(--mat-sys-primary) r g b / 0.12);
-  font-weight: 600;
+.shell-nav-link {
+  padding: var(--app-space-sm) var(--app-space-md);
+  border-radius: 8px;
+  color: var(--mat-sys-on-surface-variant);
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease;
+  @include typography.text-label-md;
+
+  &:hover {
+    color: var(--mat-sys-primary);
+    background: rgba(255, 255, 255, 0.1);
+  }
 }
 
-.shell-spacer {
-  flex: 1 1 auto;
+.shell-nav-link-active {
+  color: var(--mat-sys-primary);
+  background-color: rgb(from var(--mat-sys-primary) r g b / 0.12);
+  font-weight: 700;
+}
+
+.shell-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-md);
 }
 
 .shell-balance {
   display: inline-flex;
   align-items: center;
   gap: var(--app-space-xs);
-  font: var(--mat-sys-label-large);
-  font-weight: 600;
+  padding: var(--app-space-xs) var(--app-space-md);
+  border-radius: 999px;
+  background: var(--mat-sys-surface-container-low);
+  border: 1px solid var(--mat-sys-outline-variant);
+  box-shadow: 0 0 15px color-mix(in srgb, var(--app-color-code-gold) 30%, transparent);
+  color: var(--app-color-code-gold);
+  font-weight: 700;
   white-space: nowrap;
+  @include typography.text-label-md;
+
+  mat-icon {
+    color: var(--app-color-code-gold);
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+  }
 }
 
 .shell-balance-icon {
@@ -60,9 +125,10 @@
 }
 
 .shell-game {
-  font: var(--mat-sys-label-large);
+  color: var(--mat-sys-on-surface);
   opacity: 0.85;
   white-space: nowrap;
+  @include typography.text-label-md;
 }
 
 .shell-avatar-link {
@@ -74,4 +140,58 @@
   max-width: var(--app-shell-max-width);
   margin: 0 auto;
   padding: var(--app-space-lg) var(--app-space-md);
+
+  @media (max-width: 639px) {
+    padding-bottom: calc(var(--app-space-lg) + 72px);
+  }
+}
+
+.shell-bottom-nav {
+  display: none;
+
+  @media (max-width: 639px) {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    z-index: 10;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    width: 100%;
+    padding: var(--app-space-xs) var(--app-space-sm);
+    box-sizing: border-box;
+    background: color-mix(in srgb, var(--mat-sys-surface) 80%, transparent);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-top: 1px solid var(--mat-sys-outline-variant);
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.4);
+  }
+}
+
+.shell-bottom-nav-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--app-space-xs) var(--app-space-md);
+  border-radius: 12px;
+  color: var(--mat-sys-on-surface-variant);
+  text-decoration: none;
+  font: var(--mat-sys-label-small);
+  transition: transform 0.15s ease;
+
+  &:active {
+    transform: scale(0.9);
+  }
+
+  mat-icon {
+    font-size: 22px;
+    width: 22px;
+    height: 22px;
+  }
+}
+
+.shell-bottom-nav-link-active {
+  background-color: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
 }

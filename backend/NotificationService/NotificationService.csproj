@@ -5,6 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\BuildingBlocks.Auth\BuildingBlocks.Auth.csproj" />
     <ProjectReference Include="..\BuildingBlocks.Messaging\BuildingBlocks.Messaging.csproj" />
     <ProjectReference Include="..\BuildingBlocks.Telemetry\BuildingBlocks.Telemetry.csproj" />
   </ItemGroup>

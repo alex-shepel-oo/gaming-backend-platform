@@ -9,11 +9,13 @@ WORKDIR /src
 
 COPY Directory.Build.props Directory.Packages.props ./
 COPY NotificationService/NotificationService.csproj NotificationService/
+COPY BuildingBlocks.Auth/BuildingBlocks.Auth.csproj BuildingBlocks.Auth/
 COPY BuildingBlocks.Messaging/BuildingBlocks.Messaging.csproj BuildingBlocks.Messaging/
 COPY BuildingBlocks.Telemetry/BuildingBlocks.Telemetry.csproj BuildingBlocks.Telemetry/
 RUN dotnet restore NotificationService/NotificationService.csproj
 
 COPY NotificationService/ NotificationService/
+COPY BuildingBlocks.Auth/ BuildingBlocks.Auth/
 COPY BuildingBlocks.Messaging/ BuildingBlocks.Messaging/
 COPY BuildingBlocks.Telemetry/ BuildingBlocks.Telemetry/
 RUN dotnet publish NotificationService/NotificationService.csproj -c Release -o /app --no-restore

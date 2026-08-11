@@ -1,0 +1,29 @@
+statefulsets:
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    containerPorts:
+      - {name: amqp, containerPort: 5672}
+      - {name: management, containerPort: 15672}
+    svcPorts:
+      - {name: amqp, port: 5672, targetPort: 5672}
+      - {name: management, port: 15672, targetPort: 15672}
+    env:
+      - name: RABBITMQ_DEFAULT_USER
+        valueFrom: {secretKeyRef: {name: rabbitmq-secrets, key: RABBITMQ_DEFAULT_USER}}
+      - name: RABBITMQ_DEFAULT_PASS
+        valueFrom: {secretKeyRef: {name: rabbitmq-secrets, key: RABBITMQ_DEFAULT_PASS}}
+    volumeMount: {name: rabbitmq-data, mountPath: /var/lib/rabbitmq}
+    storage: 1Gi
+    # rabbitmq-diagnostics boots a whole separate Erlang node just to RPC into
+    # the running one, which under this StatefulSet's 500m CPU limit
+    # occasionally missed even a 10s timeout while the broker itself stayed
+    # fully responsive on 5672 the entire time. A plain TCP check on the AMQP
+    # port proves the same thing for a fraction of the cost.
+    readinessProbe:
+      tcpSocket: {port: 5672}
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      timeoutSeconds: 5
+    resources:
+      requests: {cpu: 250m, memory: 256Mi}
+      limits: {cpu: 500m, memory: 512Mi}

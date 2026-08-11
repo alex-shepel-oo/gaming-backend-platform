@@ -1,8 +1,9 @@
 using System.Globalization;
 using System.Net;
 using AwesomeAssertions;
+using BuildingBlocks.Auth;
 using BuildingBlocks.Messaging;
-using EconomyService.Auth;
+using BuildingBlocks.Testing;
 using EconomyService.Persistence;
 using EconomyService.Tests.Integration.Fixtures;
 using Microsoft.AspNetCore.Hosting;
@@ -26,13 +27,13 @@ namespace EconomyService.Tests.Integration;
 [TestFixture]
 public sealed class HealthReadyRabbitMqDownTests : IAsyncDisposable
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17-alpine")
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder(TestContainerImages.Postgres)
         .WithDatabase("economy_db")
         .WithUsername("economy")
         .WithPassword("economy_test_password")
         .Build();
 
-    private readonly RabbitMqContainer _rabbitMq = new RabbitMqBuilder("rabbitmq:4-management-alpine")
+    private readonly RabbitMqContainer _rabbitMq = new RabbitMqBuilder(TestContainerImages.RabbitMq)
         .WithUsername("guest")
         .WithPassword("guest")
         .Build();
@@ -77,7 +78,7 @@ public sealed class HealthReadyRabbitMqDownTests : IAsyncDisposable
 
         // The broker must be up when the factory builds the host: topology
         // declaration runs as a hosted service at startup and fails fast if
-        // it can't reach RabbitMQ (A.1), so a client can't even be created
+        // it can't reach RabbitMQ, so a client can't even be created
         // against an already-dead broker.
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
@@ -92,14 +93,14 @@ public sealed class HealthReadyRabbitMqDownTests : IAsyncDisposable
                     ["RabbitMq:Username"] = "guest",
                     ["RabbitMq:Password"] = "guest",
 
-                    // Not what this class exercises -- keeps this isolated host's DB state
+                    // Not what this class exercises; keeps this isolated host's DB state
                     // (and startup path) identical to every other test's "Testing" default.
                     ["Seeding:Enabled"] = "false",
                     ["Api:ExposeOpenApi"] = "false",
                 }));
 
             // The app's startup path does one blocking JWKS refresh before it accepts any
-            // requests, unrelated to what this test itself exercises -- it still needs
+            // requests, unrelated to what this test itself exercises; it still needs
             // somewhere to succeed against.
             builder.ConfigureServices(services => services
                 .AddHttpClient<IJwksKeyCache, JwksKeyCache>()

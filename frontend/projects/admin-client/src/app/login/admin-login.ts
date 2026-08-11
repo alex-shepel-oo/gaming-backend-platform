@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -7,7 +7,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { AuthService, EMAIL_NOT_CONFIRMED_PROBLEM_TYPE, TokenStore } from 'shared';
 
 type LoginError = 'invalid-credentials' | 'email-not-confirmed';
@@ -27,9 +27,10 @@ function classifyLoginError(error: unknown): LoginError {
 // Admin login is always account-first: there is no game-slug field, unlike
 // the game-specific logins of an earlier era of player-client. A platform
 // role lands the caller straight in; anyone without one (e.g. a Game-Admin
-// scoped to a single game) needs to pick which game to act on first -- that
-// picker is a separate route (select-game), not part of this component.
+// scoped to a single game) needs to pick which game to act on first, via a
+// separate route (select-game), not part of this component.
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'admin-login',
   imports: [
     ReactiveFormsModule,
@@ -39,6 +40,7 @@ function classifyLoginError(error: unknown): LoginError {
     MatInputModule,
     MatButtonModule,
     MatProgressSpinnerModule,
+    RouterLink,
   ],
   templateUrl: './admin-login.html',
   styleUrl: './admin-login.scss',
@@ -82,7 +84,7 @@ export class AdminLogin {
   private routeAfterLogin(): void {
     const scope = this.tokenStore.claims()?.scope;
 
-    // 'account' -- no platform role yet, so the caller has to pick which
+    // 'account': no platform role yet, so the caller has to pick which
     // game to act as an admin/moderator for. 'platform' and 'game' (the
     // latter shouldn't normally happen straight off a slug-less login, but
     // if it does, it's already scoped into something usable) both go
@@ -93,6 +95,6 @@ export class AdminLogin {
       return;
     }
 
-    this.router.navigateByUrl('/dashboard');
+    this.router.navigateByUrl('/users');
   }
 }

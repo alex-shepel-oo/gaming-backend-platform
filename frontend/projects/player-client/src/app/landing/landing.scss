@@ -1,0 +1,242 @@
+@use 'mixins';
+@use 'typography';
+
+.landing {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--app-space-2xl);
+  padding: var(--app-space-2xl) var(--app-space-md);
+  min-height: 100%;
+  box-sizing: border-box;
+}
+
+.landing__orb {
+  &--primary {
+    @include mixins.ambient-orb(500px);
+    top: -150px;
+    left: -150px;
+  }
+
+  &--container {
+    @include mixins.ambient-orb(400px, var(--mat-sys-primary-container), 0.3);
+    top: 10%;
+    right: -100px;
+  }
+}
+
+.landing__hero {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--app-space-lg);
+  max-width: 640px;
+  text-align: left;
+}
+
+.landing__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-sm);
+  padding: var(--app-space-sm) var(--app-space-md);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mat-sys-surface-container-high) 50%, transparent);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--mat-sys-outline-variant);
+
+  mat-icon {
+    color: var(--app-color-player-primary);
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+
+  span {
+    @include typography.text-label-sm;
+    color: var(--mat-sys-on-surface-variant);
+    text-transform: uppercase;
+  }
+}
+
+.landing__title {
+  @include typography.text-display;
+  margin: 0;
+  background: linear-gradient(
+    90deg,
+    var(--mat-sys-on-surface),
+    var(--mat-sys-primary),
+    var(--app-color-player-primary)
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.landing__subtitle {
+  margin: 0;
+  max-width: 42ch;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-large);
+}
+
+.landing__disclaimer {
+  margin: 0;
+  max-width: 48ch;
+  color: var(--mat-sys-outline);
+  font: var(--mat-sys-body-small);
+  font-style: italic;
+}
+
+.landing__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-md);
+}
+
+.landing__cta {
+  @include mixins.glow-button;
+}
+
+.landing__features {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 960px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--app-space-md);
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.landing__feature {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-md);
+  padding: var(--app-space-lg);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--mat-sys-surface-container-low) 60%, transparent);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--mat-sys-outline-variant);
+
+  h3 {
+    margin: 0 0 var(--app-space-xs);
+    font: var(--mat-sys-title-medium);
+  }
+
+  p {
+    margin: 0;
+    color: var(--mat-sys-on-surface-variant);
+    font: var(--mat-sys-body-medium);
+  }
+
+  &--wide {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+.landing__feature-icon {
+  --accent: var(--app-color-player-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+
+  mat-icon {
+    color: var(--accent);
+  }
+
+  &--gold {
+    --accent: var(--app-color-code-gold);
+  }
+
+  &--secondary {
+    --accent: var(--mat-sys-secondary);
+  }
+}
+
+.landing__section {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 960px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-md);
+}
+
+.landing__section-title {
+  margin: 0;
+  @include typography.text-headline-lg;
+}
+
+.landing__section-subtitle {
+  margin: calc(-1 * var(--app-space-sm)) 0 0;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-medium);
+}
+
+.landing__roadmap {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--app-space-md);
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.landing__roadmap-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-sm);
+  padding: var(--app-space-lg);
+  border-radius: 16px;
+  // Dashed, not solid like .landing__feature -- a visual cue that these
+  // aren't built yet, distinct from the "what's under the hood" tiles above.
+  border: 1px dashed var(--mat-sys-outline-variant);
+  background: color-mix(in srgb, var(--mat-sys-surface-container-low) 30%, transparent);
+
+  h3 {
+    margin: 0 0 var(--app-space-xs);
+    font: var(--mat-sys-title-medium);
+  }
+
+  p {
+    margin: 0;
+    color: var(--mat-sys-on-surface-variant);
+    font: var(--mat-sys-body-medium);
+  }
+}
+
+.landing__roadmap-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  mat-icon {
+    color: var(--mat-sys-outline);
+  }
+}
+
+.landing__roadmap-tag {
+  padding: 2px var(--app-space-sm);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mat-sys-outline) 15%, transparent);
+  color: var(--mat-sys-on-surface-variant);
+  @include typography.text-label-sm;
+  text-transform: uppercase;
+}

@@ -1,0 +1,33 @@
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--app-space-xs) var(--app-space-sm);
+  border-radius: 999px;
+  font: var(--mat-sys-label-medium);
+  white-space: nowrap;
+
+  &--success {
+    background-color: var(--app-color-success-container);
+    color: var(--app-color-on-success-container);
+  }
+
+  &--warning {
+    background-color: var(--app-color-warning-container);
+    color: var(--app-color-on-warning-container);
+  }
+
+  &--error {
+    background-color: var(--mat-sys-error-container);
+    color: var(--mat-sys-on-error-container);
+  }
+
+  &--progress {
+    background-color: var(--mat-sys-secondary-container);
+    color: var(--mat-sys-on-secondary-container);
+  }
+
+  &--neutral {
+    background-color: var(--mat-sys-surface-container-high);
+    color: var(--mat-sys-on-surface-variant);
+  }
+}

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BuildingBlocks.Messaging;
 using BuildingBlocks.Messaging.Tracing;
+using BuildingBlocks.Telemetry;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 using NotificationService.Hubs;
@@ -12,7 +13,7 @@ namespace NotificationService.Messaging;
 // Not InboxConsumerBase<TDbContext>: that base class requires a DbContext for
 // its dedup transaction, and this service has no database by design.
 // Hand-rolled BackgroundService straight on IRabbitMqConnection instead, with
-// no dedup step at all -- a redelivered message just pushes the same (still
+// no dedup step at all - a redelivered message just pushes the same (still
 // current) balance again, which a client harmlessly re-renders.
 public sealed partial class BalanceChangedConsumer(
     IRabbitMqConnection connection,
@@ -58,7 +59,7 @@ public sealed partial class BalanceChangedConsumer(
             {
                 // The payload already carries the user id for SignalR routing below - tagging the
                 // span with it costs nothing extra and is the whole point of this consumer's trace.
-                activity?.SetTag("enduser.id", notification.UserId);
+                activity?.SetTag(OtelConventions.EnduserId, notification.UserId);
 
                 await hubContext.Clients.User(notification.UserId.ToString())
                     .SendAsync("balanceChanged", new

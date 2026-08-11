@@ -1,0 +1,12 @@
+# Real Resend SMTP relay instead of mailpit. shepel.dev is verified with Resend now
+# (MX/SPF on send.shepel.dev, DKIM via resend._domainkey.shepel.dev), so Email__From
+# is a real address on it instead of the onboarding@resend.dev sandbox sender that
+# only ever delivers to the account owner's own inbox. Credentials themselves live in
+# secrets.enc/email-service.enc.yaml, not here.
+deployments:
+  email-service:
+    configMap:
+      Email__Smtp__Host: "smtp.resend.com"
+      Email__Smtp__Port: "587"
+      Email__Smtp__UseStartTls: "true"
+      Email__From: "no-reply@shepel.dev"
