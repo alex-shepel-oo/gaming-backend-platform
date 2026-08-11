@@ -114,4 +114,4 @@ echo "Deploying the Helm release..."
 bash "$REPO_ROOT/scripts/k8s/apply.sh"
 
 echo ""
-echo "Stack up. See README.md's Kubernetes section for the *.localhost hosts and seeded demo accounts."
+echo "Stack up. See docs/operations/deployment.md for the *.localhost hosts and seeded demo accounts."
