@@ -16,11 +16,21 @@ empty: it was reachable and configured, but tracking nothing.
 ## Decision
 
 **Argo CD watches `main` and auto-syncs on every commit there** — never `develop`,
-never an open PR. `scripts/k8s/argocd-application-production.yaml` is the
+never an open PR. `scripts/k8s/argocd-apps/gaming-backend-platform.yaml` is the
 `Application` that does this; `syncPolicy.automated` was left out until `develop` had
 actually merged into `main` and a manual sync had been verified clean by hand, so
 turning it on wouldn't immediately revert the live cluster to whatever `main` had
 before that merge.
+
+**That `Application` is itself watched by a second, root `Application`**
+(`scripts/k8s/argocd-root.yaml`, `directory` source over `scripts/k8s/argocd-apps/`).
+The first real chart restructuring after this was written landed on `main` while the
+live cluster's `Application` object still held the `valueFiles` list from before that
+restructuring — nothing had re-applied it, since a plain Kubernetes resource created by
+a one-off `kubectl apply` doesn't update itself just because the file that produced it
+changed in git. The root `Application` closes exactly that gap: it's still applied by
+hand once, but everything under `argocd-apps/` after that — including edits to this
+very file — reaches the cluster on the next auto-sync like any other change.
 
 **Two live incidents shaped the final RBAC and sync-trigger shape:**
 

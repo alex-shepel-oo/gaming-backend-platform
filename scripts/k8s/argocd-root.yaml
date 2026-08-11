@@ -1,0 +1,30 @@
+# App-of-Apps root: the one Application still applied to the cluster by hand
+# (`kubectl apply -f scripts/k8s/argocd-root.yaml`, once). Everything under
+# scripts/k8s/argocd-apps/ is a plain Kubernetes manifest this Application
+# syncs like any other directory source, so a future edit to
+# gaming-backend-platform.yaml's own valueFiles/fileParameters — e.g. a new
+# entry when the chart gains another values file — lands in the live cluster
+# on the next auto-sync instead of needing a second manual `kubectl apply`
+# someone has to remember to run.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/alex-shepel-oo/gaming-backend-platform.git
+    targetRevision: main
+    path: scripts/k8s/argocd-apps
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
