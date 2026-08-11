@@ -2,8 +2,7 @@
 
 ```mermaid
 flowchart LR
-    Dev[Developer] -->|git push, path-filtered| CI[GitHub Actions]
-    CI -->|dotnet/npm build + test<br/>Trivy + gitleaks scans| CI
+    Dev[Developer] -->|git push, path-filtered| CI["GitHub Actions<br/>dotnet/npm build + test<br/>Trivy + gitleaks scans"]
     CI -->|push image, tag = commit SHA| GHCR[(GHCR)]
     CI -->|bump this service's<br/>image-tags/*.yaml, push| Main[main branch]
     Main -->|auto-sync, main only,<br/>never develop or a PR| ArgoCD[Argo CD]

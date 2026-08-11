@@ -338,8 +338,7 @@ in the registry.
 
 ```mermaid
 flowchart LR
-    Dev[Developer] -->|git push, path-filtered| CI[GitHub Actions]
-    CI -->|build, test, scan| CI
+    Dev[Developer] -->|git push, path-filtered| CI["GitHub Actions<br/>build, test, scan"]
     CI -->|push image, tag=sha| GHCR[(GHCR)]
     CI -->|bump image-tags/*.yaml| Main[main branch]
     Main -->|auto-sync, main only| ArgoCD[Argo CD]
