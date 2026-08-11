@@ -1,4 +1,4 @@
 # Owned by admin-client-ci.yml. See ADR 0023.
 deployments:
   admin-client:
-    imageTag: a69b3e629f1471d213566a18e83792aea00b7adc
+    imageTag: cdab267b723f74a53ea74c232728abef52485ae5
