@@ -2,8 +2,8 @@ name: Bump image tag
 description: >
   Points a values file's imageTag(s) at the commit that was just built, and
   pushes that change back to main. Argo CD's Application (see
-  scripts/k8s/argocd-application-production.yaml) watches these files with
-  auto-sync on, so this commit is the actual trigger for a production
+  scripts/k8s/argocd-apps/gaming-backend-platform.yaml) watches these files
+  with auto-sync on, so this commit is the actual trigger for a production
   deploy: a rebuilt image under the same floating tag would not be, since
   nothing about the rendered manifest would have changed.
 

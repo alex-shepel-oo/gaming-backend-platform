@@ -16,10 +16,17 @@ commit reaching `main`, not the registry push.
 
 Argo CD watches `main` and auto-syncs the Helm chart from
 [`infra/helm/gaming-backend-platform/`](../../infra/helm/gaming-backend-platform/) — see
-[`scripts/k8s/argocd-application-production.yaml`](../../scripts/k8s/argocd-application-production.yaml)
+[`scripts/k8s/argocd-apps/gaming-backend-platform.yaml`](../../scripts/k8s/argocd-apps/gaming-backend-platform.yaml)
 for the `Application` itself. It only reacts to `main`, never `develop` or an open PR, and only to an
 actual git commit — a fresh image landing in GHCR under the same tag changes nothing about the
 rendered manifest on its own.
+
+That `Application` is itself deployed the same way, via a root
+[`scripts/k8s/argocd-root.yaml`](../../scripts/k8s/argocd-root.yaml) watching everything under
+`scripts/k8s/argocd-apps/` as a plain manifest directory. Only the root needs applying by hand
+(`kubectl apply -f scripts/k8s/argocd-root.yaml`, once); any later edit to the child `Application`
+itself — a new `valueFiles` entry, a `syncPolicy` change — reaches the cluster on the next auto-sync
+instead of needing a second manual `kubectl apply` someone has to remember.
 
 Each service's own CI workflow ends by pointing that service's `imageTag` — in its own file under
 [`image-tags/`](../../infra/helm/gaming-backend-platform/image-tags/), since CI is path-filtered and a
