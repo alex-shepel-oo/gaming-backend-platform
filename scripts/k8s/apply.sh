@@ -19,9 +19,13 @@ RELEASE="gbp"
 
 # Per-service base spec (see ADR 0021), globbed rather than named one by
 # one, so a new file under values/ is picked up automatically instead of
-# needing this script edited every time a service is added.
+# needing this script edited every time a service is added. image-tags/
+# gets the same treatment -- without it, every service silently falls back
+# to values-local.yaml's image.tag: latest, which no image in GHCR is
+# actually published under, and the release fails on the first pre-install
+# migration Job it can't pull an image for.
 VALUES_ARGS=()
-for f in "$CHART"/values/*.yaml; do
+for f in "$CHART"/values/*.yaml "$CHART"/image-tags/*.yaml; do
   VALUES_ARGS+=(-f "$f")
 done
 VALUES_ARGS+=(-f "$CHART/values-local.yaml")

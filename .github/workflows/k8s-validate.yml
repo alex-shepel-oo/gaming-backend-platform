@@ -42,7 +42,7 @@ jobs:
         run: |
           CHART="infra/helm/gaming-backend-platform"
           VALUES_ARGS=()
-          for f in "$CHART"/values/*.yaml; do
+          for f in "$CHART"/values/*.yaml "$CHART"/image-tags/*.yaml; do
             VALUES_ARGS+=(-f "$f")
           done
           VALUES_ARGS+=(-f "$CHART/values-local.yaml")
