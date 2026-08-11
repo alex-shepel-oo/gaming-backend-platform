@@ -28,6 +28,13 @@ That `Application` is itself deployed the same way, via a root
 itself — a new `valueFiles` entry, a `syncPolicy` change — reaches the cluster on the next auto-sync
 instead of needing a second manual `kubectl apply` someone has to remember.
 
+```mermaid
+flowchart LR
+    Manual["kubectl apply, once"] --> Root["argocd-root<br/>watches scripts/k8s/argocd-apps/"]
+    Root -->|auto-sync| Child["gaming-backend-platform<br/>watches infra/helm/gaming-backend-platform/"]
+    Child -->|auto-sync| K8s["Kubernetes<br/>gaming-platform namespace"]
+```
+
 Each service's own CI workflow ends by pointing that service's `imageTag` — in its own file under
 [`image-tags/`](../../infra/helm/gaming-backend-platform/image-tags/), since CI is path-filtered and a
 shared tag would have every service pull an image that was never rebuilt for it — at the commit SHA
